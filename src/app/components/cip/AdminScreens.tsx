@@ -1,91 +1,109 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import {
-  LayoutDashboard, Users, LifeBuoy, CalendarDays, BookOpen, Megaphone,
-  Building2, Heart, Lock, Settings, Bell, Search, Plus, Edit3, Eye,
-  TrendingUp, ChevronDown,
+  LayoutDashboard, Users, LifeBuoy, CalendarDays, FileText, Lock,
+  Settings, Bell, Search, Plus, Edit3, Eye, TrendingUp, ChevronDown,
+  ShieldCheck, ArrowLeft, CheckCircle2, Circle,
 } from "lucide-react";
-import { CiPLogo, NAVY, GOLD, MUTED_BLUE } from "./brand";
+import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
 
 const ADMIN_ITEMS: { key: Screen; label: string; icon: any }[] = [
-  { key: "admin-overview", label: "Overview", icon: LayoutDashboard },
-  { key: "admin-members", label: "Members", icon: Users },
-  { key: "admin-support", label: "Support Requests", icon: LifeBuoy },
-  { key: "admin-events", label: "Events", icon: CalendarDays },
-  { key: "admin-resources", label: "Resources", icon: BookOpen },
-  { key: "admin-announcements", label: "Announcements", icon: Megaphone },
-  { key: "admin-affiliated", label: "Affiliated Groups", icon: Building2 },
-  { key: "admin-donations", label: "Donations", icon: Heart },
-  { key: "admin-privacy", label: "Privacy / Data Requests", icon: Lock },
+  { key: "admin-overview",  label: "Overview",      icon: LayoutDashboard },
+  { key: "admin-members",   label: "Members",        icon: Users },
+  { key: "admin-support",   label: "Requests",       icon: LifeBuoy },
+  { key: "admin-events",    label: "Events",         icon: CalendarDays },
+  { key: "admin-content",   label: "Content",        icon: FileText },
+  { key: "admin-privacy",   label: "Data & Privacy", icon: Lock },
 ];
 
 export function AdminShell({
-  current,
-  navigate,
-  exitAdmin,
-  children,
+  current, navigate, exitAdmin, children,
 }: {
   current: Screen;
   navigate: (s: Screen) => void;
   exitAdmin: () => void;
   children: ReactNode;
 }) {
+  const { theme } = useTheme();
+
+  // Determine active nav item (admin-resources/announcements/affiliated map to admin-content)
+  const activeKey = ["admin-resources", "admin-announcements", "admin-affiliated"].includes(current)
+    ? "admin-content"
+    : current;
+
   return (
-    <div className="flex h-screen w-full bg-gray-50">
-      <aside className="w-64 shrink-0 flex flex-col" style={{ background: "#0a1f3a", color: "#fff" }}>
-        <div className="px-5 py-5 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-          <CiPLogo light />
-          <div className="mt-2 inline-block px-2 py-0.5 rounded-full text-[10px]" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
+    <div className="flex h-screen w-full" style={{ background: theme.bg }}>
+      {/* Sidebar */}
+      <aside className="w-52 shrink-0 flex flex-col" style={{ background: "#0a1f3a" }}>
+        <div className="px-4 py-5 mb-1">
+          <CiPLogo light size={26} />
+          <div
+            className="mt-2.5 inline-block px-2 py-0.5 rounded-full text-[10px]"
+            style={{ background: GOLD, color: NAVY, fontWeight: 700, letterSpacing: "0.06em" }}
+          >
             ADMIN
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto py-4">
+
+        <nav className="flex-1 px-2 space-y-0.5">
           {ADMIN_ITEMS.map((it) => {
             const Icon = it.icon;
-            const active = current === it.key;
+            const active = activeKey === it.key;
             return (
               <button
                 key={it.key}
                 onClick={() => navigate(it.key)}
-                className="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-left"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-colors"
                 style={{
-                  background: active ? "rgba(201,162,39,0.12)" : "transparent",
-                  borderLeft: active ? `3px solid ${GOLD}` : "3px solid transparent",
-                  color: active ? "#fff" : "rgba(255,255,255,0.78)",
+                  background: active ? "rgba(201,162,39,0.15)" : "transparent",
+                  color: active ? "#fff" : "rgba(255,255,255,0.6)",
+                  fontWeight: active ? 600 : 400,
+                  borderLeft: active ? `2px solid ${GOLD}` : "2px solid transparent",
                 }}
               >
-                <Icon size={16} />
+                <Icon size={15} />
                 <span>{it.label}</span>
               </button>
             );
           })}
-          <button
-            onClick={() => navigate("admin-overview")}
-            className="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-left"
-            style={{ color: "rgba(255,255,255,0.7)" }}
-          >
-            <Settings size={16} /> Settings
-          </button>
         </nav>
-        <div className="p-4 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-          <button onClick={exitAdmin} className="text-xs text-white/70 hover:text-white">
-            ← Back to member view
+
+        <div className="px-4 py-4" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+          <button
+            onClick={exitAdmin}
+            className="flex items-center gap-1.5 text-xs hover:text-white transition-colors"
+            style={{ color: "rgba(255,255,255,0.45)" }}
+          >
+            <ArrowLeft size={12} /> Back to member view
           </button>
         </div>
       </aside>
+
+      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 px-6 flex items-center gap-4 border-b bg-white shrink-0">
-          <div className="flex-1 max-w-md relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input placeholder="Search members, requests, events…" className="w-full pl-9 pr-3 py-2 rounded-md text-sm outline-none bg-gray-100" />
+        <header
+          className="h-14 px-6 flex items-center gap-3 shrink-0"
+          style={{ background: theme.headerBg, borderBottom: `1px solid ${theme.divider}` }}
+        >
+          <div className="flex-1 max-w-sm relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: theme.textMuted }} />
+            <input
+              placeholder="Search members, requests, events…"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm outline-none"
+              style={{ background: theme.tableHead, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
+            />
           </div>
-          <button className="relative p-2 rounded-md hover:bg-gray-100">
-            <Bell size={18} style={{ color: NAVY }} />
-          </button>
-          <button className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-md hover:bg-gray-100">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>AD</div>
-            <ChevronDown size={14} style={{ color: NAVY }} />
-          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <Bell size={16} style={{ color: theme.textMuted }} />
+            </button>
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs"
+              style={{ background: GOLD, color: NAVY, fontWeight: 700 }}
+            >
+              AD
+            </div>
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-8">{children}</main>
       </div>
@@ -93,243 +111,419 @@ export function AdminShell({
   );
 }
 
-function H1({ children }: { children: ReactNode }) {
-  return <h1 style={{ color: NAVY, fontWeight: 600 }}>{children}</h1>;
-}
-function Card({ children, className = "" }: any) {
-  return <div className={`bg-white rounded-xl p-6 border border-gray-200 ${className}`}>{children}</div>;
-}
-function Pill({ children }: { children: ReactNode }) {
-  return <span className="inline-block px-2 py-0.5 rounded-full text-xs" style={{ background: MUTED_BLUE, color: NAVY }}>{children}</span>;
+// ── Shared admin primitives ─────────────────────────────────────────
+function AdminCard({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const { theme } = useTheme();
+  return (
+    <div
+      className={`rounded-2xl ${className}`}
+      style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+    >
+      {children}
+    </div>
+  );
 }
 
-/* ---------- Overview ---------- */
+function H1({ children }: { children: ReactNode }) {
+  const { theme } = useTheme();
+  return <h1 style={{ color: theme.text }}>{children}</h1>;
+}
+
+function Pill({ children }: { children: ReactNode }) {
+  const { theme } = useTheme();
+  return (
+    <span
+      className="inline-block px-2 py-0.5 rounded-full text-xs"
+      style={{ background: theme.pillBg, color: NAVY, fontWeight: 500 }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StatusPill({ label, color }: { label: string; color?: string }) {
+  const map: Record<string, { bg: string; text: string }> = {
+    "Published":   { bg: "#d1fae5", text: "#065f46" },
+    "Draft":       { bg: "#f3f4f6", text: "#6b7280" },
+    "Scheduled":   { bg: "#dbeafe", text: "#1d4ed8" },
+    "Approved":    { bg: "#d1fae5", text: "#065f46" },
+    "In review":   { bg: "#fef3c7", text: "#92400e" },
+    "Submitted":   { bg: "#dbeafe", text: "#1d4ed8" },
+    "Matched":     { bg: "#d1fae5", text: "#065f46" },
+    "Active":      { bg: "#d1fae5", text: "#065f46" },
+    "Onboarding":  { bg: "#fef3c7", text: "#92400e" },
+  };
+  const style = map[label] ?? { bg: "#f3f4f6", text: "#6b7280" };
+  return (
+    <span
+      className="inline-block px-2 py-0.5 rounded-full text-xs"
+      style={{ background: style.bg, color: style.text, fontWeight: 500 }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ── Admin Overview ──────────────────────────────────────────────────
 export function AdminOverview() {
+  const { theme } = useTheme();
   const stats = [
     { l: "New members (30d)", v: "82", d: "+18%" },
     { l: "Completed onboarding", v: "61", d: "+12%" },
-    { l: "Affirmed Nicene Creed", v: "94%", d: "" },
+    { l: "Affirmed creed", v: "94%", d: "" },
     { l: "Interested in joining a party", v: "143", d: "" },
-    { l: "Already in parties", v: "207", d: "" },
-    { l: "Support requests submitted", v: "39", d: "" },
-    { l: "Awaiting action", v: "11", d: "urgent" },
-    { l: "Event registrations (30d)", v: "412", d: "" },
-    { l: "Resource opens (30d)", v: "1,284", d: "" },
-    { l: "Donate clicks (30d)", v: "57", d: "" },
+    { l: "Support requests open", v: "11", d: "urgent" },
   ];
+
   return (
-    <div className="max-w-7xl">
+    <div className="max-w-6xl">
       <div className="flex items-center justify-between mb-6">
-        <H1>Admin overview</H1>
-        <div className="text-sm text-gray-500">Last updated 2 mins ago</div>
+        <div>
+          <H1>Admin overview</H1>
+          <p className="text-xs mt-1" style={{ color: theme.textMuted }}>Last updated 2 mins ago</p>
+        </div>
       </div>
-      <div className="grid grid-cols-5 gap-4">
+
+      {/* Stats row */}
+      <div className="grid grid-cols-5 gap-4 mb-7">
         {stats.map((s) => (
-          <Card key={s.l}>
-            <div className="text-xs text-gray-500">{s.l}</div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <div style={{ color: NAVY, fontSize: 24, fontWeight: 600 }}>{s.v}</div>
+          <AdminCard key={s.l} className="p-4">
+            <div className="text-xs" style={{ color: theme.textMuted }}>{s.l}</div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <div style={{ color: theme.text, fontSize: 26, fontWeight: 700 }}>{s.v}</div>
               {s.d && (
-                <span className="text-xs" style={{ color: s.d === "urgent" ? "#a93030" : "#0b8a3d" }}>
-                  {s.d !== "urgent" && <TrendingUp size={12} className="inline mr-0.5" />}
+                <span
+                  className="text-xs"
+                  style={{ color: s.d === "urgent" ? "#dc2626" : "#059669" }}
+                >
+                  {s.d !== "urgent" && <TrendingUp size={10} className="inline mr-0.5" />}
                   {s.d}
                 </span>
               )}
             </div>
-          </Card>
+          </AdminCard>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-5 mt-6">
-        <Card>
-          <h3 style={{ color: NAVY }}>Support queue snapshot</h3>
-          <div className="mt-4 space-y-2">
+      <div className="grid grid-cols-2 gap-5">
+        {/* Support queue snapshot */}
+        <AdminCard className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 style={{ color: theme.text }}>Support queue</h3>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#fee2e2", color: "#dc2626" }}>11 open</span>
+          </div>
+          <div className="space-y-2">
             {[
               ["Connect to local branch (Sydney)", "In review", "High"],
-              ["Help me choose a party", "Awaiting member", "Medium"],
-              ["Mentor others", "Submitted", "Low"],
+              ["Help me choose a party", "Submitted", "Medium"],
+              ["Connect to advocacy group", "Submitted", "Medium"],
+              ["Mentor others", "Matched", "Low"],
             ].map(([t, s, u], i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-md bg-gray-50">
-                <div className="text-sm" style={{ color: NAVY }}>{t}</div>
-                <div className="flex gap-2 items-center">
-                  <Pill>{s}</Pill>
-                  <span className="text-xs text-gray-500">{u}</span>
+              <div
+                key={i}
+                className="flex items-center justify-between p-3 rounded-xl"
+                style={{ background: theme.tableHead }}
+              >
+                <div className="text-sm truncate mr-3" style={{ color: theme.text }}>{t}</div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <StatusPill label={s} />
+                  <span className="text-xs" style={{ color: theme.textSubtle }}>{u}</span>
                 </div>
               </div>
             ))}
           </div>
-        </Card>
-        <Card>
-          <h3 style={{ color: NAVY }}>Recent member sign-ups</h3>
-          <div className="mt-4 space-y-2 text-sm">
-            {["S. Reed (NSW)", "M. Abadi (VIC)", "J. Patel (QLD)", "A. McLeod (WA)", "L. Tran (NSW)"].map((m, i) => (
-              <div key={i} className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50">
-                <span style={{ color: NAVY }}>{m}</span>
-                <span className="text-xs text-gray-500">{i + 1}h ago</span>
+        </AdminCard>
+
+        {/* Recent sign-ups */}
+        <AdminCard className="p-5">
+          <h3 className="mb-4" style={{ color: theme.text }}>Recent sign-ups</h3>
+          <div className="space-y-2">
+            {[
+              ["S. Reed", "NSW", "1h"],
+              ["M. Abadi", "VIC", "3h"],
+              ["J. Patel", "QLD", "5h"],
+              ["A. McLeod", "WA", "8h"],
+              ["L. Tran", "NSW", "1d"],
+            ].map(([name, state, time], i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between px-3 py-2 rounded-xl"
+                style={{ background: theme.tableHead }}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px]"
+                    style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
+                  >
+                    {(name as string).charAt(0)}
+                  </div>
+                  <span className="text-sm" style={{ color: theme.text }}>{name}</span>
+                  <span className="text-xs" style={{ color: theme.textSubtle }}>{state}</span>
+                </div>
+                <span className="text-xs" style={{ color: theme.textSubtle }}>{time} ago</span>
               </div>
             ))}
           </div>
-        </Card>
+        </AdminCard>
       </div>
     </div>
   );
 }
 
-/* ---------- Members ---------- */
+// ── Admin Members ──────────────────────────────────────────────────
 export function AdminMembers() {
+  const { theme } = useTheme();
   const rows = [
-    { n: "Sarah Reed", e: "sarah@example.com", st: "NSW", eng: "Interested in joining", party: "Not sure", needs: "Branch intro", status: "Active" },
-    { n: "Mark Abadi", e: "mark@example.com", st: "VIC", eng: "Active in branch", party: "Liberal", needs: "Mentoring", status: "Active" },
-    { n: "Jess Patel", e: "jess@example.com", st: "QLD", eng: "Public servant", party: "Prefer not to say", needs: "Resources", status: "Active" },
-    { n: "Andrew McLeod", e: "andrew@example.com", st: "WA", eng: "Just curious", party: "Not sure", needs: "Pathways", status: "Onboarding" },
-    { n: "Lucy Tran", e: "lucy@example.com", st: "NSW", eng: "Campaign volunteer", party: "ALP", needs: "Candidate selection info", status: "Active" },
+    { n: "Sarah Reed", e: "sarah@example.com", st: "NSW", eng: "Interested in joining", party: "Not sure", needs: "Branch intro", status: "Active", creed: true },
+    { n: "Mark Abadi", e: "mark@example.com", st: "VIC", eng: "Active in branch", party: "Liberal", needs: "Mentoring", status: "Active", creed: true },
+    { n: "Jess Patel", e: "jess@example.com", st: "QLD", eng: "Public servant", party: "Prefer not to say", needs: "Resources", status: "Active", creed: true },
+    { n: "Andrew McLeod", e: "andrew@example.com", st: "WA", eng: "Just curious", party: "Not sure", needs: "Pathways", status: "Onboarding", creed: true },
+    { n: "Lucy Tran", e: "lucy@example.com", st: "NSW", eng: "Campaign volunteer", party: "ALP", needs: "Candidate selection", status: "Active", creed: true },
   ];
+
   return (
     <div className="max-w-7xl">
       <div className="flex items-center justify-between mb-5">
         <H1>Members</H1>
-        <button className="px-4 py-2 rounded-md text-sm border" style={{ borderColor: NAVY, color: NAVY }}>Export (admin only)</button>
+        <button
+          className="px-4 py-2 rounded-xl text-sm border"
+          style={{ borderColor: theme.cardBorder, color: theme.text }}
+        >
+          Export (admin only)
+        </button>
       </div>
-      <Card className="mb-4">
-        <div className="flex flex-wrap gap-2">
-          {["All states", "NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"].map((s) => (
-            <button key={s} className="px-3 py-1 rounded-full text-xs border border-gray-300" style={{ color: NAVY }}>{s}</button>
-          ))}
-          <span className="mx-2 text-gray-300">|</span>
-          {["Engagement", "Party interest", "Support needs"].map((s) => (
-            <button key={s} className="px-3 py-1 rounded-full text-xs border border-gray-300" style={{ color: NAVY }}>{s} ▾</button>
-          ))}
-        </div>
-      </Card>
-      <Card className="!p-0 overflow-hidden">
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {["All states", "NSW", "VIC", "QLD", "WA", "SA", "TAS"].map((s) => (
+          <button key={s} className="px-3 py-1 rounded-full text-xs border" style={{ borderColor: theme.divider, color: theme.textMuted }}>
+            {s}
+          </button>
+        ))}
+        <div className="w-px h-4 mx-1" style={{ background: theme.divider }} />
+        {["Engagement ▾", "Status ▾"].map((s) => (
+          <button key={s} className="px-3 py-1 rounded-full text-xs border" style={{ borderColor: theme.divider, color: theme.textMuted }}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      <AdminCard className="overflow-hidden">
         <table className="w-full text-sm">
-          <thead style={{ background: "#faf7f0", color: NAVY }}>
-            <tr>
-              {["Member", "State", "Engagement", "Party", "Needs", "Status", ""].map((h) => (
-                <th key={h} className="text-left px-4 py-3 font-medium">{h}</th>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${theme.divider}` }}>
+              {["Member", "State", "Engagement", "Party", "Creed", "Status", ""].map((h) => (
+                <th key={h} className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.n} className="border-t border-gray-100">
-                <td className="px-4 py-3">
-                  <div style={{ color: NAVY, fontWeight: 500 }}>{r.n}</div>
-                  <div className="text-xs text-gray-500">{r.e}</div>
+              <tr key={r.n} style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                <td className="px-5 py-3">
+                  <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.n}</div>
+                  <div className="text-xs" style={{ color: theme.textMuted }}>{r.e}</div>
                 </td>
-                <td className="px-4 py-3 text-gray-700">{r.st}</td>
-                <td className="px-4 py-3 text-gray-700">{r.eng}</td>
-                <td className="px-4 py-3 text-gray-700">{r.party}</td>
-                <td className="px-4 py-3 text-gray-700">{r.needs}</td>
-                <td className="px-4 py-3"><Pill>{r.status}</Pill></td>
-                <td className="px-4 py-3 text-right">
-                  <button className="px-2 py-1 rounded-md hover:bg-gray-100" style={{ color: NAVY }}><Eye size={14} /></button>
+                <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.st}</td>
+                <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.eng}</td>
+                <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.party}</td>
+                <td className="px-5 py-3">
+                  {r.creed
+                    ? <CheckCircle2 size={14} style={{ color: "#059669" }} />
+                    : <Circle size={14} style={{ color: theme.divider }} />}
+                </td>
+                <td className="px-5 py-3"><StatusPill label={r.status} /></td>
+                <td className="px-5 py-3 text-right">
+                  <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: theme.textMuted }}>
+                    <Eye size={14} />
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </Card>
+      </AdminCard>
     </div>
   );
 }
 
-/* ---------- Support queue ---------- */
+// ── Admin Support queue ────────────────────────────────────────────
 export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
   const rows = [
     { t: "Connect to local branch", n: "Sarah Reed", st: "NSW", p: "Not sure", u: "High", a: "M. Andrews", s: "In review", d: "2h" },
     { t: "Help me choose a party", n: "Lucy Tran", st: "NSW", p: "—", u: "Medium", a: "Unassigned", s: "Submitted", d: "4h" },
-    { t: "Mentor others", n: "Mark Abadi", st: "VIC", p: "Liberal", u: "Low", a: "J. Carter", s: "Matched", d: "1d" },
     { t: "Connect to advocacy group", n: "Jess Patel", st: "QLD", p: "—", u: "Medium", a: "Unassigned", s: "Submitted", d: "1d" },
+    { t: "Mentor others", n: "Mark Abadi", st: "VIC", p: "Liberal", u: "Low", a: "J. Carter", s: "Matched", d: "1d" },
   ];
+
   return (
     <div className="max-w-7xl">
-      <H1>Support requests</H1>
-      <p className="text-sm text-gray-600 mt-1">Triage, assign and track member support requests.</p>
-      <Card className="!p-0 overflow-hidden mt-5">
+      <div className="mb-5">
+        <H1>Support requests</H1>
+        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>Triage, assign and track member support requests.</p>
+      </div>
+
+      {/* Status summary */}
+      <div className="grid grid-cols-4 gap-3 mb-5">
+        {[
+          { label: "Open", count: 11, color: "#fee2e2", text: "#dc2626" },
+          { label: "In review", count: 4, color: "#fef3c7", text: "#92400e" },
+          { label: "Awaiting member", count: 3, color: "#fde8d8", text: "#c2410c" },
+          { label: "Matched", count: 2, color: "#d1fae5", text: "#065f46" },
+        ].map((s) => (
+          <AdminCard key={s.label} className="p-4 text-center">
+            <div className="text-2xl" style={{ color: theme.text, fontWeight: 700 }}>{s.count}</div>
+            <div
+              className="text-xs mt-1 px-2 py-0.5 rounded-full inline-block"
+              style={{ background: s.color, color: s.text }}
+            >
+              {s.label}
+            </div>
+          </AdminCard>
+        ))}
+      </div>
+
+      <AdminCard className="overflow-hidden">
         <table className="w-full text-sm">
-          <thead style={{ background: "#faf7f0", color: NAVY }}>
-            <tr>
-              {["Request", "Member", "State", "Party/Pathway", "Urgency", "Assigned", "Status", "Updated", ""].map((h) => (
-                <th key={h} className="text-left px-4 py-3 font-medium">{h}</th>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${theme.divider}` }}>
+              {["Request", "Member", "State", "Party", "Urgency", "Assigned", "Status", "Updated", ""].map((h) => (
+                <th key={h} className="text-left px-4 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-3" style={{ color: NAVY, fontWeight: 500 }}>{r.t}</td>
-                <td className="px-4 py-3">{r.n}</td>
-                <td className="px-4 py-3">{r.st}</td>
-                <td className="px-4 py-3">{r.p}</td>
-                <td className="px-4 py-3">{r.u}</td>
-                <td className="px-4 py-3">{r.a}</td>
-                <td className="px-4 py-3"><Pill>{r.s}</Pill></td>
-                <td className="px-4 py-3 text-gray-500">{r.d} ago</td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => navigate("admin-support-detail")} className="text-sm" style={{ color: NAVY, fontWeight: 500 }}>Open</button>
+              <tr key={i} style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                <td className="px-4 py-3" style={{ color: theme.text, fontWeight: 500 }}>{r.t}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.n}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.st}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.p}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full"
+                    style={{
+                      background: r.u === "High" ? "#fee2e2" : r.u === "Medium" ? "#fef3c7" : "#f3f4f6",
+                      color: r.u === "High" ? "#dc2626" : r.u === "Medium" ? "#92400e" : "#6b7280",
+                    }}
+                  >
+                    {r.u}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.a}</td>
+                <td className="px-4 py-3"><StatusPill label={r.s} /></td>
+                <td className="px-4 py-3 text-xs" style={{ color: theme.textSubtle }}>{r.d} ago</td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => navigate("admin-support-detail")}
+                    className="text-xs px-3 py-1.5 rounded-lg border"
+                    style={{ borderColor: theme.cardBorder, color: theme.text }}
+                  >
+                    Open
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </Card>
+      </AdminCard>
     </div>
   );
 }
 
 export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
   return (
     <div className="max-w-5xl">
-      <button onClick={() => navigate("admin-support")} className="text-sm mb-3" style={{ color: NAVY }}>← Back to queue</button>
+      <button
+        onClick={() => navigate("admin-support")}
+        className="flex items-center gap-1.5 text-sm mb-5"
+        style={{ color: theme.textMuted }}
+      >
+        ← Back to queue
+      </button>
       <div className="grid grid-cols-3 gap-5">
-        <div className="col-span-2 space-y-5">
-          <Card>
-            <Pill>In review</Pill>
-            <h2 className="mt-2" style={{ color: NAVY }}>Connect to local branch (Sydney)</h2>
-            <div className="text-sm text-gray-600 mt-1">Submitted 2 hours ago by Sarah Reed (NSW)</div>
+        <div className="col-span-2 space-y-4">
+          <AdminCard className="p-5">
+            <StatusPill label="In review" />
+            <h2 className="mt-2" style={{ color: theme.text }}>Connect to local branch (Sydney)</h2>
+            <div className="text-xs mt-1" style={{ color: theme.textMuted }}>Submitted 2 hours ago by Sarah Reed (NSW)</div>
             <div className="grid grid-cols-2 gap-4 mt-5 text-sm">
-              <div><div className="text-gray-500">Request type</div><div style={{ color: NAVY }}>Connect me to a local branch</div></div>
-              <div><div className="text-gray-500">Pathway interest</div><div style={{ color: NAVY }}>Joining a party</div></div>
-              <div><div className="text-gray-500">Party guidance attached</div><div style={{ color: NAVY }}>Yes</div></div>
-              <div><div className="text-gray-500">Consent to contact</div><div style={{ color: NAVY }}>Granted</div></div>
+              {[
+                ["Request type", "Connect me to a local branch"],
+                ["Pathway interest", "Joining a party"],
+                ["Party guidance attached", "Yes"],
+                ["Consent to contact", "Granted"],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <div className="text-xs mb-0.5" style={{ color: theme.textSubtle }}>{label}</div>
+                  <div style={{ color: theme.text }}>{value}</div>
+                </div>
+              ))}
             </div>
-            <div className="mt-5">
-              <div className="text-gray-500 text-sm">Description</div>
-              <div className="text-sm mt-1" style={{ color: NAVY }}>
-                "I'd love to attend a Sydney branch meeting but don't know anyone. Could someone introduce me?"
+            <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
+              <div className="text-xs mb-1.5" style={{ color: theme.textSubtle }}>Member's description</div>
+              <div className="text-sm leading-relaxed" style={{ color: theme.textMuted }}>
+                "I'd love to attend a Sydney branch meeting but don't know anyone. Could someone introduce me to a local branch contact?"
               </div>
             </div>
-          </Card>
-          <Card>
-            <h3 style={{ color: NAVY }}>Admin notes</h3>
-            <textarea rows={4} placeholder="Internal notes (not visible to member)…" className="w-full mt-2 px-3 py-2 rounded-md border outline-none border-gray-200 bg-gray-50" />
+          </AdminCard>
+
+          <AdminCard className="p-5">
+            <h3 className="mb-3" style={{ color: theme.text }}>Admin notes</h3>
+            <textarea
+              rows={4}
+              placeholder="Internal notes (not visible to member)…"
+              className="w-full px-3 py-2 rounded-xl border outline-none text-sm"
+              style={{ borderColor: theme.inputBorder, background: theme.tableHead, color: theme.text }}
+            />
             <div className="flex gap-2 mt-3">
-              <button className="px-3 py-2 rounded-md text-sm" style={{ background: NAVY, color: "#fff" }}>Save note</button>
-              <button className="px-3 py-2 rounded-md text-sm border" style={{ borderColor: NAVY, color: NAVY }}>Record introduction made</button>
+              <button className="px-3 py-2 rounded-xl text-xs" style={{ background: NAVY, color: "#fff" }}>Save note</button>
+              <button className="px-3 py-2 rounded-xl text-xs border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Record introduction made</button>
             </div>
-          </Card>
+          </AdminCard>
         </div>
-        <div className="space-y-5">
-          <Card>
-            <h3 style={{ color: NAVY }}>Member summary</h3>
-            <div className="mt-3 text-sm space-y-1.5">
-              <div><span className="text-gray-500">Name:</span> Sarah Reed</div>
-              <div><span className="text-gray-500">State:</span> NSW</div>
-              <div><span className="text-gray-500">Tradition:</span> Anglican</div>
-              <div><span className="text-gray-500">Engagement:</span> Interested in joining a party</div>
-              <div><span className="text-gray-500">Affirmed Creed:</span> Yes</div>
+
+        <div className="space-y-4">
+          <AdminCard className="p-5">
+            <h3 className="mb-3 text-sm" style={{ color: theme.text }}>Member summary</h3>
+            <div className="space-y-2 text-sm">
+              {[
+                ["Name", "Sarah Reed"],
+                ["State", "NSW"],
+                ["Tradition", "Anglican"],
+                ["Engagement", "Interested in joining a party"],
+                ["Creed affirmed", "Yes"],
+                ["Consent", "Granted"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between">
+                  <span style={{ color: theme.textMuted }}>{label}</span>
+                  <span style={{ color: theme.text, fontWeight: 500 }}>{value}</span>
+                </div>
+              ))}
             </div>
-          </Card>
-          <Card>
-            <h3 style={{ color: NAVY }}>Actions</h3>
-            <div className="space-y-2 mt-3">
-              <select className="w-full px-3 py-2 rounded-md border border-gray-200 bg-gray-50">
+          </AdminCard>
+
+          <AdminCard className="p-5">
+            <h3 className="mb-3 text-sm" style={{ color: theme.text }}>Actions</h3>
+            <div className="space-y-2">
+              <select
+                className="w-full px-3 py-2 rounded-xl border text-sm outline-none"
+                style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
+              >
                 <option>Assign to admin…</option>
                 <option>Mick Andrews</option>
                 <option>Jess Carter</option>
               </select>
-              <select className="w-full px-3 py-2 rounded-md border border-gray-200 bg-gray-50">
+              <select
+                className="w-full px-3 py-2 rounded-xl border text-sm outline-none"
+                style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
+              >
                 <option>Update status…</option>
                 <option>Submitted</option>
                 <option>In review</option>
@@ -337,201 +531,349 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
                 <option>Matched / introduced</option>
                 <option>Closed</option>
               </select>
-              <button className="w-full px-3 py-2 rounded-md text-sm" style={{ background: NAVY, color: "#fff" }}>Send message to member</button>
-              <button className="w-full px-3 py-2 rounded-md text-sm border" style={{ borderColor: "#a93030", color: "#a93030" }}>Close request</button>
+              <button className="w-full px-3 py-2 rounded-xl text-xs" style={{ background: NAVY, color: "#fff" }}>
+                Send message to member
+              </button>
+              <button className="w-full px-3 py-2 rounded-xl text-xs border" style={{ borderColor: "#fca5a5", color: "#dc2626" }}>
+                Close request
+              </button>
             </div>
-          </Card>
+          </AdminCard>
         </div>
       </div>
     </div>
   );
 }
 
-/* ---------- Generic admin list pages ---------- */
-function AdminList({ title, columns, rows, ctaLabel }: { title: string; columns: string[]; rows: any[][]; ctaLabel: string }) {
+// ── Admin Events ───────────────────────────────────────────────────
+export function AdminEvents() {
+  const { theme } = useTheme();
+  const rows = [
+    ["Faithful Politics with Tim Costello", "27 May", "Public lecture", "Online", "184", "Published"],
+    ["Sydney Members Prayer", "31 May", "Prayer", "Sydney CBD", "26", "Published"],
+    ["Public Service Pathway Briefing", "10 Jun", "Training", "Online", "92", "Published"],
+    ["Brisbane Members Dinner", "13 Jun", "Fellowship", "Brisbane", "12", "Draft"],
+    ["Candidate Selection 101", "18 Jun", "Training", "Online", "0", "Scheduled"],
+  ];
+  return (
+    <AdminTablePage
+      title="Events"
+      subtitle="Manage CiP-hosted events."
+      ctaLabel="Create event"
+      columns={["Title", "Date", "Type", "Location", "Registrations", "Status", ""]}
+      rows={rows}
+      renderStatus={(row) => <StatusPill label={row[5] as string} />}
+    />
+  );
+}
+
+// ── Admin Content (Resources + Announcements + Affiliated) ──────────
+export function AdminContent() {
+  const [tab, setTab] = useState<"resources" | "announcements" | "affiliated">("resources");
+  const { theme } = useTheme();
+
+  const resourceRows = [
+    ["Politics — A Case for Christian Engagement", "Book", "Christian formation", "John Anderson", "Featured"],
+    ["How to Join a Political Party", "Article", "Political literacy", "CiP Guide", "—"],
+    ["Faithfulness in Public Life", "Bible study", "Christian formation", "CiP", "—"],
+    ["Candidate Selection 101", "Course", "Candidate selection", "CiP", "Featured"],
+    ["Religious Freedom in Australia", "Article", "Religious freedom", "Freedom for Faith", "—"],
+  ];
+  const announcementRows = [
+    ["Liberal pre-selection nominations open in QLD", "Opportunity", "Express interest", "Published", "2d"],
+    ["Summer policy internship", "Internship", "Read more", "Published", "5d"],
+    ["Public Service briefing", "Training", "Register", "Scheduled", "—"],
+    ["National prayer gathering", "Prayer", "Register", "Published", "1w"],
+  ];
+  const affiliatedRows = [
+    ["Freedom for Faith", "Advocacy group", "Mike Southon", "CiP member", "Approved"],
+    ["Rebuild Australia", "Training / mobilisation", "Jane Watson", "External", "Approved"],
+    ["Christians for Labor", "Political network", "David Anderson", "CiP member", "Approved"],
+  ];
+
   return (
     <div className="max-w-7xl">
       <div className="flex items-center justify-between mb-5">
-        <H1>{title}</H1>
-        <button className="px-4 py-2 rounded-md text-sm inline-flex items-center gap-2" style={{ background: NAVY, color: "#fff" }}>
-          <Plus size={14} /> {ctaLabel}
+        <div>
+          <H1>Content</H1>
+          <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+            Manage resources, announcements and affiliated groups.
+          </p>
+        </div>
+        <button
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
+          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+        >
+          <Plus size={13} />
+          {tab === "resources" ? "Add resource" : tab === "announcements" ? "Compose" : "Add organisation"}
         </button>
       </div>
-      <Card className="!p-0 overflow-hidden">
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-5 p-1 rounded-xl w-fit" style={{ background: theme.tableHead, border: `1px solid ${theme.divider}` }}>
+        {(["resources", "announcements", "affiliated"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className="px-4 py-2 rounded-lg text-sm capitalize transition-colors"
+            style={{
+              background: tab === t ? theme.cardBg : "transparent",
+              color: tab === t ? theme.text : theme.textMuted,
+              fontWeight: tab === t ? 600 : 400,
+              boxShadow: tab === t ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+            }}
+          >
+            {t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Content tables */}
+      <AdminCard className="overflow-hidden">
+        {tab === "resources" && (
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                {["Title", "Type", "Category", "Author / Provider", "Featured", ""].map((h) => (
+                  <th key={h} className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {resourceRows.map((r, i) => (
+                <tr key={i} style={{ borderBottom: i < resourceRows.length - 1 ? `1px solid ${theme.divider}` : "none" }}>
+                  {r.map((cell, j) => (
+                    <td key={j} className="px-5 py-3 text-xs" style={{ color: j === 0 ? theme.text : theme.textMuted, fontWeight: j === 0 ? 500 : 400 }}>{cell}</td>
+                  ))}
+                  <td className="px-5 py-3 text-right">
+                    <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.textMuted }}><Edit3 size={11} /> Edit</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {tab === "announcements" && (
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                {["Title", "Category", "CTA", "Status", "Posted", ""].map((h) => (
+                  <th key={h} className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {announcementRows.map((r, i) => (
+                <tr key={i} style={{ borderBottom: i < announcementRows.length - 1 ? `1px solid ${theme.divider}` : "none" }}>
+                  {r.map((cell, j) => (
+                    <td key={j} className="px-5 py-3 text-xs" style={{ color: j === 0 ? theme.text : j === 3 ? undefined : theme.textMuted, fontWeight: j === 0 ? 500 : 400 }}>
+                      {j === 3 ? <StatusPill label={cell as string} /> : cell}
+                    </td>
+                  ))}
+                  <td className="px-5 py-3 text-right">
+                    <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.textMuted }}><Edit3 size={11} /> Edit</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {tab === "affiliated" && (
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                {["Organisation", "Category", "POC", "POC type", "Status", ""].map((h) => (
+                  <th key={h} className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {affiliatedRows.map((r, i) => (
+                <tr key={i} style={{ borderBottom: i < affiliatedRows.length - 1 ? `1px solid ${theme.divider}` : "none" }}>
+                  {r.map((cell, j) => (
+                    <td key={j} className="px-5 py-3 text-xs" style={{ color: j === 0 ? theme.text : j === 4 ? undefined : theme.textMuted, fontWeight: j === 0 ? 500 : 400 }}>
+                      {j === 4 ? <StatusPill label={cell as string} /> : cell}
+                    </td>
+                  ))}
+                  <td className="px-5 py-3 text-right">
+                    <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.textMuted }}><Edit3 size={11} /> Edit</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </AdminCard>
+    </div>
+  );
+}
+
+// ── Generic admin table page ───────────────────────────────────────
+function AdminTablePage({
+  title, subtitle, ctaLabel, columns, rows, renderStatus,
+}: {
+  title: string;
+  subtitle?: string;
+  ctaLabel: string;
+  columns: string[];
+  rows: (string | React.ReactNode)[][];
+  renderStatus?: (row: (string | React.ReactNode)[]) => React.ReactNode;
+}) {
+  const { theme } = useTheme();
+  return (
+    <div className="max-w-7xl">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <H1>{title}</H1>
+          {subtitle && <p className="text-sm mt-1" style={{ color: theme.textMuted }}>{subtitle}</p>}
+        </div>
+        <button
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
+          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+        >
+          <Plus size={13} /> {ctaLabel}
+        </button>
+      </div>
+      <AdminCard className="overflow-hidden">
         <table className="w-full text-sm">
-          <thead style={{ background: "#faf7f0", color: NAVY }}>
-            <tr>
-              {columns.map((c) => <th key={c} className="text-left px-4 py-3 font-medium">{c}</th>)}
-              <th />
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${theme.divider}` }}>
+              {columns.map((c) => (
+                <th key={c} className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>
+                  {c}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className="border-t border-gray-100">
-                {r.map((cell, j) => (
-                  <td key={j} className="px-4 py-3" style={{ color: j === 0 ? NAVY : undefined, fontWeight: j === 0 ? 500 : undefined }}>
-                    {cell}
+              <tr key={i} style={{ borderBottom: i < rows.length - 1 ? `1px solid ${theme.divider}` : "none" }}>
+                {r.slice(0, -1).map((cell, j) => (
+                  <td
+                    key={j}
+                    className="px-5 py-3 text-xs"
+                    style={{ color: j === 0 ? theme.text : theme.textMuted, fontWeight: j === 0 ? 500 : 400 }}
+                  >
+                    {j === r.length - 2 && renderStatus ? renderStatus(r) : cell}
                   </td>
                 ))}
-                <td className="px-4 py-3 text-right">
-                  <button className="text-sm inline-flex items-center gap-1" style={{ color: NAVY }}><Edit3 size={14} /> Edit</button>
+                <td className="px-5 py-3 text-right">
+                  <button
+                    className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border"
+                    style={{ borderColor: theme.cardBorder, color: theme.textMuted }}
+                  >
+                    <Edit3 size={11} /> Edit
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </Card>
+      </AdminCard>
     </div>
   );
 }
 
-export function AdminEvents() {
-  return (
-    <AdminList
-      title="Events"
-      ctaLabel="Create event"
-      columns={["Title", "Date", "Type", "Location", "Registrations", "Status"]}
-      rows={[
-        ["Faithful Politics with Tim Costello", "27 May", "Public lecture", "Online", "184", <Pill key="a">Published</Pill>],
-        ["Sydney Members Prayer", "31 May", "Prayer", "Sydney CBD", "26", <Pill key="b">Published</Pill>],
-        ["Public Service Pathway Briefing", "10 Jun", "Training", "Online", "92", <Pill key="c">Published</Pill>],
-        ["Brisbane Members Dinner", "13 Jun", "Fellowship", "Brisbane", "12", <Pill key="d">Draft</Pill>],
-      ]}
-    />
-  );
-}
-
-export function AdminResources() {
-  return (
-    <AdminList
-      title="Resources"
-      ctaLabel="Add resource"
-      columns={["Title", "Type", "Category", "Author/Provider", "Featured"]}
-      rows={[
-        ["Politics — A Case for Christian Engagement", "Book", "Christian formation", "John Anderson", <Pill key="a">Featured</Pill>],
-        ["How to Join a Political Party", "Article", "Political literacy", "CiP Guide", "—"],
-        ["Faithfulness in Public Life", "Bible study", "Christian formation", "CiP", "—"],
-        ["Candidate Selection 101", "Course", "Candidate selection", "CiP", <Pill key="b">Featured</Pill>],
-      ]}
-    />
-  );
-}
-
-export function AdminAnnouncements() {
-  return (
-    <AdminList
-      title="Announcements"
-      ctaLabel="Compose announcement"
-      columns={["Title", "Category", "CTA", "Status", "Posted"]}
-      rows={[
-        ["Liberal pre-selection nominations open in QLD", "Opportunity", "Express interest", <Pill key="a">Published</Pill>, "2d"],
-        ["Summer policy internship", "Internship", "Read more", <Pill key="b">Published</Pill>, "5d"],
-        ["Public Service briefing", "Training", "Register", <Pill key="c">Scheduled</Pill>, "—"],
-        ["National prayer gathering", "Prayer", "Register", <Pill key="d">Published</Pill>, "1w"],
-      ]}
-    />
-  );
-}
-
-export function AdminAffiliated() {
-  return (
-    <AdminList
-      title="Affiliated groups"
-      ctaLabel="Add organisation"
-      columns={["Organisation", "Category", "POC", "POC type", "Status"]}
-      rows={[
-        ["Freedom for Faith", "Advocacy group", "Mike Southon", "CiP member", <Pill key="a">Approved</Pill>],
-        ["Rebuild Australia", "Training / mobilisation", "Jane Watson", "External", <Pill key="b">Approved</Pill>],
-        ["Christians for Labor", "Political network", "David Anderson", "CiP member", <Pill key="c">Approved</Pill>],
-      ]}
-    />
-  );
-}
-
 export function AdminDonations() {
+  const { theme } = useTheme();
   return (
-    <div className="max-w-7xl">
-      <H1>Donations</H1>
-      <p className="text-sm text-gray-600 mt-1">Donation processing will be connected to FairPay.</p>
-      <div className="grid grid-cols-4 gap-4 mt-5">
-        {[
-          ["Donate clicks (30d)", "57"],
-          ["External redirects", "57"],
-          ["FairPay status", "Pending integration"],
-          ["Active donate URL", "fairpay.cip.org.au"],
-        ].map(([l, v]) => (
-          <Card key={l}>
-            <div className="text-xs text-gray-500">{l}</div>
-            <div style={{ color: NAVY, fontSize: 22, fontWeight: 600 }} className="mt-1">{v}</div>
-          </Card>
+    <div className="max-w-5xl">
+      <div className="mb-5">
+        <H1>Donations</H1>
+        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>Donation processing will be connected to an external provider.</p>
+      </div>
+      <div className="grid grid-cols-4 gap-4 mb-5">
+        {[["Donate clicks (30d)", "57"], ["External redirects", "57"], ["Provider status", "Pending integration"], ["Active donation URL", "fairpay.cip.org.au"]].map(([l, v]) => (
+          <AdminCard key={l} className="p-4">
+            <div className="text-xs" style={{ color: theme.textMuted }}>{l}</div>
+            <div className="mt-1 text-lg" style={{ color: theme.text, fontWeight: 700 }}>{v}</div>
+          </AdminCard>
         ))}
       </div>
-      <Card className="mt-5">
-        <h3 style={{ color: NAVY }}>External donation URL</h3>
-        <p className="text-sm text-gray-600 mt-1">At launch, the Donate button redirects to an external provider URL.</p>
-        <div className="flex gap-2 mt-3">
-          <input defaultValue="https://fairpay.cip.org.au/donate" className="flex-1 px-3 py-2 rounded-md border border-gray-200 bg-gray-50 text-sm" />
-          <button className="px-4 py-2 rounded-md text-sm" style={{ background: NAVY, color: "#fff" }}>Save</button>
+      <AdminCard className="p-5">
+        <h3 className="mb-2" style={{ color: theme.text }}>External donation URL</h3>
+        <p className="text-sm mb-3" style={{ color: theme.textMuted }}>The Donate button redirects to this external provider URL.</p>
+        <div className="flex gap-2">
+          <input
+            defaultValue="https://fairpay.cip.org.au/donate"
+            className="flex-1 px-3 py-2 rounded-xl border text-sm outline-none"
+            style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
+          />
+          <button className="px-4 py-2 rounded-xl text-sm" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>Save</button>
         </div>
-      </Card>
+      </AdminCard>
     </div>
   );
 }
 
 export function AdminPrivacy() {
+  const { theme } = useTheme();
   return (
-    <div className="max-w-6xl">
-      <H1>Privacy / data requests</H1>
-      <p className="text-sm text-gray-600 mt-1">Audit deletion requests, data exports and consent withdrawals.</p>
-      <div className="grid grid-cols-2 gap-5 mt-5">
-        <Card>
-          <h3 style={{ color: NAVY }}>Deletion requests</h3>
-          <div className="mt-3 space-y-2 text-sm">
-            {[["A. Smith (NSW)", "1d ago"], ["P. Lin (VIC)", "3d ago"]].map(([n, t], i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-md bg-gray-50">
-                <span style={{ color: NAVY }}>{n}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">{t}</span>
-                  <button className="px-3 py-1 rounded-md text-xs border" style={{ borderColor: NAVY, color: NAVY }}>Review</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card>
-          <h3 style={{ color: NAVY }}>Data export requests</h3>
-          <div className="mt-3 space-y-2 text-sm">
-            {[["S. Reed (NSW)", "5h ago"]].map(([n, t], i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-md bg-gray-50">
-                <span style={{ color: NAVY }}>{n}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">{t}</span>
-                  <button className="px-3 py-1 rounded-md text-xs border" style={{ borderColor: NAVY, color: NAVY }}>Process</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card className="col-span-2">
-          <h3 style={{ color: NAVY }}>Consent withdrawals & admin access audit</h3>
-          <table className="w-full text-sm mt-3">
-            <thead style={{ color: NAVY }}>
-              <tr><th className="text-left py-2">Member</th><th className="text-left py-2">Action</th><th className="text-left py-2">When</th><th className="text-left py-2">Admin</th></tr>
-            </thead>
-            <tbody>
-              {[
-                ["L. Tran", "Withdrew intro consent", "2d ago", "—"],
-                ["M. Abadi", "Profile viewed", "1d ago", "M. Andrews"],
-                ["J. Patel", "Internal note added", "1d ago", "J. Carter"],
-              ].map((r, i) => (
-                <tr key={i} className="border-t border-gray-100">
-                  {r.map((c, j) => <td key={j} className="py-2 text-gray-700">{c}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+    <div className="max-w-5xl">
+      <div className="mb-5">
+        <H1>Data & Privacy</H1>
+        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+          Manage deletion requests, data exports, consent withdrawals and access audit logs.
+        </p>
       </div>
+      <div className="grid grid-cols-2 gap-5 mb-5">
+        <AdminCard className="p-5">
+          <h3 className="mb-3 text-sm" style={{ color: theme.text }}>Deletion requests</h3>
+          {[["A. Smith (NSW)", "1d ago"], ["P. Lin (VIC)", "3d ago"]].map(([n, t], i) => (
+            <div key={i} className="flex items-center justify-between p-3 rounded-xl mb-2" style={{ background: theme.tableHead }}>
+              <span className="text-sm" style={{ color: theme.text }}>{n}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs" style={{ color: theme.textSubtle }}>{t}</span>
+                <button className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Review</button>
+              </div>
+            </div>
+          ))}
+        </AdminCard>
+        <AdminCard className="p-5">
+          <h3 className="mb-3 text-sm" style={{ color: theme.text }}>Data export requests</h3>
+          {[["S. Reed (NSW)", "5h ago"]].map(([n, t], i) => (
+            <div key={i} className="flex items-center justify-between p-3 rounded-xl mb-2" style={{ background: theme.tableHead }}>
+              <span className="text-sm" style={{ color: theme.text }}>{n}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs" style={{ color: theme.textSubtle }}>{t}</span>
+                <button className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Process</button>
+              </div>
+            </div>
+          ))}
+        </AdminCard>
+      </div>
+      <AdminCard className="overflow-hidden">
+        <div className="px-5 py-3" style={{ borderBottom: `1px solid ${theme.divider}`, background: theme.tableHead }}>
+          <span className="text-xs" style={{ color: theme.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Consent & access audit log
+          </span>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${theme.divider}` }}>
+              {["Member", "Action", "When", "Admin"].map((h) => (
+                <th key={h} className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ["L. Tran", "Withdrew introduction consent", "2d ago", "—"],
+              ["M. Abadi", "Profile viewed by admin", "1d ago", "M. Andrews"],
+              ["J. Patel", "Internal note added", "1d ago", "J. Carter"],
+              ["S. Reed", "Data export requested", "5h ago", "—"],
+            ].map((r, i) => (
+              <tr key={i} style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                {r.map((c, j) => (
+                  <td key={j} className="px-5 py-3 text-xs" style={{ color: j === 0 ? theme.text : theme.textMuted }}>
+                    {c}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </AdminCard>
     </div>
   );
 }

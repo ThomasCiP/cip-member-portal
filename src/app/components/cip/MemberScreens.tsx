@@ -1,1089 +1,2397 @@
-import { useState } from "react";
+import { useState, ReactNode } from "react";
 import { Screen } from "./types";
-import { NAVY, GOLD, MUTED_BLUE, WARM } from "./brand";
+import { NAVY, GOLD, useTheme } from "./brand";
 import {
-  ArrowRight,
-  CalendarDays,
-  Clock,
-  MapPin,
-  Compass,
-  HeartHandshake,
-  Megaphone,
-  BookOpen,
-  Lock,
-  CheckCircle2,
-  Circle,
-  ShieldCheck,
-  Users,
-  Star,
-  Filter,
-  Search,
-  Download,
-  Trash2,
-  Mail,
+  CalendarDays, Clock, MapPin, Lock, ShieldCheck, Users,
+  ChevronRight, ExternalLink, Heart, Sun, Moon, Eye, EyeOff,
+  Pin, MessageCircle, ThumbsUp, Send, MoreHorizontal, X,
+  FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
+  Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
+  Plus, LifeBuoy, ArrowRight, Search, Filter,
 } from "lucide-react";
 
-function H1({ children }: { children: React.ReactNode }) {
-  return <h1 style={{ color: NAVY, fontWeight: 600 }}>{children}</h1>;
-}
-
-function Card({ children, className = "" }: any) {
+// ── Shared primitives ─────────────────────────────────────────────────
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const { theme } = useTheme();
   return (
     <div
-      className={`rounded-xl bg-white p-6 border ${className}`}
-      style={{ borderColor: "#e7e2d6" }}
+      className={`rounded-2xl ${className}`}
+      style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
     >
       {children}
     </div>
   );
 }
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="mb-6">
-      <H1>{title}</H1>
-      {subtitle && <p className="text-gray-600 mt-1 text-sm">{subtitle}</p>}
-    </div>
-  );
-}
-
-function Pill({ children, color = NAVY }: { children: React.ReactNode; color?: string }) {
+function Pill({ children, color, fg }: { children: ReactNode; color?: string; fg?: string }) {
+  const { theme } = useTheme();
   return (
     <span
-      className="inline-block px-2.5 py-0.5 rounded-full text-xs"
-      style={{ background: MUTED_BLUE, color }}
+      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs"
+      style={{ background: color ?? theme.pillBg, color: fg ?? NAVY, fontWeight: 500 }}
     >
       {children}
     </span>
   );
 }
 
-/* ----------------------- Dashboard ----------------------- */
-export function Dashboard({ navigate }: { navigate: (s: Screen) => void }) {
+function GhostButton({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
+  const { theme } = useTheme();
   return (
-    <div className="max-w-6xl">
-      <div className="flex items-center justify-between mb-1">
-        <div>
-          <H1>Welcome back, Sarah</H1>
-          <p className="text-gray-600 text-sm mt-1">
-            Christian first. Politics second. Here's what's happening in your network.
-          </p>
-        </div>
+    <button
+      onClick={onClick}
+      className="px-3 py-1.5 rounded-lg text-xs"
+      style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PrimaryButton({ children, onClick, full }: { children: ReactNode; onClick?: () => void; full?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg text-xs ${full ? "w-full" : ""}`}
+      style={{ background: NAVY, color: "#fff", fontWeight: 500 }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function GoldButton({ children, onClick, full }: { children: ReactNode; onClick?: () => void; full?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg text-xs ${full ? "w-full" : ""}`}
+      style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Modal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const { theme } = useTheme();
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl shadow-2xl"
+        style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
       </div>
-
-      <div className="grid grid-cols-3 gap-5 mt-7">
-        <Card>
-          <div className="flex items-center justify-between">
-            <h3 style={{ color: NAVY }}>Complete your profile</h3>
-            <span className="text-sm text-gray-500">60%</span>
-          </div>
-          <div className="h-2 w-full rounded-full mt-3" style={{ background: "#eee5d3" }}>
-            <div className="h-full rounded-full" style={{ width: "60%", background: GOLD }} />
-          </div>
-          <p className="text-sm text-gray-600 mt-3">
-            Add your faith background and political engagement so CiP can support you better.
-          </p>
-          <button
-            onClick={() => navigate("profile")}
-            className="mt-4 text-sm inline-flex items-center gap-1"
-            style={{ color: NAVY, fontWeight: 500 }}
-          >
-            Continue <ArrowRight size={14} />
-          </button>
-        </Card>
-
-        <Card>
-          <div className="flex items-center gap-2 mb-2">
-            <HeartHandshake size={18} style={{ color: NAVY }} />
-            <h3 style={{ color: NAVY }}>Request support from CiP</h3>
-          </div>
-          <p className="text-sm text-gray-600">
-            Ask a CiP admin for an introduction, mentoring or a pathway recommendation.
-          </p>
-          <button
-            onClick={() => navigate("support")}
-            className="mt-4 px-3 py-2 rounded-md text-sm"
-            style={{ background: NAVY, color: "#fff" }}
-          >
-            New support request
-          </button>
-        </Card>
-
-        <Card>
-          <div className="flex items-center gap-2 mb-2">
-            <Compass size={18} style={{ color: NAVY }} />
-            <h3 style={{ color: NAVY }}>Explore political pathways</h3>
-          </div>
-          <p className="text-sm text-gray-600">
-            Branch involvement, public service, candidate selection, mentoring and more.
-          </p>
-          <button
-            onClick={() => navigate("pathways")}
-            className="mt-4 text-sm inline-flex items-center gap-1"
-            style={{ color: NAVY, fontWeight: 500 }}
-          >
-            Browse pathways <ArrowRight size={14} />
-          </button>
-        </Card>
-
-        <Card className="col-span-2">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <CalendarDays size={18} style={{ color: NAVY }} />
-              <h3 style={{ color: NAVY }}>Upcoming CiP events</h3>
-            </div>
-            <button onClick={() => navigate("events")} className="text-sm" style={{ color: NAVY }}>
-              View all
-            </button>
-          </div>
-          <div className="space-y-3">
-            {[
-              { title: "Faithful Politics: An evening with Tim Costello", date: "Wed 27 May · 7:00 PM AEST", loc: "Online" },
-              { title: "Sydney CiP Members Prayer Gathering", date: "Sat 31 May · 8:00 AM", loc: "Sydney CBD" },
-            ].map((e, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between p-3 rounded-lg"
-                style={{ background: "#faf7f0" }}
-              >
-                <div>
-                  <div style={{ color: NAVY, fontWeight: 500 }} className="text-sm">
-                    {e.title}
-                  </div>
-                  <div className="text-xs text-gray-600 mt-0.5 flex items-center gap-2">
-                    <Clock size={12} /> {e.date} · <MapPin size={12} /> {e.loc}
-                  </div>
-                </div>
-                <button
-                  onClick={() => navigate("event-detail")}
-                  className="px-3 py-1.5 rounded-md text-sm"
-                  style={{ background: NAVY, color: "#fff" }}
-                >
-                  Register
-                </button>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center gap-2 mb-3">
-            <Megaphone size={18} style={{ color: NAVY }} />
-            <h3 style={{ color: NAVY }}>Latest announcements</h3>
-          </div>
-          <ul className="space-y-3 text-sm">
-            <li>
-              <Pill>Opportunity</Pill>
-              <div className="mt-1" style={{ color: NAVY }}>Liberal pre-selection nominations open in QLD</div>
-            </li>
-            <li>
-              <Pill>Training</Pill>
-              <div className="mt-1" style={{ color: NAVY }}>Public Service pathway briefing — June</div>
-            </li>
-          </ul>
-          <button onClick={() => navigate("announcements")} className="mt-3 text-sm" style={{ color: NAVY }}>
-            See all
-          </button>
-        </Card>
-
-        <Card className="col-span-2">
-          <div className="flex items-center gap-2 mb-3">
-            <BookOpen size={18} style={{ color: NAVY }} />
-            <h3 style={{ color: NAVY }}>Recommended resources</h3>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { t: "Politics — A Case for Christian Engagement", a: "John Anderson", time: "240 pages" },
-              { t: "How to Join a Political Party in Australia", a: "CiP Guide", time: "12 min read" },
-              { t: "Faithfulness in Public Life (Bible study)", a: "CiP", time: "6 sessions" },
-              { t: "Candidate Selection 101", a: "CiP Course", time: "45 min" },
-            ].map((r, i) => (
-              <div key={i} className="p-3 rounded-lg" style={{ background: "#faf7f0" }}>
-                <div style={{ color: NAVY, fontWeight: 500 }} className="text-sm">{r.t}</div>
-                <div className="text-xs text-gray-600 mt-0.5">{r.a} · {r.time}</div>
-              </div>
-            ))}
-          </div>
-          <button onClick={() => navigate("resources")} className="mt-3 text-sm" style={{ color: NAVY }}>
-            Browse library
-          </button>
-        </Card>
-
-        <Card>
-          <div className="flex items-center gap-2 mb-2">
-            <Lock size={18} style={{ color: NAVY }} />
-            <h3 style={{ color: NAVY }}>Privacy & data</h3>
-          </div>
-          <p className="text-sm text-gray-600">
-            Your political and religious information is private. Members are not searchable by other members.
-          </p>
-          <button onClick={() => navigate("privacy")} className="mt-3 text-sm" style={{ color: NAVY, fontWeight: 500 }}>
-            Manage privacy →
-          </button>
-        </Card>
-      </div>
-
-      <Card className="mt-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md flex items-center justify-center" style={{ background: MUTED_BLUE, color: NAVY }}>
-              <Compass size={18} />
-            </div>
-            <div>
-              <div style={{ color: NAVY, fontWeight: 500 }}>Not sure which party to join?</div>
-              <div className="text-sm text-gray-600">
-                Answer a short set of questions to reflect on where your views may align. This is not voting advice.
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={() => navigate("guidance")}
-            className="px-4 py-2 rounded-md"
-            style={{ background: GOLD, color: NAVY, fontWeight: 500 }}
-          >
-            Start party guidance
-          </button>
-        </div>
-      </Card>
     </div>
   );
 }
 
-/* ----------------------- Profile ----------------------- */
+// ── Home feed (admin controlled) ─────────────────────────────────────
+const FEED_TYPE_COLORS: Record<string, string> = {
+  Announcement: "#ede9fe",
+  Event:        "#dbeafe",
+  Resource:     "#d1fae5",
+  Opportunity:  "#fef3c7",
+  Reflection:   "#fce7f3",
+  Support:      "#fde8d8",
+  Donate:       "#f5e6c8",
+};
+
+const FEED_ITEMS: {
+  type: string; title: string; body: string; cta: string; date: string; image?: boolean; cta2?: string;
+}[] = [
+  {
+    type: "Announcement",
+    title: "Liberal pre-selection nominations open in QLD",
+    body: "Nominations close 14 June. CiP can connect interested members with current branch members for a private conversation before you decide.",
+    cta: "Express interest",
+    date: "2 days ago",
+  },
+  {
+    type: "Event",
+    title: "Faithful Politics: An evening with Tim Costello",
+    body: "A wide-ranging conversation about discipleship in public life. Q&A included. Wed 27 May · 7:00 PM AEST · Online.",
+    cta: "Register",
+    date: "3 days ago",
+    image: true,
+  },
+  {
+    type: "Reflection",
+    title: "On disagreeing well: a short reflection from our chair",
+    body: "Public life is increasingly polarised. How do we hold convictions while loving those who hold different ones? A 4-minute read.",
+    cta: "Read more",
+    date: "5 days ago",
+  },
+  {
+    type: "Resource",
+    title: "New: Branch meetings — an inside look",
+    body: "What to expect at your first branch meeting, how to prepare, and how to make the most of it. 8-min video.",
+    cta: "View resource",
+    date: "1 week ago",
+  },
+  {
+    type: "Support",
+    title: "Considering standing for council? Talk to us first.",
+    body: "Local government is a meaningful entry point. Our team can walk you through what's involved and connect you with someone who's done it.",
+    cta: "Request support",
+    date: "1 week ago",
+  },
+  {
+    type: "Opportunity",
+    title: "Summer policy internship — Federal Senator's office",
+    body: "Six-week policy internship for current students. Christian applicants encouraged to apply.",
+    cta: "Read more",
+    date: "1 week ago",
+  },
+  {
+    type: "Donate",
+    title: "Help us reach more young Christians considering public service",
+    body: "Your support funds the mentoring conversations, training events and pastoral care that quietly shape Australia's next generation of public servants.",
+    cta: "Donate",
+    date: "2 weeks ago",
+  },
+];
+
+function FeedPost({ item, navigate }: { item: typeof FEED_ITEMS[number]; navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  return (
+    <Card className="overflow-hidden">
+      {item.image && (
+        <div
+          className="h-44 w-full"
+          style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b 60%, ${GOLD})` }}
+        />
+      )}
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-2.5">
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[10px]"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            CiP
+          </div>
+          <div className="text-xs" style={{ color: theme.text, fontWeight: 600 }}>
+            Christians in Politics
+          </div>
+          <span className="text-xs" style={{ color: theme.textSubtle }}>·</span>
+          <span className="text-xs" style={{ color: theme.textSubtle }}>{item.date}</span>
+          <div className="ml-auto">
+            <Pill color={FEED_TYPE_COLORS[item.type]}>{item.type}</Pill>
+          </div>
+        </div>
+        <h3 className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
+          {item.title}
+        </h3>
+        <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
+          {item.body}
+        </p>
+        <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
+          <PrimaryButton onClick={() => {
+            if (item.cta === "Register") navigate("event-detail");
+            else if (item.cta === "Donate") navigate("donate");
+          }}>
+            {item.cta}
+          </PrimaryButton>
+          <span className="text-[11px] ml-auto inline-flex items-center gap-1" style={{ color: theme.textSubtle }}>
+            <Lock size={10} /> Posted by CiP · No public comments
+          </span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export function Dashboard({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  return (
+    <div className="space-y-4">
+      {/* Read-only composer */}
+      <Card className="p-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-xs shrink-0"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            SR
+          </div>
+          <div
+            className="flex-1 px-4 py-2.5 rounded-full text-sm"
+            style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.textMuted }}
+          >
+            <Lock size={11} className="inline mr-2" />
+            The Home feed is curated by CiP. Join a group to participate in discussion.
+          </div>
+        </div>
+      </Card>
+
+      {FEED_ITEMS.map((item, i) => (
+        <FeedPost key={i} item={item} navigate={navigate} />
+      ))}
+    </div>
+  );
+}
+
+// ── Profile (read-only) ──────────────────────────────────────────────
+const PROFILE_ACTIVITY = [
+  { type: "Event", title: "Registered: Faithful Politics with Tim Costello", date: "3 days ago" },
+  { type: "Resource", title: "Saved: Branch meetings — an inside look", date: "1 week ago" },
+  { type: "Support", title: "Open request: Connect to a local branch", date: "2 weeks ago" },
+  { type: "Group", title: "Joined: NSW Politics & Prayer (anonymous)", date: "3 weeks ago" },
+];
+
+const PARTIES = [
+  "No affiliation", "Independent", "Australian Labor Party", "Liberal Party of Australia",
+  "The Nationals", "Australian Greens", "One Nation", "Family First",
+  "Australian Christians", "Other",
+];
+
+const STATES = [
+  "Australian Capital Territory", "New South Wales", "Northern Territory",
+  "Queensland", "South Australia", "Tasmania", "Victoria", "Western Australia",
+];
+
+const TRADITIONS = [
+  "Anglican", "Baptist", "Catholic", "Churches of Christ",
+  "Eastern Orthodox", "Lutheran", "Pentecostal / Charismatic",
+  "Presbyterian / Reformed", "Salvation Army", "Seventh-day Adventist",
+  "Uniting Church", "Independent / Non-denominational",
+  "Other recognised Christian tradition",
+];
+
+interface ProfileData {
+  firstName: string;
+  lastName: string;
+  jobTitle: string;
+  bio: string;
+  state: string;
+  federalElectorate: string;
+  stateElectorate: string;
+  party: string;
+  tradition: string;
+  showParty: boolean;
+}
+
+const DEFAULT_PROFILE: ProfileData = {
+  firstName: "Sarah",
+  lastName: "Reed",
+  jobTitle: "Policy Adviser",
+  bio: "Anglican lay leader exploring how to participate faithfully in political life. Currently learning, listening and praying about state-level engagement in NSW.",
+  state: "New South Wales",
+  federalElectorate: "Bennelong",
+  stateElectorate: "Ryde",
+  party: "No affiliation",
+  tradition: "Anglican",
+  showParty: false,
+};
+
+function FormField({
+  label, hint, children,
+}: { label: string; hint?: string; children: React.ReactNode }) {
+  const { theme } = useTheme();
+  return (
+    <div>
+      <label className="text-xs block" style={{ color: theme.text, fontWeight: 600 }}>{label}</label>
+      {hint && <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{hint}</div>}
+      <div className="mt-1.5">{children}</div>
+    </div>
+  );
+}
+
+function TextInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const { theme } = useTheme();
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+      style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+    />
+  );
+}
+
+function SelectInput({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
+  const { theme } = useTheme();
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 rounded-lg outline-none text-sm appearance-none"
+        style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+      >
+        {options.map((o) => <option key={o}>{o}</option>)}
+      </select>
+      <ChevronRight size={12} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" style={{ color: theme.textMuted }} />
+    </div>
+  );
+}
+
+function ProfileMetaRow({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+  const { theme } = useTheme();
+  return (
+    <div className="flex items-start gap-3">
+      <Icon size={14} className="mt-0.5 shrink-0" style={{ color: theme.textMuted }} />
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px]" style={{ color: theme.textSubtle }}>{label}</div>
+        <div className="text-sm" style={{ color: theme.text }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
 export function ProfileScreen() {
-  const sections = [
-    { name: "Personal details", done: true },
-    { name: "Faith background", done: true },
-    { name: "Political engagement", done: false },
-    { name: "Support and contribution", done: false },
-  ];
-  const denominations = [
-    "Catholic", "Anglican", "Uniting Church", "Baptist", "Presbyterian / Reformed",
-    "Lutheran", "Pentecostal / Charismatic", "Orthodox / Eastern Orthodox",
-    "Oriental Orthodox (incl. Coptic)", "Churches of Christ", "Salvation Army",
-    "Seventh-day Adventist", "Independent / Non-denominational",
-    "Assyrian / Chaldean", "Maronite Catholic", "Other Protestant",
-    "Other Christian tradition", "Prefer not to say",
-  ];
-  const parties = [
-    "Liberal Party", "Australian Labor Party", "National Party",
-    "Australian Greens", "One Nation", "Other minor party",
-    "Independent", "Not sure yet", "Prefer not to say",
-  ];
-  const interests = [
-    "Join a political party", "Choose a political party", "Find a local branch",
-    "Understand party structures", "Candidate selection", "Volunteering on campaigns",
-    "Public service pathway", "Advocacy organisation pathway", "Local council",
-    "Staffer roles", "Policy training", "Prayer and spiritual support",
-    "Mentoring", "Events and fellowship",
-  ];
+  const { theme } = useTheme();
+  const [editing, setEditing] = useState(false);
+  const [profile, setProfile] = useState<ProfileData>(DEFAULT_PROFILE);
+  const [draft, setDraft] = useState<ProfileData>(DEFAULT_PROFILE);
+
+  const startEdit = () => { setDraft(profile); setEditing(true); };
+  const save = () => { setProfile(draft); setEditing(false); };
+  const cancel = () => setEditing(false);
+
+  const initials = (profile.firstName[0] ?? "") + (profile.lastName[0] ?? "");
 
   return (
-    <div className="max-w-5xl">
-      <SectionHeader title="My profile" subtitle="This information is private. Members are not searchable by other members." />
-
-      <div className="grid grid-cols-3 gap-6">
-        <div>
-          <Card>
-            <div className="text-sm" style={{ color: NAVY, fontWeight: 600 }}>Profile completion</div>
-            <div className="h-2 rounded-full mt-2" style={{ background: "#eee5d3" }}>
-              <div className="h-full rounded-full" style={{ width: "60%", background: GOLD }} />
+    <div className="space-y-4">
+      {/* Header */}
+      <Card className="overflow-hidden">
+        <div className="h-32" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b 60%, ${GOLD})` }} />
+        <div className="px-6 pb-5 -mt-12">
+          <div
+            className="w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl"
+            style={{ background: NAVY, border: `4px solid ${theme.cardBg}`, fontWeight: 600 }}
+          >
+            {initials}
+          </div>
+          <div className="mt-3 flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <h1 style={{ color: theme.text }}>{profile.firstName} {profile.lastName}</h1>
+              {profile.jobTitle && (
+                <p className="text-sm mt-0.5" style={{ color: theme.textMuted, fontWeight: 500 }}>
+                  {profile.jobTitle}
+                </p>
+              )}
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <Pill color={theme.pillBg}><MapPin size={10} /> {profile.state}</Pill>
+                <Pill color="#ede9fe"><Church size={10} /> {profile.tradition}</Pill>
+                {profile.showParty && (
+                  <Pill color="#fef3c7" fg="#92400e"><Flag size={10} /> {profile.party}</Pill>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 mt-3 text-xs" style={{ color: theme.textSubtle }}>
+                <Lock size={11} /> Privacy-first profile · Visible only to CiP and where you reveal in groups
+              </div>
             </div>
-            <div className="text-xs text-gray-500 mt-1">60% complete</div>
-            <div className="mt-4 space-y-2">
-              {sections.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
-                  {s.done ? (
-                    <CheckCircle2 size={16} style={{ color: GOLD }} />
-                  ) : (
-                    <Circle size={16} className="text-gray-400" />
-                  )}
-                  <span style={{ color: NAVY }}>{s.name}</span>
+            {!editing && <GhostButton onClick={startEdit}>Edit profile</GhostButton>}
+          </div>
+        </div>
+      </Card>
+
+      {editing ? (
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Edit profile</h3>
+            <span className="text-[11px]" style={{ color: theme.textSubtle }}>
+              <Lock size={10} className="inline mr-1" />
+              You control what's shared, per group
+            </span>
+          </div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+            <FormField label="First name">
+              <TextInput value={draft.firstName} onChange={(v) => setDraft({ ...draft, firstName: v })} />
+            </FormField>
+            <FormField label="Last name">
+              <TextInput value={draft.lastName} onChange={(v) => setDraft({ ...draft, lastName: v })} />
+            </FormField>
+            <FormField label="Job title or secondary title" hint="Shown under your name. Optional.">
+              <TextInput value={draft.jobTitle} onChange={(v) => setDraft({ ...draft, jobTitle: v })} placeholder="e.g. Policy Adviser, Lay leader" />
+            </FormField>
+            <FormField label="State / territory">
+              <SelectInput value={draft.state} onChange={(v) => setDraft({ ...draft, state: v })} options={STATES} />
+            </FormField>
+            <FormField label="Federal electorate" hint="Optional. Used only for electorate-based groups.">
+              <TextInput value={draft.federalElectorate} onChange={(v) => setDraft({ ...draft, federalElectorate: v })} placeholder="e.g. Bennelong" />
+            </FormField>
+            <FormField label="State electorate" hint="Optional.">
+              <TextInput value={draft.stateElectorate} onChange={(v) => setDraft({ ...draft, stateElectorate: v })} placeholder="e.g. Ryde" />
+            </FormField>
+            <FormField label="Political party affiliation" hint='Pick "No affiliation" if you prefer.'>
+              <SelectInput value={draft.party} onChange={(v) => setDraft({ ...draft, party: v })} options={PARTIES} />
+            </FormField>
+            <FormField label="Christian tradition" hint="Set during sign-up. You can refine here.">
+              <SelectInput value={draft.tradition} onChange={(v) => setDraft({ ...draft, tradition: v })} options={TRADITIONS} />
+            </FormField>
+          </div>
+
+          <FormField label="Short bio" hint="A line or two about you. Optional.">
+            <textarea
+              value={draft.bio}
+              onChange={(e) => setDraft({ ...draft, bio: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+              style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+            />
+          </FormField>
+
+          <div className="mt-4 flex items-center gap-2 text-sm" style={{ color: theme.text }}>
+            <input
+              type="checkbox"
+              checked={draft.showParty}
+              onChange={(e) => setDraft({ ...draft, showParty: e.target.checked })}
+            />
+            <span>Show my political party affiliation on my profile header</span>
+          </div>
+
+          <div className="flex items-center gap-2 mt-6">
+            <button
+              onClick={save}
+              className="px-4 py-2 rounded-lg text-sm"
+              style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+            >
+              Save changes
+            </button>
+            <button
+              onClick={cancel}
+              className="px-4 py-2 rounded-lg text-sm"
+              style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+            >
+              Cancel
+            </button>
+          </div>
+        </Card>
+      ) : (
+        <>
+          <Card className="p-5">
+            <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>About</h3>
+            <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
+              {profile.bio}
+            </p>
+          </Card>
+
+          <Card className="p-5">
+            <h3 className="text-sm mb-4" style={{ color: theme.text, fontWeight: 600 }}>Profile details</h3>
+            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+              <ProfileMetaRow icon={Briefcase} label="Title"             value={profile.jobTitle || "—"} />
+              <ProfileMetaRow icon={MapPin}    label="State"             value={profile.state} />
+              <ProfileMetaRow icon={MapPin}    label="Federal electorate" value={profile.federalElectorate || "—"} />
+              <ProfileMetaRow icon={MapPin}    label="State electorate"  value={profile.stateElectorate || "—"} />
+              <ProfileMetaRow icon={Flag}      label="Political party"   value={profile.party} />
+              <ProfileMetaRow icon={Church}    label="Christian tradition" value={profile.tradition} />
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Your activity</h3>
+              <span className="text-[11px]" style={{ color: theme.textSubtle }}>
+                <Lock size={10} className="inline mr-1" />
+                Personal posting is not enabled in v1
+              </span>
+            </div>
+            <div className="space-y-3">
+              {PROFILE_ACTIVITY.map((a, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 py-2.5"
+                  style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
+                >
+                  <div className="shrink-0">
+                    <Pill color={FEED_TYPE_COLORS[a.type] ?? "#f3f4f6"}>{a.type}</Pill>
+                  </div>
+                  <div className="flex-1 text-sm" style={{ color: theme.text }}>{a.title}</div>
+                  <div className="text-xs" style={{ color: theme.textSubtle }}>{a.date}</div>
                 </div>
               ))}
             </div>
           </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Groups discovery ─────────────────────────────────────────────────
+const ALL_GROUPS = [
+  { id: "nsw-pp", name: "NSW Politics & Prayer", desc: "Monthly prayer and political reflection for NSW members.", members: 142, joined: true, visibility: "anonymous" },
+  { id: "syd-civic", name: "Sydney Civic Faith Circle", desc: "Sydney-based group focused on local government and council engagement.", members: 87, joined: true, visibility: "visible" },
+  { id: "young-cip", name: "Young CiP", desc: "Members under 35 finding their feet in politics and public life.", members: 213, joined: true, visibility: "anonymous" },
+  { id: "vic-pp", name: "VIC Politics & Prayer", desc: "Victorian counterpart to NSW Politics & Prayer.", members: 96, joined: false, visibility: null },
+  { id: "rural-cf", name: "Rural Christians in Politics", desc: "Members from regional and rural Australia.", members: 54, joined: false, visibility: null },
+  { id: "qld-pp", name: "QLD Politics & Prayer", desc: "Queensland prayer and policy discussion group.", members: 118, joined: false, visibility: null },
+  { id: "policy-women", name: "Christian Women in Public Policy", desc: "A supportive space for women considering or already serving in public roles.", members: 71, joined: false, visibility: null },
+];
+
+function GroupCard({ g, navigate }: { g: typeof ALL_GROUPS[number]; navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  return (
+    <Card className="p-4">
+      <div className="flex items-start gap-3">
+        <div
+          className="w-12 h-12 rounded-xl shrink-0 flex items-center justify-center"
+          style={{ background: theme.pillBg, color: NAVY, fontWeight: 700 }}
+        >
+          {g.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => navigate("group-detail")}
+              className="text-sm hover:underline text-left"
+              style={{ color: theme.text, fontWeight: 600 }}
+            >
+              {g.name}
+            </button>
+            {g.joined && g.visibility === "anonymous" && (
+              <Pill color="#f3f4f6" fg="#6b7280"><Lock size={10} /> Anonymous</Pill>
+            )}
+            {g.joined && g.visibility === "visible" && (
+              <Pill color="#d1fae5" fg="#065f46"><Eye size={10} /> Visible</Pill>
+            )}
+          </div>
+          <p className="text-xs mt-1 leading-relaxed" style={{ color: theme.textMuted }}>
+            {g.desc}
+          </p>
+          <div className="flex items-center justify-between mt-3">
+            <span className="text-xs" style={{ color: theme.textSubtle }}>{g.members} members</span>
+            {g.joined ? (
+              <GhostButton onClick={() => navigate("group-detail")}>Open</GhostButton>
+            ) : (
+              <PrimaryButton onClick={() => navigate("group-detail")}>Join</PrimaryButton>
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// Mock network used by the Create Group invite step
+const MY_NETWORK = [
+  { id: "n1", name: "Hannah K.",  title: "Local government candidate" },
+  { id: "n2", name: "Daniel S.",  title: "Lay preacher · Policy nerd" },
+  { id: "n3", name: "Priya M.",   title: "Researcher · Young CiP" },
+  { id: "n4", name: "James P.",   title: "Education policy" },
+  { id: "n5", name: "Margaret O.", title: "Christian Women in Public Policy" },
+  { id: "n6", name: "Andrew T.",  title: "Anglican lay leader" },
+];
+
+type GroupVisibility = "public" | "private" | "restricted";
+type Caveat = "electorate" | "party" | "tradition";
+
+const CAVEAT_OPTIONS: { id: Caveat; label: string; hint: string; icon: any }[] = [
+  { id: "electorate", label: "Same federal electorate", hint: "Members must list the same federal electorate as the group's electorate.", icon: MapPin },
+  { id: "party",      label: "Same political party",   hint: "Members must list the same political party affiliation.", icon: Flag },
+  { id: "tradition",  label: "Same Christian tradition", hint: "Members must share the same Christian tradition.", icon: Church },
+];
+
+function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => void }) {
+  const { theme } = useTheme();
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [vis, setVis] = useState<GroupVisibility>("private");
+  const [caveat, setCaveat] = useState<Caveat>("electorate");
+  const [caveatValue, setCaveatValue] = useState("");
+  const [invited, setInvited] = useState<Record<string, boolean>>({});
+
+  const toggleInvite = (id: string) => setInvited({ ...invited, [id]: !invited[id] });
+  const invitedCount = Object.values(invited).filter(Boolean).length;
+  const canNext1 = name.trim().length > 1;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl rounded-2xl shadow-2xl"
+        style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <div>
+            <h3 style={{ color: theme.text, fontWeight: 600 }}>Create a group</h3>
+            <div className="flex items-center gap-1.5 mt-1 text-[11px]" style={{ color: theme.textSubtle }}>
+              <span style={{ color: step >= 1 ? NAVY : theme.textSubtle, fontWeight: step === 1 ? 600 : 400 }}>1. Basics</span>
+              <ChevronRight size={11} />
+              <span style={{ color: step >= 2 ? NAVY : theme.textSubtle, fontWeight: step === 2 ? 600 : 400 }}>2. Who can join</span>
+              <ChevronRight size={11} />
+              <span style={{ color: step >= 3 ? NAVY : theme.textSubtle, fontWeight: step === 3 ? 600 : 400 }}>3. Invite</span>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
+            <X size={16} style={{ color: theme.textMuted }} />
+          </button>
         </div>
 
-        <div className="col-span-2 space-y-6">
-          <Card>
-            <h3 style={{ color: NAVY }}>Personal details</h3>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <Inp label="First name" value="Sarah" />
-              <Inp label="Last name" value="Reed" />
-              <Inp label="Email" value="sarah@example.com" />
-              <Inp label="Mobile (optional)" value="" />
-              <Sel label="State / territory" options={["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]} />
-              <Inp label="City / region" value="Sydney" />
-              <Sel label="Age range (optional)" options={["18-24", "25-34", "35-44", "45-54", "55+"]} />
-              <Inp label="University or workplace (optional)" value="" />
+        <div className="px-6 py-5 max-h-[70vh] overflow-y-auto">
+          {step === 1 && (
+            <div className="space-y-4">
+              <FormField label="Group name">
+                <TextInput value={name} onChange={setName} placeholder="e.g. Bennelong Christians in Politics" />
+              </FormField>
+              <FormField label="Short description" hint="What is this group about? Members will see this on the discover page.">
+                <textarea
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  rows={3}
+                  placeholder="Monthly prayer and discussion for Christians in the Bennelong electorate."
+                  className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+                  style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+                />
+              </FormField>
             </div>
-          </Card>
+          )}
 
-          <Card>
-            <h3 style={{ color: NAVY }}>Faith background</h3>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <Sel label="Christian tradition most identified with" options={denominations} />
-              <Inp label="Local church / Christian community (optional)" value="" />
-              <Inp label="University Christian group? (optional)" value="" />
-              <Sel label="Should CiP consider this when matching support?" options={["Yes", "No"]} />
-            </div>
-          </Card>
+          {step === 2 && (
+            <div className="space-y-3">
+              {([
+                { v: "public",     label: "Public",     hint: "Any CiP member can find and join this group.",                   icon: Globe },
+                { v: "private",    label: "Private",    hint: "Invite-only. Only people you invite from your network can join.", icon: Lock },
+                { v: "restricted", label: "Restricted", hint: "Public to CiP members who match a specific criterion (caveat).",  icon: ShieldCheck },
+              ] as const).map((opt) => {
+                const I = opt.icon;
+                const active = vis === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    onClick={() => setVis(opt.v)}
+                    className="w-full text-left rounded-xl px-4 py-3 flex items-start gap-3 transition-colors"
+                    style={{
+                      background: active ? "#f0f7ff" : theme.bg,
+                      border: `1px solid ${active ? "#bfdbfe" : theme.cardBorder}`,
+                    }}
+                  >
+                    <div
+                      className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center"
+                      style={{ background: active ? NAVY : theme.pillBg, color: active ? "#fff" : NAVY }}
+                    >
+                      <I size={14} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{opt.label}</div>
+                      <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>{opt.hint}</div>
+                    </div>
+                  </button>
+                );
+              })}
 
-          <Card>
-            <h3 style={{ color: NAVY }}>Political engagement</h3>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <Sel
-                label="How engaged are you in politics?"
-                options={[
-                  "Just curious", "Learning the basics", "Interested in joining a party",
-                  "Already a party member", "Active in a branch", "Campaign volunteer",
-                  "Staffer / adviser", "Candidate / elected official",
-                  "Public servant", "Advocacy / policy professional",
-                ]}
-              />
-              <Sel label="Currently a member of a political party?" options={["Yes", "No", "Prefer not to say"]} />
-              <Sel label="Political party affiliation (optional)" options={parties} />
-              <Inp label="Branch or electorate (optional)" value="" />
-              <Sel
-                label="Are you currently in elected/staffer office?"
-                options={["Yes", "No"]}
-              />
-              <Inp label="Role details (optional, private)" value="" />
+              {vis === "restricted" && (
+                <div
+                  className="mt-2 rounded-xl p-4 space-y-3"
+                  style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}
+                >
+                  <div className="text-xs" style={{ color: theme.text, fontWeight: 600 }}>
+                    Caveat — only members who match can join
+                  </div>
+                  <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+                    {CAVEAT_OPTIONS.map((c) => {
+                      const I = c.icon;
+                      const active = caveat === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => setCaveat(c.id)}
+                          className="text-left rounded-lg px-3 py-2.5"
+                          style={{
+                            background: active ? "#fff" : theme.cardBg,
+                            border: `1px solid ${active ? NAVY : theme.cardBorder}`,
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <I size={12} style={{ color: NAVY }} />
+                            <span className="text-xs" style={{ color: theme.text, fontWeight: 600 }}>{c.label}</span>
+                          </div>
+                          <div className="text-[11px] mt-1 leading-snug" style={{ color: theme.textMuted }}>{c.hint}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <FormField
+                    label={
+                      caveat === "electorate" ? "Federal electorate" :
+                      caveat === "party"      ? "Political party" :
+                                                "Christian tradition"
+                    }
+                  >
+                    {caveat === "party" ? (
+                      <SelectInput value={caveatValue || PARTIES[0]} onChange={setCaveatValue} options={PARTIES} />
+                    ) : caveat === "tradition" ? (
+                      <SelectInput value={caveatValue || TRADITIONS[0]} onChange={setCaveatValue} options={TRADITIONS} />
+                    ) : (
+                      <TextInput value={caveatValue} onChange={setCaveatValue} placeholder="e.g. Bennelong" />
+                    )}
+                  </FormField>
+                </div>
+              )}
             </div>
-          </Card>
+          )}
 
-          <Card>
-            <h3 style={{ color: NAVY }}>Support and contribution</h3>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <Sel label="Seeking support to become more involved?" options={["Yes", "No"]} />
-              <Sel label="Want to help others get involved?" options={["Yes", "No"]} />
-              <Sel label="Preferred contact method" options={["Email", "Phone", "Either"]} />
-            </div>
-            <div className="mt-4">
-              <label className="text-sm" style={{ color: NAVY }}>Areas of interest</label>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {interests.map((i) => (
-                  <span key={i} className="px-2.5 py-1 rounded-full text-xs border" style={{ borderColor: "#e2dccf", color: NAVY }}>
-                    {i}
-                  </span>
-                ))}
+          {step === 3 && (
+            <div>
+              <div className="text-xs" style={{ color: theme.textMuted }}>
+                {vis === "private"
+                  ? "Invite people from your network. They'll receive an invitation to join."
+                  : "Invite a few people from your network to seed the group. You can invite more later."}
+              </div>
+              <div className="mt-3 rounded-xl divide-y" style={{ border: `1px solid ${theme.cardBorder}`, borderColor: theme.divider }}>
+                {MY_NETWORK.map((p) => {
+                  const checked = !!invited[p.id];
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => toggleInvite(p.id)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left"
+                      style={{ borderBottom: `1px solid ${theme.divider}`, background: checked ? "#f0f7ff" : "transparent" }}
+                    >
+                      <div
+                        className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs"
+                        style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                      >
+                        {p.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{p.name}</div>
+                        <div className="text-[11px]" style={{ color: theme.textSubtle }}>{p.title}</div>
+                      </div>
+                      <div
+                        className="w-5 h-5 rounded shrink-0 flex items-center justify-center"
+                        style={{ background: checked ? NAVY : "#fff", border: `1px solid ${checked ? NAVY : theme.cardBorder}` }}
+                      >
+                        {checked && <CheckCircle2 size={14} className="text-white" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 text-xs" style={{ color: theme.textSubtle }}>
+                {invitedCount} {invitedCount === 1 ? "person" : "people"} selected
               </div>
             </div>
-            <label className="mt-4 flex gap-2 items-start text-sm text-gray-700">
-              <input type="checkbox" defaultChecked className="mt-1" />
-              <span>I consent to CiP using this information to provide relevant support, introductions and opportunities.</span>
-            </label>
-          </Card>
+          )}
+        </div>
 
-          <div className="flex justify-end">
-            <button className="px-5 py-2.5 rounded-md" style={{ background: NAVY, color: "#fff", fontWeight: 500 }}>
-              Save profile
+        <div
+          className="px-6 py-4 flex items-center justify-between"
+          style={{ borderTop: `1px solid ${theme.divider}` }}
+        >
+          <button
+            onClick={() => (step === 1 ? onClose() : setStep((step - 1) as 1 | 2))}
+            className="px-4 py-2 rounded-lg text-sm"
+            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          >
+            {step === 1 ? "Cancel" : "Back"}
+          </button>
+          {step < 3 ? (
+            <button
+              onClick={() => setStep((step + 1) as 2 | 3)}
+              disabled={step === 1 && !canNext1}
+              className="px-4 py-2 rounded-lg text-sm inline-flex items-center gap-1.5"
+              style={{
+                background: step === 1 && !canNext1 ? theme.cardBorder : NAVY,
+                color: step === 1 && !canNext1 ? theme.textMuted : "#fff",
+                fontWeight: 600,
+              }}
+            >
+              Continue <ArrowRight size={13} />
             </button>
-          </div>
+          ) : (
+            <button
+              onClick={() => onCreate(name)}
+              className="px-4 py-2 rounded-lg text-sm"
+              style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+            >
+              Create group
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function Inp({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <label className="text-sm block mb-1.5" style={{ color: NAVY }}>{label}</label>
-      <input defaultValue={value} className="w-full px-3 py-2 rounded-md border outline-none" style={{ borderColor: "#e2dccf", background: "#faf9f5" }} />
-    </div>
-  );
-}
-function Sel({ label, options }: { label: string; options: string[] }) {
-  return (
-    <div>
-      <label className="text-sm block mb-1.5" style={{ color: NAVY }}>{label}</label>
-      <select className="w-full px-3 py-2 rounded-md border outline-none" style={{ borderColor: "#e2dccf", background: "#faf9f5" }}>
-        {options.map((o) => <option key={o}>{o}</option>)}
-      </select>
-    </div>
-  );
-}
+export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  const [tab, setTab] = useState<"joined" | "discover" | "yours">("joined");
+  const [createOpen, setCreateOpen] = useState(false);
 
-/* ----------------------- Pathways ----------------------- */
-export function PathwaysScreen({ navigate }: { navigate: (s: Screen) => void }) {
-  const cards = [
-    { t: "Join a major political party", desc: "Choose a party aligned with your convictions and become a member.", time: "Lifelong", diff: "Easy", next: "Talk to CiP about which party fits" },
-    { t: "Explore local branch involvement", desc: "Attend a branch meeting and meet local members.", time: "Monthly", diff: "Easy", next: "Find your nearest branch" },
-    { t: "Volunteer on a campaign", desc: "Doorknock, phone-bank, or staff a polling booth at the next election.", time: "Seasonal", diff: "Easy", next: "Express interest with CiP" },
-    { t: "Consider local council", desc: "Stand for council to serve your community at the local level.", time: "Years", diff: "Moderate", next: "Read 'Local council 101'" },
-    { t: "Explore public service", desc: "APS or state government — serving the public from inside.", time: "Career", diff: "Moderate", next: "Public service pathway briefing" },
-    { t: "Explore staffer roles", desc: "Work in an MP or Senator's office on policy and advocacy.", time: "Years", diff: "Hard", next: "Request introduction" },
-    { t: "Join an advocacy or policy organisation", desc: "Work with affiliated groups on specific issues.", time: "Career", diff: "Moderate", next: "Browse affiliated groups" },
-    { t: "Consider candidate selection", desc: "Discern whether to put yourself forward for pre-selection.", time: "Years", diff: "Hard", next: "Read 'Candidate selection 101'" },
-    { t: "Support through prayer, mentoring, or hospitality", desc: "Many of the most faithful contributions are quiet ones.", time: "Ongoing", diff: "Easy", next: "Sign up to mentor" },
-  ];
+  const list =
+    tab === "joined"   ? ALL_GROUPS.filter((g) => g.joined) :
+    tab === "discover" ? ALL_GROUPS.filter((g) => !g.joined) :
+                         []; // groups created by current user (none yet in mock)
+
   return (
-    <div className="max-w-6xl">
-      <SectionHeader title="Political pathways" />
-      <Card className="mb-6" >
-        <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-4">
+      <Card className="p-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h2 style={{ color: NAVY }}>Explore your next faithful step</h2>
-            <p className="text-sm text-gray-600 mt-2 max-w-2xl">
-              CiP does not tell you which party to join. We help you think wisely about vocation,
-              conviction, temperament, local opportunities and practical next steps.
+            <h1 style={{ color: theme.text }}>Groups</h1>
+            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+              Join existing groups, or start your own — public to all CiP members, private and invite-only,
+              or restricted to people who share your electorate, party or tradition.
             </p>
           </div>
-          <Compass size={42} style={{ color: GOLD }} />
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5 shrink-0"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            <Plus size={14} /> Create group
+          </button>
         </div>
-      </Card>
-
-      <div className="grid grid-cols-3 gap-5">
-        {cards.map((c) => (
-          <Card key={c.t}>
-            <h3 style={{ color: NAVY }}>{c.t}</h3>
-            <p className="text-sm text-gray-600 mt-2">{c.desc}</p>
-            <div className="flex gap-2 mt-3">
-              <Pill>{c.time}</Pill>
-              <Pill>{c.diff}</Pill>
-            </div>
-            <div className="text-xs text-gray-500 mt-3">Next: {c.next}</div>
+        <div className="mt-4 flex gap-1 p-1 rounded-lg w-fit" style={{ background: theme.bg }}>
+          {([
+            ["joined", "Your groups"],
+            ["discover", "Discover"],
+            ["yours", "Created by you"],
+          ] as const).map(([t, l]) => (
             <button
-              onClick={() => navigate("support")}
-              className="mt-4 w-full px-3 py-2 rounded-md text-sm border"
-              style={{ borderColor: NAVY, color: NAVY }}
+              key={t}
+              onClick={() => setTab(t)}
+              className="px-4 py-1.5 rounded-md text-xs"
+              style={{
+                background: tab === t ? theme.cardBg : "transparent",
+                color: tab === t ? theme.text : theme.textMuted,
+                fontWeight: tab === t ? 600 : 400,
+                border: tab === t ? `1px solid ${theme.cardBorder}` : "1px solid transparent",
+              }}
             >
-              Request support
+              {l}
             </button>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
+          ))}
+        </div>
+      </Card>
 
-/* ----------------------- Party guidance ----------------------- */
-export function GuidanceScreen({ navigate }: { navigate: (s: Screen) => void }) {
-  const [step, setStep] = useState(0);
-  const total = 5;
-
-  if (step === 0) {
-    return (
-      <div className="max-w-3xl">
-        <SectionHeader title="Party guidance — a CiP reflection tool" />
-        <Card>
-          <h3 style={{ color: NAVY }}>Before you begin</h3>
-          <p className="text-gray-700 text-sm mt-3 leading-relaxed">
-            This tool is designed to help you reflect. It does not tell you how to vote, does not
-            tell you which party to join, and does not represent a CiP endorsement. Your results are
-            private unless you choose to share them with CiP when requesting support.
+      {list.length > 0 ? (
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+          {list.map((g) => <GroupCard key={g.id} g={g} navigate={navigate} />)}
+        </div>
+      ) : (
+        <Card className="p-10 text-center">
+          <div
+            className="w-12 h-12 rounded-full mx-auto flex items-center justify-center"
+            style={{ background: theme.pillBg }}
+          >
+            <Users size={20} style={{ color: NAVY }} />
+          </div>
+          <h3 className="mt-3 text-sm" style={{ color: theme.text, fontWeight: 600 }}>
+            You haven't created any groups yet
+          </h3>
+          <p className="text-xs mt-1.5 max-w-sm mx-auto" style={{ color: theme.textMuted }}>
+            Start a group around your electorate, party, tradition or any shared CiP interest.
           </p>
-          <ul className="mt-4 space-y-2 text-sm">
-            {["~10 minutes", "14 issue areas", "Optional importance weighting", "Private by default"].map((l) => (
-              <li key={l} className="flex items-center gap-2 text-gray-700">
-                <CheckCircle2 size={14} style={{ color: GOLD }} /> {l}
-              </li>
-            ))}
-          </ul>
-          <button onClick={() => setStep(1)} className="mt-6 px-5 py-2.5 rounded-md" style={{ background: NAVY, color: "#fff", fontWeight: 500 }}>
-            Begin reflection
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="mt-4 px-4 py-2 rounded-lg text-sm inline-flex items-center gap-1.5"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            <Plus size={13} /> Create your first group
           </button>
         </Card>
-      </div>
-    );
-  }
+      )}
 
-  if (step >= 1 && step <= 3) {
-    const titles = ["Issue alignment", "Importance weighting", "Personal vocation"];
-    const issues = [
-      "Economic policy", "Social policy", "Religious freedom", "Family and community",
-      "Cost of living", "Education", "Health", "Environment and stewardship",
-      "Immigration and multicultural Australia", "National security and defence",
-      "Indigenous affairs", "Housing", "Public service and integrity", "Local community priorities",
-    ];
-    const likert = ["Strongly disagree", "Disagree", "Neutral / unsure", "Agree", "Strongly agree"];
-    const weights = ["Not important", "Somewhat important", "Very important", "Essential"];
-    return (
-      <div className="max-w-3xl">
-        <SectionHeader title={`${titles[step - 1]}`} subtitle={`Step ${step} of ${total}`} />
-        <div className="h-2 rounded-full mb-6" style={{ background: "#eee5d3" }}>
-          <div className="h-full rounded-full" style={{ width: `${(step / total) * 100}%`, background: GOLD }} />
+      {createOpen && (
+        <CreateGroupModal
+          onClose={() => setCreateOpen(false)}
+          onCreate={() => setCreateOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Group detail ─────────────────────────────────────────────────────
+const GROUP_POSTS = [
+  {
+    pinned: true,
+    author: "Group moderator",
+    avatar: "GM",
+    role: "Moderator",
+    date: "Pinned",
+    body: "Welcome to NSW Politics & Prayer. Please read the group rules below before posting. We pray together on the first Tuesday of each month at 7pm.",
+    likes: 18, comments: 4,
+  },
+  {
+    author: "Daniel S.",
+    avatar: "DS",
+    role: "Visible member",
+    date: "Yesterday",
+    body: "Sharing a thoughtful piece on the Voice referendum aftermath and how Christian voters reflected on the outcome. Worth a slow read this weekend.",
+    link: "https://example.org/article",
+    likes: 12, comments: 6,
+  },
+  {
+    author: "Hannah K.",
+    avatar: "HK",
+    role: "Visible member",
+    date: "3 days ago",
+    body: "Anyone else attending the State Council meeting next week? Would be good to compare notes afterwards. Happy to host a coffee debrief.",
+    likes: 7, comments: 9,
+  },
+];
+
+const GROUP_MEMBERS = [
+  { id: "1", name: "Daniel S.", bio: "Lay preacher, policy nerd. NSW.", state: "NSW", connected: false },
+  { id: "2", name: "Hannah K.", bio: "Local government candidate, mum of three.", state: "NSW", connected: true },
+  { id: "3", name: "James P.", bio: "Anglican, working in education policy.", state: "NSW", connected: false },
+  { id: "4", name: "Priya M.", bio: "Considering pre-selection. Listening for now.", state: "NSW", connected: false },
+];
+
+function RevealModal({ onClose, onReveal }: { onClose: () => void; onReveal: () => void }) {
+  const { theme } = useTheme();
+  const [opts, setOpts] = useState({
+    firstName: true, fullName: false, photo: true, state: false,
+    bio: true, party: false, church: false,
+  });
+  const toggle = (k: keyof typeof opts) => setOpts({ ...opts, [k]: !opts[k] });
+
+  const Row = ({ k, label, hint }: { k: keyof typeof opts; label: string; hint?: string }) => (
+    <button
+      onClick={() => toggle(k)}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left"
+      style={{ background: opts[k] ? "#f0f7ff" : theme.bg, border: `1px solid ${opts[k] ? "#bfdbfe" : theme.cardBorder}` }}
+    >
+      <div
+        className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
+        style={{ background: opts[k] ? NAVY : "#fff", border: `1px solid ${opts[k] ? NAVY : theme.cardBorder}` }}
+      >
+        {opts[k] && <CheckCircle2 size={12} className="text-white" />}
+      </div>
+      <div className="flex-1">
+        <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{label}</div>
+        {hint && <div className="text-[11px]" style={{ color: theme.textSubtle }}>{hint}</div>}
+      </div>
+    </button>
+  );
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: GOLD }}
+          >
+            <ShieldCheck size={16} style={{ color: NAVY }} />
+          </div>
+          <div className="flex-1">
+            <h3 style={{ color: theme.text, fontWeight: 600 }}>Reveal your profile to this group?</h3>
+            <p className="text-sm mt-1.5 leading-relaxed" style={{ color: theme.textMuted }}>
+              You can choose to become visible to members of this group. This will allow others
+              in the group to see your selected profile details and interact with your posts and
+              comments. You can change your visibility later.
+            </p>
+          </div>
         </div>
+
+        <div className="space-y-2 mt-4">
+          <Row k="firstName" label="Show first name only" />
+          <Row k="fullName"  label="Show full name" />
+          <Row k="photo"     label="Show profile photo" />
+          <Row k="state"     label="Show state / territory" />
+          <Row k="bio"       label="Show short bio" />
+          <Row k="party"     label="Show political party interest" hint="Optional · off by default" />
+          <Row k="church"    label="Show church tradition" hint="Optional · off by default" />
+        </div>
+
+        <div className="flex items-center gap-2 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm"
+            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          >
+            Stay anonymous
+          </button>
+          <button
+            onClick={onReveal}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            Reveal my profile
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ConnectModal({ name, onClose, onSend }: { name: string; onClose: () => void; onSend: () => void }) {
+  const { theme } = useTheme();
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6">
+        <h3 style={{ color: theme.text, fontWeight: 600 }}>Send connection request?</h3>
+        <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
+          You can send a connection request to <strong style={{ color: theme.text }}>{name}</strong> because
+          you are both visible in this group. Direct messaging will only become available if they accept.
+        </p>
+        <label className="block mt-4 text-xs" style={{ color: theme.text, fontWeight: 500 }}>
+          Optional short message
+        </label>
+        <textarea
+          rows={3}
+          placeholder="Hi, I noticed your post on local council engagement…"
+          className="w-full mt-1 px-3 py-2 rounded-lg outline-none text-sm"
+          style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+        />
+        <div className="flex items-center gap-2 mt-5">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm"
+            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSend}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            Send request
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  const [visible, setVisible] = useState(false);
+  const [revealOpen, setRevealOpen] = useState(false);
+  const [connectName, setConnectName] = useState<string | null>(null);
+  const [tab, setTab] = useState<"feed" | "members" | "events" | "resources" | "about">("feed");
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <Card className="overflow-hidden">
+        <div className="h-28" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b)` }} />
+        <div className="px-5 pb-4 -mt-10">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div className="flex items-end gap-3">
+              <div
+                className="w-20 h-20 rounded-2xl shrink-0 flex items-center justify-center"
+                style={{ background: GOLD, color: NAVY, fontWeight: 700, fontSize: 22, border: `4px solid ${theme.cardBg}` }}
+              >
+                NP
+              </div>
+              <div className="pb-1">
+                <h1 style={{ color: theme.text }}>NSW Politics & Prayer</h1>
+                <div className="flex items-center gap-3 text-xs mt-1" style={{ color: theme.textMuted }}>
+                  <span className="inline-flex items-center gap-1"><Users size={12} /> 142 members</span>
+                  <span className="inline-flex items-center gap-1"><Globe size={12} /> Private group</span>
+                  <span className="inline-flex items-center gap-1"><Shield size={12} /> Moderated</span>
+                </div>
+              </div>
+            </div>
+            <button onClick={() => navigate("groups")} className="text-xs hover:underline" style={{ color: NAVY }}>
+              ← All groups
+            </button>
+          </div>
+
+          {/* Privacy status bar */}
+          <div
+            className="mt-4 rounded-xl p-3 flex items-center gap-3 flex-wrap"
+            style={{ background: visible ? "#ecfdf5" : "#fff7ed", border: `1px solid ${visible ? "#a7f3d0" : "#fed7aa"}` }}
+          >
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: visible ? "#10b981" : "#f59e0b" }}
+            >
+              {visible ? <Eye size={14} className="text-white" /> : <EyeOff size={14} className="text-white" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs" style={{ color: visible ? "#065f46" : "#92400e", fontWeight: 600 }}>
+                {visible ? "Visible in this group" : "Watching anonymously"}
+              </div>
+              <div className="text-[11px] mt-0.5" style={{ color: visible ? "#047857" : "#b45309" }}>
+                {visible
+                  ? "Other group members can see your selected profile details and interact with your posts."
+                  : "You are currently watching anonymously. Other members cannot see that you are in this group."}
+              </div>
+            </div>
+            {visible ? (
+              <GhostButton onClick={() => setVisible(false)}>Hide my profile</GhostButton>
+            ) : (
+              <GoldButton onClick={() => setRevealOpen(true)}>Reveal my profile to this group</GoldButton>
+            )}
+          </div>
+
+          {/* Tabs */}
+          <div className="mt-4 flex gap-1 overflow-x-auto" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+            {([
+              ["feed", "Feed"],
+              ["members", "Members"],
+              ["events", "Events"],
+              ["resources", "Resources"],
+              ["about", "About"],
+            ] as const).map(([k, l]) => (
+              <button
+                key={k}
+                onClick={() => setTab(k)}
+                className="px-4 py-2.5 text-xs whitespace-nowrap"
+                style={{
+                  color: tab === k ? NAVY : theme.textMuted,
+                  fontWeight: tab === k ? 600 : 400,
+                  borderBottom: tab === k ? `2px solid ${GOLD}` : "2px solid transparent",
+                  marginBottom: -1,
+                }}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {tab === "feed" && (
         <div className="space-y-4">
-          {(step === 2 ? issues.slice(0, 5) : issues.slice(0, 4)).map((q, i) => (
-            <Card key={i}>
-              <div style={{ color: NAVY, fontWeight: 500 }}>{q}</div>
-              {step !== 2 && (
-                <p className="text-sm text-gray-600 mt-1">
-                  "Australia should {step === 1 ? "expand" : "prioritise"} action on {q.toLowerCase()}."
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2 mt-3">
-                {(step === 2 ? weights : likert).map((opt) => (
-                  <button
-                    key={opt}
-                    className="px-3 py-1.5 rounded-md text-sm border"
-                    style={{ borderColor: "#e2dccf", color: NAVY }}
+          {/* Composer */}
+          <Card className="p-4">
+            {visible ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-xs"
+                    style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                   >
-                    {opt}
-                  </button>
-                ))}
+                    SR
+                  </div>
+                  <input
+                    placeholder="Share something with the group…"
+                    className="flex-1 px-4 py-2.5 rounded-full text-sm outline-none"
+                    style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                  <GhostButton><ImageIcon size={12} className="inline mr-1" /> Image</GhostButton>
+                  <GhostButton><Link2 size={12} className="inline mr-1" /> Link</GhostButton>
+                  <div className="ml-auto"><PrimaryButton>Post</PrimaryButton></div>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="flex items-center gap-3 px-4 py-3 rounded-lg"
+                style={{ background: theme.bg, border: `1px dashed ${theme.cardBorder}` }}
+              >
+                <Lock size={14} style={{ color: theme.textMuted }} />
+                <div className="text-xs flex-1" style={{ color: theme.textMuted }}>
+                  You're watching anonymously. Reveal your profile to post, comment or react.
+                </div>
+                <GhostButton onClick={() => setRevealOpen(true)}>Reveal</GhostButton>
+              </div>
+            )}
+          </Card>
+
+          {GROUP_POSTS.map((p, i) => (
+            <Card key={i} className="p-5">
+              {p.pinned && (
+                <div className="flex items-center gap-1.5 mb-3 text-xs" style={{ color: GOLD, fontWeight: 600 }}>
+                  <Pin size={12} /> Pinned by moderator
+                </div>
+              )}
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-xs"
+                  style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
+                >
+                  {p.avatar}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{p.author}</span>
+                    <span className="text-xs" style={{ color: theme.textSubtle }}>· {p.role} · {p.date}</span>
+                  </div>
+                  <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.text }}>{p.body}</p>
+                  {p.link && (
+                    <a
+                      className="inline-flex items-center gap-1 text-xs mt-2 hover:underline"
+                      style={{ color: NAVY }}
+                    >
+                      <Link2 size={11} /> {p.link}
+                    </a>
+                  )}
+                  <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                    <button className="text-xs inline-flex items-center gap-1.5" style={{ color: theme.textMuted }}>
+                      <ThumbsUp size={12} /> {p.likes}
+                    </button>
+                    <button className="text-xs inline-flex items-center gap-1.5" style={{ color: theme.textMuted }}>
+                      <MessageCircle size={12} /> {p.comments} comments
+                    </button>
+                    {!visible && (
+                      <span className="text-[11px] ml-auto inline-flex items-center gap-1" style={{ color: theme.textSubtle }}>
+                        <Lock size={10} /> Reveal to react or comment
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </Card>
           ))}
         </div>
-        <div className="flex justify-between mt-6">
-          <button onClick={() => setStep(step - 1)} className="px-5 py-2 rounded-md border" style={{ borderColor: "#cfc8b8", color: NAVY }}>Back</button>
-          <button onClick={() => setStep(step + 1)} className="px-5 py-2 rounded-md" style={{ background: NAVY, color: "#fff" }}>Continue</button>
-        </div>
-      </div>
-    );
-  }
+      )}
 
-  if (step === 4) {
-    return (
-      <div className="max-w-3xl">
-        <SectionHeader title="Personal vocation" subtitle={`Step 4 of ${total}`} />
-        <Card>
-          <p className="text-sm text-gray-700">A few questions about your sense of calling, time, and capacity.</p>
-          <div className="space-y-4 mt-4">
-            {[
-              "I feel a sense of calling to public service.",
-              "I have time available to volunteer or campaign.",
-              "I'm willing to be publicly identified as a Christian in politics.",
-              "I have local relationships I could draw on.",
-            ].map((q, i) => (
-              <div key={i}>
-                <div className="text-sm" style={{ color: NAVY, fontWeight: 500 }}>{q}</div>
-                <div className="flex gap-2 mt-2">
-                  {["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"].map((o) => (
-                    <button key={o} className="px-3 py-1.5 rounded-md text-sm border" style={{ borderColor: "#e2dccf", color: NAVY }}>{o}</button>
-                  ))}
+      {tab === "members" && (
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
+              Visible members ({GROUP_MEMBERS.length})
+            </h3>
+            <span className="text-[11px]" style={{ color: theme.textSubtle }}>
+              <Lock size={10} className="inline mr-1" />
+              Anonymous members aren't shown here
+            </span>
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+            {GROUP_MEMBERS.map((m) => (
+              <div
+                key={m.id}
+                className="rounded-xl p-3"
+                style={{ border: `1px solid ${theme.cardBorder}`, background: theme.bg }}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-xs"
+                    style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                  >
+                    {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{m.name}</div>
+                    <div className="text-[11px]" style={{ color: theme.textSubtle }}>{m.state}</div>
+                  </div>
+                </div>
+                <p className="text-xs mt-2 leading-snug" style={{ color: theme.textMuted }}>{m.bio}</p>
+                <div className="mt-3">
+                  {m.connected ? (
+                    <Pill color="#d1fae5" fg="#065f46">Connected</Pill>
+                  ) : (
+                    <button
+                      onClick={() => setConnectName(m.name)}
+                      disabled={!visible}
+                      className="text-xs px-3 py-1.5 rounded-lg w-full inline-flex items-center justify-center gap-1.5"
+                      style={{
+                        background: visible ? NAVY : theme.cardBorder,
+                        color: visible ? "#fff" : theme.textMuted,
+                        fontWeight: 500,
+                        cursor: visible ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      <UserPlus size={11} /> Connect
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+          {!visible && (
+            <div
+              className="mt-4 px-3 py-2.5 rounded-lg text-xs flex items-center gap-2"
+              style={{ background: "#fff7ed", color: "#92400e", border: "1px solid #fed7aa" }}
+            >
+              <Lock size={12} /> Reveal your profile to connect with members.
+            </div>
+          )}
         </Card>
-        <div className="flex justify-between mt-6">
-          <button onClick={() => setStep(step - 1)} className="px-5 py-2 rounded-md border" style={{ borderColor: "#cfc8b8", color: NAVY }}>Back</button>
-          <button onClick={() => setStep(5)} className="px-5 py-2 rounded-md" style={{ background: NAVY, color: "#fff" }}>See my reflection</button>
-        </div>
-      </div>
-    );
-  }
+      )}
 
-  // results
-  return (
-    <div className="max-w-4xl">
-      <SectionHeader title="Your issue alignment" subtitle="A reflection — not voting advice." />
-      <div className="grid grid-cols-2 gap-5">
-        <Card>
-          <h3 style={{ color: NAVY }}>Economic axis</h3>
-          <Axis label="More market" value={62} other="More state" color={GOLD} />
-          <h3 style={{ color: NAVY }} className="mt-6">Social axis</h3>
-          <Axis label="More progressive" value={35} other="More conservative" color={NAVY} />
-        </Card>
-        <Card>
-          <h3 style={{ color: NAVY }}>Parties you may want to research further</h3>
-          <ul className="mt-3 space-y-2 text-sm">
+      {tab === "events" && (
+        <Card className="p-5">
+          <h3 className="text-sm mb-3" style={{ color: theme.text, fontWeight: 600 }}>Group events</h3>
+          <div className="space-y-3">
             {[
-              { p: "Liberal Party", n: "Strong overlap on economic and family policy" },
-              { p: "National Party", n: "Overlap on rural and family policy" },
-              { p: "Australian Labor Party", n: "Overlap on cost of living and health" },
+              { title: "Monthly prayer meeting", date: "Tue 3 Jun · 7:00 PM", loc: "Online" },
+              { title: "Sydney coffee + civic chat", date: "Sat 14 Jun · 10:00 AM", loc: "Surry Hills" },
+            ].map((e) => (
+              <div key={e.title} className="flex items-center gap-3 py-2" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                <CalendarDays size={16} style={{ color: GOLD }} />
+                <div className="flex-1">
+                  <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{e.title}</div>
+                  <div className="text-xs" style={{ color: theme.textMuted }}>{e.date} · {e.loc}</div>
+                </div>
+                <GhostButton>RSVP</GhostButton>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {tab === "resources" && (
+        <Card className="p-5">
+          <h3 className="text-sm mb-3" style={{ color: theme.text, fontWeight: 600 }}>Group resources</h3>
+          <div className="space-y-3">
+            {[
+              { title: "How to attend a state branch meeting", kind: "Guide" },
+              { title: "Praying for elected officials", kind: "Liturgy" },
+              { title: "What pre-selection actually involves", kind: "Video" },
             ].map((r) => (
-              <li key={r.p} className="flex items-start gap-2">
-                <Star size={14} style={{ color: GOLD }} className="mt-0.5" />
-                <div>
-                  <div style={{ color: NAVY, fontWeight: 500 }}>{r.p}</div>
-                  <div className="text-xs text-gray-600">{r.n}</div>
+              <div key={r.title} className="flex items-center gap-3 py-2" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                <FileText size={16} style={{ color: theme.textMuted }} />
+                <div className="flex-1">
+                  <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.title}</div>
+                  <div className="text-xs" style={{ color: theme.textMuted }}>{r.kind}</div>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
-
-      <Card className="mt-5">
-        <p className="text-sm text-gray-700">
-          <strong style={{ color: NAVY }}>Important:</strong> This is a reflection tool, not voting advice.
-          CiP does not endorse any party, candidate or policy. We encourage members to pray, seek wise counsel,
-          research party platforms, and consider where they can serve faithfully.
-        </p>
-      </Card>
-
-      <div className="flex flex-wrap gap-3 mt-5">
-        <button className="px-4 py-2 rounded-md border" style={{ borderColor: NAVY, color: NAVY }}>Save privately</button>
-        <button onClick={() => navigate("support")} className="px-4 py-2 rounded-md" style={{ background: NAVY, color: "#fff" }}>Request CiP support</button>
-        <button onClick={() => navigate("pathways")} className="px-4 py-2 rounded-md border" style={{ borderColor: "#cfc8b8", color: NAVY }}>Explore political pathways</button>
-        <button onClick={() => setStep(0)} className="px-4 py-2 rounded-md text-gray-600 hover:underline text-sm">Retake questions</button>
-      </div>
-    </div>
-  );
-}
-
-function Axis({ label, value, other, color }: any) {
-  return (
-    <div className="mt-3">
-      <div className="flex justify-between text-xs text-gray-600">
-        <span>{other}</span>
-        <span>{label}</span>
-      </div>
-      <div className="h-2 rounded-full mt-1.5" style={{ background: "#eee5d3" }}>
-        <div className="h-full rounded-full" style={{ width: `${value}%`, background: color }} />
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------- Support ----------------------- */
-export function SupportScreen({ navigate }: { navigate: (s: Screen) => void }) {
-  return (
-    <div className="max-w-3xl">
-      <SectionHeader title="Request support from CiP" subtitle="A CiP admin will review and respond. Your request is private." />
-      <Card>
-        <div className="grid grid-cols-2 gap-4">
-          <Sel label="Request type" options={[
-            "Help me join a political party", "Help me choose a political party",
-            "Connect me to a local branch", "Connect me to a Christian in my preferred party",
-            "Connect me to an advocacy group", "Connect me to public service pathways",
-            "Help me understand candidate selection", "Help me explore local council",
-            "Help me explore staffer roles", "I want to mentor or support others",
-            "I have a job / internship / opportunity to share", "Other",
-          ]} />
-          <Sel label="State / territory" options={["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]} />
-          <Sel label="Preferred party or pathway (optional)" options={["Not sure", "Liberal", "Labor", "National", "Greens", "Independent", "Other"]} />
-          <Sel label="Urgency" options={["Low", "Medium", "High"]} />
-        </div>
-        <div className="mt-4">
-          <label className="text-sm block mb-1.5" style={{ color: NAVY }}>Brief description</label>
-          <textarea rows={4} className="w-full px-3 py-2 rounded-md border outline-none" style={{ borderColor: "#e2dccf", background: "#faf9f5" }} />
-        </div>
-        <div className="mt-4 space-y-2">
-          <label className="flex gap-2 items-start text-sm text-gray-700">
-            <input type="checkbox" defaultChecked className="mt-1" /> I consent to be contacted by a CiP Admin.
-          </label>
-          <label className="flex gap-2 items-start text-sm text-gray-700">
-            <input type="checkbox" className="mt-1" /> I consent to share relevant details with a trusted third party if required.
-          </label>
-        </div>
-        <div className="mt-5 flex justify-end">
-          <button onClick={() => navigate("support-confirm")} className="px-5 py-2.5 rounded-md" style={{ background: NAVY, color: "#fff", fontWeight: 500 }}>
-            Submit request
-          </button>
-        </div>
-      </Card>
-
-      <div className="mt-8">
-        <h3 style={{ color: NAVY }}>Your previous requests</h3>
-        <div className="space-y-2 mt-3">
-          {[
-            { t: "Connect me to a local branch (Sydney)", s: "In review", d: "2 days ago" },
-            { t: "Help me explore staffer roles", s: "Matched / introduced", d: "3 weeks ago" },
-          ].map((r, i) => (
-            <Card key={i}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div style={{ color: NAVY, fontWeight: 500 }} className="text-sm">{r.t}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">Updated {r.d}</div>
-                </div>
-                <Pill>{r.s}</Pill>
+                <GhostButton>Open</GhostButton>
               </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function SupportConfirm({ navigate }: { navigate: (s: Screen) => void }) {
-  const stages = ["Submitted", "In review", "Awaiting member response", "Matched / introduced", "Closed"];
-  return (
-    <div className="max-w-2xl">
-      <Card>
-        <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: GOLD, color: NAVY }}>
-          <CheckCircle2 size={22} />
-        </div>
-        <H1>Your request has been received</H1>
-        <p className="text-gray-700 mt-2 text-sm">
-          A CiP Admin will review your request and respond. You'll be notified by email when there's an update.
-        </p>
-        <div className="mt-6">
-          <div className="text-sm" style={{ color: NAVY, fontWeight: 600 }}>Status</div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {stages.map((s, i) => (
-              <span key={s} className="px-2.5 py-1 rounded-full text-xs"
-                style={{ background: i === 0 ? GOLD : MUTED_BLUE, color: NAVY }}>{s}</span>
             ))}
           </div>
-        </div>
-        <div className="mt-6 flex gap-3">
-          <button onClick={() => navigate("dashboard")} className="px-4 py-2 rounded-md border" style={{ borderColor: NAVY, color: NAVY }}>Back to dashboard</button>
-          <button onClick={() => navigate("support")} className="px-4 py-2 rounded-md" style={{ background: NAVY, color: "#fff" }}>View requests</button>
-        </div>
-      </Card>
+        </Card>
+      )}
+
+      {tab === "about" && (
+        <Card className="p-5">
+          <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>About this group</h3>
+          <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
+            NSW Politics & Prayer is a private group for NSW members to pray for our state, share
+            reflections on current political issues, and support one another in faithful public life.
+          </p>
+          <h4 className="text-xs mt-5 uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>
+            Group rules
+          </h4>
+          <ol className="mt-2 space-y-1.5 text-sm list-decimal pl-5" style={{ color: theme.text }}>
+            <li>Speak with charity. Disagree without contempt.</li>
+            <li>No partisan campaigning. Reflection and discussion only.</li>
+            <li>Respect anonymous members. Never try to identify them.</li>
+            <li>Keep group conversations inside the group.</li>
+            <li>Report concerns to the moderators or CiP staff.</li>
+          </ol>
+          <h4 className="text-xs mt-5 uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>
+            Moderators
+          </h4>
+          <div className="mt-2 text-sm" style={{ color: theme.text }}>Andrew T. · Bethany W.</div>
+        </Card>
+      )}
+
+      {revealOpen && (
+        <RevealModal onClose={() => setRevealOpen(false)} onReveal={() => { setVisible(true); setRevealOpen(false); }} />
+      )}
+      {connectName && (
+        <ConnectModal name={connectName} onClose={() => setConnectName(null)} onSend={() => setConnectName(null)} />
+      )}
     </div>
   );
 }
 
-/* ----------------------- Events ----------------------- */
+// ── Events ───────────────────────────────────────────────────────────
 const EVENTS = [
-  { t: "Faithful Politics: An evening with Tim Costello", date: "Wed 27 May · 7:00 PM", loc: "Online", tag: "Public lecture" },
-  { t: "Sydney CiP Members Prayer Gathering", date: "Sat 31 May · 8:00 AM", loc: "Sydney CBD", tag: "Prayer" },
-  { t: "Public Service Pathway Briefing", date: "Tue 10 June · 6:30 PM", loc: "Online", tag: "Training" },
-  { t: "Brisbane CiP Members Dinner", date: "Fri 13 June · 7:00 PM", loc: "Brisbane", tag: "Fellowship" },
-  { t: "Candidate Selection 101", date: "Wed 18 June · 7:00 PM", loc: "Online", tag: "Training" },
-  { t: "Melbourne Members Networking Night", date: "Thu 26 June · 6:00 PM", loc: "Melbourne", tag: "Networking" },
+  { id: "e1", title: "National Prayer Breakfast", date: "Tue 19 May · 7:30 AM", loc: "Canberra", kind: "In person" },
+  { id: "e2", title: "NSW Members Briefing", date: "Thu 28 May · 7:00 PM", loc: "Online", kind: "Online" },
+  { id: "e3", title: "Faith & Public Life Forum", date: "Sat 6 Jun · 10:00 AM", loc: "Sydney", kind: "In person" },
+  { id: "e4", title: "Faithful Politics with Tim Costello", date: "Wed 27 May · 7:00 PM", loc: "Online", kind: "Online" },
+  { id: "e5", title: "Young CiP gathering", date: "Fri 11 Jul · 6:30 PM", loc: "Melbourne", kind: "In person" },
 ];
 
 export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
   return (
-    <div className="max-w-6xl">
-      <SectionHeader title="CiP Events" subtitle="All events are hosted by CiP. Registration happens here, not on external platforms." />
-
-      <Card className="mb-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-[300px]">
-            <Pill>Featured</Pill>
-            <h2 style={{ color: NAVY }} className="mt-2">Faithful Politics: An evening with Tim Costello</h2>
-            <p className="text-sm text-gray-600 mt-2">A wide-ranging conversation about discipleship in public life. Q&A included.</p>
-            <div className="text-sm text-gray-700 mt-3 flex gap-4">
-              <span className="flex items-center gap-1"><Clock size={14} /> Wed 27 May · 7:00 PM AEST</span>
-              <span className="flex items-center gap-1"><MapPin size={14} /> Online</span>
-            </div>
-          </div>
-          <button onClick={() => navigate("event-detail")} className="px-5 py-2.5 rounded-md" style={{ background: NAVY, color: "#fff" }}>
-            Register
-          </button>
+    <div className="space-y-4">
+      <Card className="p-5">
+        <h1 style={{ color: theme.text }}>Events</h1>
+        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+          CiP gatherings, prayer meetings and civic forums. Open to all members.
+        </p>
+      </Card>
+      <Card>
+        <div className="divide-y" style={{ borderColor: theme.divider }}>
+          {EVENTS.map((e, i) => (
+            <button
+              key={e.id}
+              onClick={() => navigate("event-detail")}
+              className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 transition-colors"
+              style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
+            >
+              <div
+                className="w-12 h-12 rounded-xl shrink-0 flex flex-col items-center justify-center"
+                style={{ background: theme.pillBg, color: NAVY }}
+              >
+                <CalendarDays size={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{e.title}</div>
+                <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: theme.textMuted }}>
+                  <span className="inline-flex items-center gap-1"><Clock size={11} /> {e.date}</span>
+                  <span className="inline-flex items-center gap-1"><MapPin size={11} /> {e.loc}</span>
+                </div>
+              </div>
+              <Pill color={e.kind === "Online" ? "#dbeafe" : "#fef3c7"}>{e.kind}</Pill>
+              <ChevronRight size={14} style={{ color: theme.textSubtle }} />
+            </button>
+          ))}
         </div>
       </Card>
-
-      <div className="flex items-center gap-3 flex-wrap mb-4">
-        <Filter size={14} style={{ color: NAVY }} />
-        {["Online", "In-person", "NSW", "VIC", "QLD", "Training", "Prayer", "Networking", "Public lecture", "Fellowship"].map((f) => (
-          <button key={f} className="px-3 py-1 rounded-full text-xs border" style={{ borderColor: "#e2dccf", color: NAVY }}>{f}</button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-3 gap-5">
-        {EVENTS.map((e, i) => (
-          <Card key={i}>
-            <Pill>{e.tag}</Pill>
-            <h3 style={{ color: NAVY }} className="mt-2">{e.t}</h3>
-            <div className="text-xs text-gray-600 mt-2 flex items-center gap-1"><Clock size={12} /> {e.date}</div>
-            <div className="text-xs text-gray-600 mt-1 flex items-center gap-1"><MapPin size={12} /> {e.loc}</div>
-            <div className="text-xs text-gray-500 mt-2">Hosted by CiP</div>
-            <button onClick={() => navigate("event-detail")} className="mt-4 w-full px-3 py-2 rounded-md text-sm" style={{ background: NAVY, color: "#fff" }}>
-              Register
-            </button>
-          </Card>
-        ))}
-      </div>
     </div>
   );
 }
 
 export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
   return (
-    <div className="max-w-4xl">
-      <button onClick={() => navigate("events")} className="text-sm mb-3" style={{ color: NAVY }}>← Back to events</button>
-      <Card>
-        <Pill>Public lecture</Pill>
-        <H1>Faithful Politics: An evening with Tim Costello</H1>
-        <div className="text-sm text-gray-700 mt-3 flex gap-4">
-          <span className="flex items-center gap-1"><Clock size={14} /> Wed 27 May · 7:00 PM AEST</span>
-          <span className="flex items-center gap-1"><MapPin size={14} /> Online (link sent on registration)</span>
+    <div className="space-y-4">
+      <button onClick={() => navigate("events")} className="text-xs hover:underline" style={{ color: NAVY }}>
+        ← All events
+      </button>
+      <Card className="overflow-hidden">
+        <div className="h-44" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b 60%, ${GOLD})` }} />
+        <div className="p-6">
+          <Pill color="#dbeafe">Online · Free</Pill>
+          <h1 className="mt-3" style={{ color: theme.text }}>Faithful Politics with Tim Costello</h1>
+          <div className="flex flex-wrap items-center gap-4 mt-3 text-sm" style={{ color: theme.textMuted }}>
+            <span className="inline-flex items-center gap-1.5"><Clock size={14} /> Wed 27 May · 7:00 PM AEST</span>
+            <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> Online (Zoom)</span>
+            <span className="inline-flex items-center gap-1.5"><Users size={14} /> 132 registered</span>
+          </div>
+          <p className="text-sm mt-4 leading-relaxed" style={{ color: theme.text }}>
+            Join us for a wide-ranging conversation with Tim Costello about discipleship, public life
+            and how Christian values shape engagement with politics in Australia today. Q&A included.
+          </p>
+          <div className="flex items-center gap-2 mt-5">
+            <GoldButton>Register</GoldButton>
+            <GhostButton>Add to calendar</GhostButton>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-6 mt-6">
-          <div className="col-span-2">
-            <h3 style={{ color: NAVY }}>About this event</h3>
-            <p className="text-sm text-gray-700 mt-2">A wide-ranging conversation about discipleship in public life. Q&A included.</p>
-            <h3 style={{ color: NAVY }} className="mt-5">Speakers</h3>
-            <p className="text-sm text-gray-700 mt-2">Tim Costello AO, with CiP National Director.</p>
-            <h3 style={{ color: NAVY }} className="mt-5">Who should attend</h3>
-            <p className="text-sm text-gray-700 mt-2">Anyone interested in faithful Christian engagement in Australian public life.</p>
+      </Card>
+    </div>
+  );
+}
+
+// ── Messages ─────────────────────────────────────────────────────────
+const CONNECTIONS = [
+  { id: "1", name: "Hannah K.", group: "NSW Politics & Prayer", last: "Thanks Sarah, that's really helpful — talk soon.", time: "2h", unread: 0, active: true },
+  { id: "2", name: "Daniel S.", group: "NSW Politics & Prayer", last: "Yes I'll send through the article tonight.", time: "1d", unread: 2, active: false },
+  { id: "3", name: "Priya M.", group: "Young CiP", last: "Would love to hear how you found pre-selection.", time: "3d", unread: 0, active: false },
+];
+
+const PENDING_RECEIVED = [
+  { id: "p1", name: "James P.", group: "NSW Politics & Prayer", message: "Hi Sarah, would value connecting given your council work." },
+];
+
+const PENDING_SENT = [
+  { id: "s1", name: "Margaret O.", group: "Christian Women in Public Policy" },
+];
+
+const THREAD = [
+  { from: "them", body: "Hi Sarah, glad we connected. I noticed your comment on the council post — really thoughtful.", time: "Yesterday" },
+  { from: "me",   body: "Thanks Hannah, appreciated yours too. Are you going to the next state meeting?", time: "Yesterday" },
+  { from: "them", body: "Planning to. Want to grab coffee beforehand?", time: "Yesterday" },
+  { from: "me",   body: "Yes please — let's lock something in.", time: "2h" },
+  { from: "them", body: "Thanks Sarah, that's really helpful — talk soon.", time: "2h" },
+];
+
+export function MessagesScreen() {
+  const { theme } = useTheme();
+  const [tab, setTab] = useState<"messages" | "received" | "sent" | "blocked">("messages");
+  const [active, setActive] = useState(CONNECTIONS[0]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredConnections = CONNECTIONS.filter(
+    (c) => c.name.toLowerCase().includes(search.toLowerCase()) ||
+           c.last.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  return (
+    <div className="h-full flex flex-col" style={{ background: theme.bg }}>
+      {/* Page header strip */}
+      <div
+        className="px-8 py-5 shrink-0"
+        style={{ background: theme.headerBg, borderBottom: `1px solid ${theme.divider}` }}
+      >
+        <h1 style={{ color: theme.text }}>Messaging</h1>
+        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+          Direct messaging is only available between members who've accepted a connection request through a shared group.
+        </p>
+      </div>
+
+      {/* Two-pane messenger */}
+      <div className="flex-1 min-h-0 px-8 py-6">
+        <div
+          className="h-full rounded-2xl overflow-hidden flex"
+          style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+        >
+          {/* Left pane */}
+          <div
+            className="w-[340px] shrink-0 flex flex-col min-h-0"
+            style={{ borderRight: `1px solid ${theme.divider}` }}
+          >
+            {/* List header */}
+            <div className="px-5 py-4 shrink-0" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+              <div className="flex items-center justify-between">
+                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
+                  Conversations
+                </div>
+                <button className="p-1.5 rounded-md hover:bg-gray-100" title="More options">
+                  <MoreHorizontal size={16} style={{ color: theme.textMuted }} />
+                </button>
+              </div>
+
+              <div className="relative mt-3">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search messages"
+                  className="w-full pl-3 pr-3 py-2 rounded-lg text-sm outline-none"
+                  style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
+                />
+              </div>
+
+              <div className="flex gap-1 mt-3">
+                {([
+                  ["messages", "Inbox"],
+                  ["received", `Requests${PENDING_RECEIVED.length ? ` · ${PENDING_RECEIVED.length}` : ""}`],
+                  ["sent", "Sent"],
+                  ["blocked", "Blocked"],
+                ] as const).map(([k, l]) => (
+                  <button
+                    key={k}
+                    onClick={() => setTab(k)}
+                    className="px-3 py-1 rounded-full text-[11px] whitespace-nowrap"
+                    style={{
+                      background: tab === k ? NAVY : "transparent",
+                      color: tab === k ? "#fff" : theme.textMuted,
+                      border: `1px solid ${tab === k ? NAVY : theme.cardBorder}`,
+                      fontWeight: tab === k ? 600 : 500,
+                    }}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* List body */}
+            <div className="flex-1 overflow-y-auto">
+              {tab === "messages" && filteredConnections.map((c) => {
+                const isActive = active.id === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setActive(c)}
+                    className="w-full flex items-start gap-3 px-5 py-3.5 text-left transition-colors"
+                    style={{
+                      background: isActive ? theme.bg : "transparent",
+                      borderBottom: `1px solid ${theme.divider}`,
+                    }}
+                  >
+                    <div
+                      className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
+                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                    >
+                      {c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="text-sm truncate"
+                          style={{ color: theme.text, fontWeight: c.unread > 0 ? 700 : 600 }}
+                        >
+                          {c.name}
+                        </div>
+                        <div className="text-[10px] ml-auto shrink-0" style={{ color: theme.textSubtle }}>
+                          {c.time}
+                        </div>
+                      </div>
+                      <div className="text-[11px] truncate" style={{ color: theme.textSubtle }}>
+                        via {c.group}
+                      </div>
+                      <div
+                        className="text-xs mt-1 truncate"
+                        style={{ color: c.unread > 0 ? theme.text : theme.textMuted, fontWeight: c.unread > 0 ? 500 : 400 }}
+                      >
+                        {c.last}
+                      </div>
+                    </div>
+                    {c.unread > 0 && (
+                      <span
+                        className="w-2 h-2 rounded-full mt-1.5 shrink-0"
+                        style={{ background: GOLD }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+
+              {tab === "messages" && filteredConnections.length === 0 && (
+                <div className="p-8 text-center text-xs" style={{ color: theme.textSubtle }}>
+                  No conversations match your search.
+                </div>
+              )}
+
+              {tab === "received" && PENDING_RECEIVED.map((p) => (
+                <div key={p.id} className="px-5 py-4" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
+                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                    >
+                      {p.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{p.name}</div>
+                      <div className="text-[11px]" style={{ color: theme.textSubtle }}>via {p.group}</div>
+                      <p className="text-xs mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
+                        {p.message}
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <PrimaryButton>Accept</PrimaryButton>
+                        <GhostButton>Decline</GhostButton>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {tab === "sent" && PENDING_SENT.map((p) => (
+                <div key={p.id} className="px-5 py-4" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
+                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                    >
+                      {p.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{p.name}</div>
+                      <div className="text-[11px]" style={{ color: theme.textSubtle }}>via {p.group}</div>
+                      <div className="mt-2">
+                        <Pill color="#fef3c7" fg="#92400e">Request sent</Pill>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {tab === "blocked" && (
+                <div className="p-10 text-center text-xs" style={{ color: theme.textSubtle }}>
+                  You haven't blocked anyone.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right pane: thread */}
+          <div className="flex-1 flex flex-col min-w-0 min-h-0">
+            {tab === "messages" ? (
+              <>
+                {/* Thread header */}
+                <div
+                  className="px-6 py-4 flex items-center gap-3 shrink-0 relative"
+                  style={{ borderBottom: `1px solid ${theme.divider}` }}
+                >
+                  <div
+                    className="w-11 h-11 rounded-full shrink-0 flex items-center justify-center text-sm"
+                    style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                  >
+                    {active.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
+                      {active.name}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>
+                      Connected through <span style={{ fontWeight: 500 }}>{active.group}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    className="p-2 rounded-lg hover:bg-gray-100"
+                  >
+                    <MoreHorizontal size={18} style={{ color: theme.textMuted }} />
+                  </button>
+                  {menuOpen && (
+                    <div
+                      className="absolute right-6 top-16 w-56 rounded-xl shadow-xl z-10 overflow-hidden"
+                      style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+                    >
+                      {[
+                        { l: "Report conversation", icon: AlertTriangle },
+                        { l: "Block member", icon: X },
+                        { l: "Remove connection", icon: UserPlus },
+                      ].map((it) => {
+                        const I = it.icon;
+                        return (
+                          <button
+                            key={it.l}
+                            onClick={() => setMenuOpen(false)}
+                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"
+                            style={{ color: theme.text }}
+                          >
+                            <I size={13} style={{ color: theme.textMuted }} />
+                            {it.l}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Safety banner */}
+                <div
+                  className="px-6 py-2.5 text-[11px] flex items-start gap-2 shrink-0"
+                  style={{ background: "#fff7ed", color: "#92400e", borderBottom: `1px solid ${theme.divider}` }}
+                >
+                  <Shield size={12} className="mt-0.5 shrink-0" />
+                  <span className="leading-relaxed">
+                    CiP connections are intended for encouragement, support and faithful participation in
+                    public life. Please communicate with charity and respect.
+                  </span>
+                </div>
+
+                {/* Thread body */}
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-3 min-h-0">
+                  <div className="text-center text-[11px]" style={{ color: theme.textSubtle }}>
+                    Yesterday
+                  </div>
+                  {THREAD.map((m, i) => {
+                    const mine = m.from === "me";
+                    return (
+                      <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"} gap-2`}>
+                        {!mine && (
+                          <div
+                            className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] mt-auto"
+                            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                          >
+                            {active.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                          </div>
+                        )}
+                        <div className="max-w-[60%]">
+                          <div
+                            className="rounded-2xl px-4 py-2.5"
+                            style={{
+                              background: mine ? NAVY : theme.bg,
+                              color: mine ? "#fff" : theme.text,
+                              border: mine ? "none" : `1px solid ${theme.cardBorder}`,
+                              borderBottomRightRadius: mine ? 4 : 16,
+                              borderBottomLeftRadius: mine ? 16 : 4,
+                            }}
+                          >
+                            <div className="text-sm leading-relaxed">{m.body}</div>
+                          </div>
+                          <div
+                            className={`text-[10px] mt-1 px-1 ${mine ? "text-right" : "text-left"}`}
+                            style={{ color: theme.textSubtle }}
+                          >
+                            {m.time}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Composer */}
+                <div className="px-6 py-4 shrink-0" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                  <div
+                    className="flex items-end gap-2 rounded-2xl px-3 py-2"
+                    style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}` }}
+                  >
+                    <textarea
+                      rows={1}
+                      placeholder="Write a message…"
+                      className="flex-1 px-2 py-1.5 text-sm outline-none resize-none bg-transparent"
+                      style={{ color: theme.text, minHeight: 32, maxHeight: 120 }}
+                    />
+                    <button
+                      className="p-2 rounded-md hover:bg-gray-200/50"
+                      title="Add link"
+                    >
+                      <Link2 size={15} style={{ color: theme.textMuted }} />
+                    </button>
+                    <button
+                      className="px-4 py-1.5 rounded-lg text-sm inline-flex items-center gap-1.5"
+                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                    >
+                      <Send size={13} /> Send
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
+                  style={{ background: theme.pillBg }}
+                >
+                  <MessageCircle size={22} style={{ color: NAVY }} />
+                </div>
+                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
+                  {tab === "received" && "Connection requests"}
+                  {tab === "sent" && "Pending sent requests"}
+                  {tab === "blocked" && "Blocked members"}
+                </div>
+                <p className="text-xs mt-2 max-w-xs" style={{ color: theme.textMuted }}>
+                  Select an item from the list on the left to view details.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Donate ───────────────────────────────────────────────────────────
+export function DonateScreen() {
+  const { theme } = useTheme();
+  return (
+    <div className="space-y-4">
+      <Card className="p-8 text-center">
+        <div
+          className="w-14 h-14 rounded-full mx-auto flex items-center justify-center"
+          style={{ background: GOLD }}
+        >
+          <Heart size={20} style={{ color: NAVY }} />
+        </div>
+        <h1 className="mt-4" style={{ color: theme.text }}>Support CiP</h1>
+        <p className="text-sm mt-2 max-w-md mx-auto leading-relaxed" style={{ color: theme.textMuted }}>
+          Your gift funds the mentoring conversations, training events and pastoral care that
+          quietly shape Australia's next generation of faithful public servants.
+        </p>
+        <div className="flex items-center justify-center gap-2 mt-6 flex-wrap">
+          {["$25", "$50", "$100", "$250", "Other"].map((a) => (
+            <button
+              key={a}
+              className="px-4 py-2 rounded-lg text-sm"
+              style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+        <button
+          className="mt-6 px-6 py-3 rounded-xl inline-flex items-center gap-2"
+          style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+        >
+          Continue to donation page <ExternalLink size={14} />
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+// ── Settings ─────────────────────────────────────────────────────────
+export function SettingsScreen() {
+  const { theme, dark, toggle } = useTheme();
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <h1 style={{ color: theme.text }}>Settings</h1>
+        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+          Account, notifications and appearance.
+        </p>
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Appearance</h3>
+        <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center gap-2 text-sm" style={{ color: theme.text }}>
+            {dark ? <Moon size={14} /> : <Sun size={14} />} Dark mode
+          </div>
+          <button
+            onClick={toggle}
+            className="w-11 h-6 rounded-full relative transition-colors"
+            style={{ background: dark ? GOLD : "#d1d5db" }}
+          >
+            <div
+              className="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all"
+              style={{ left: dark ? 22 : 2 }}
+            />
+          </button>
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Notifications</h3>
+        <div className="space-y-3 mt-3">
+          {[
+            "CiP announcements and events",
+            "Group activity in groups I've joined",
+            "New connection requests",
+            "Direct messages",
+            "Donation reminders",
+          ].map((label, i) => (
+            <div key={i} className="flex items-center justify-between text-sm" style={{ color: theme.text }}>
+              <span>{label}</span>
+              <input type="checkbox" defaultChecked={i < 4} />
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Account</h3>
+        <div className="mt-3 space-y-2 text-sm">
+          <div className="flex items-center justify-between"><span style={{ color: theme.textMuted }}>Email</span><span style={{ color: theme.text }}>sarah.reed@example.com</span></div>
+          <div className="flex items-center justify-between"><span style={{ color: theme.textMuted }}>Member since</span><span style={{ color: theme.text }}>March 2026</span></div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <GhostButton>Change password</GhostButton>
+          <GhostButton>Download my data</GhostButton>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── Privacy ──────────────────────────────────────────────────────────
+const VISIBILITY_ROWS = [
+  { name: "NSW Politics & Prayer", status: "Anonymous" },
+  { name: "Sydney Civic Faith Circle", status: "Visible" },
+  { name: "Young CiP", status: "Anonymous" },
+  { name: "Christian Women in Public Policy", status: "Pending approval" },
+];
+
+const VISIBILITY_COLORS: Record<string, { bg: string; fg: string; icon: any }> = {
+  Anonymous:          { bg: "#f3f4f6", fg: "#374151", icon: EyeOff },
+  Visible:            { bg: "#d1fae5", fg: "#065f46", icon: Eye },
+  "Pending approval": { bg: "#fef3c7", fg: "#92400e", icon: Circle },
+  "Left group":       { bg: "#fee2e2", fg: "#991b1b", icon: X },
+};
+
+export function PrivacyScreen() {
+  const { theme } = useTheme();
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: theme.pillBg }}
+          >
+            <ShieldCheck size={18} style={{ color: NAVY }} />
           </div>
           <div>
-            <Card className="!p-4">
-              <h3 style={{ color: NAVY }} className="mb-3">Register</h3>
-              <Inp label="Name" value="Sarah Reed" />
-              <div className="mt-3"><Inp label="Email" value="sarah@example.com" /></div>
-              <div className="mt-3"><Inp label="Dietary / accessibility (optional)" value="" /></div>
-              <label className="flex gap-2 items-start text-xs text-gray-700 mt-3">
-                <input type="checkbox" defaultChecked className="mt-0.5" /> Consent to event communications
-              </label>
-              <button onClick={() => navigate("event-confirm")} className="w-full mt-4 px-3 py-2 rounded-md text-sm" style={{ background: NAVY, color: "#fff" }}>
-                Register
-              </button>
-            </Card>
+            <h1 style={{ color: theme.text }}>Privacy</h1>
+            <p className="text-sm mt-0.5" style={{ color: theme.textMuted }}>
+              Always make it obvious who can see what. You decide what to reveal, and where.
+            </p>
           </div>
         </div>
       </Card>
-    </div>
-  );
-}
 
-export function EventConfirm({ navigate }: { navigate: (s: Screen) => void }) {
-  return (
-    <div className="max-w-2xl">
-      <Card>
-        <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: GOLD, color: NAVY }}>
-          <CheckCircle2 size={22} />
-        </div>
-        <H1>You're registered</H1>
-        <p className="text-gray-700 mt-2 text-sm">
-          A confirmation email is on its way with the event link. We look forward to seeing you.
-        </p>
-        <div className="mt-5 flex gap-3">
-          <button className="px-4 py-2 rounded-md" style={{ background: NAVY, color: "#fff" }}>Add to calendar</button>
-          <button onClick={() => navigate("events")} className="px-4 py-2 rounded-md border" style={{ borderColor: NAVY, color: NAVY }}>Back to events</button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-/* ----------------------- Resources ----------------------- */
-export function ResourcesScreen() {
-  const cats = ["Books", "Courses", "Bible studies", "Videos", "Articles", "Political literacy", "Public service", "Campaigning", "Candidate selection", "Christian formation", "Religious freedom"];
-  const items = [
-    { t: "Politics — A Case for Christian Engagement", a: "John Anderson", type: "Book", time: "240 pages", s: "A thoughtful introduction to faithful political engagement." },
-    { t: "How to Join a Political Party in Australia", a: "CiP Guide", type: "Article", time: "12 min", s: "Step-by-step guide for new members." },
-    { t: "Faithfulness in Public Life", a: "CiP", type: "Bible study", time: "6 sessions", s: "Six weeks in Daniel, Esther, Joseph and Nehemiah." },
-    { t: "Candidate Selection 101", a: "CiP Course", type: "Course", time: "45 min", s: "What pre-selection actually involves and how to prepare." },
-    { t: "Religious Freedom in Australia", a: "Freedom for Faith", type: "Article", time: "20 min", s: "A primer on current debates and law." },
-    { t: "Branch meetings: an inside look", a: "CiP", type: "Video", time: "8 min", s: "What to expect, what to wear, what to do." },
-  ];
-  return (
-    <div className="max-w-6xl">
-      <SectionHeader title="Resources" subtitle="Books, courses, Bible studies, videos and articles for faithful public life." />
-      <Card className="mb-5">
-        <div className="flex items-center gap-3">
-          <Search size={16} className="text-gray-400" />
-          <input placeholder="Search resources…" className="flex-1 outline-none bg-transparent" />
-        </div>
-      </Card>
-      <div className="flex flex-wrap gap-2 mb-5">
-        {cats.map((c) => (
-          <button key={c} className="px-3 py-1 rounded-full text-xs border" style={{ borderColor: "#e2dccf", color: NAVY }}>{c}</button>
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-5">
-        {items.map((r, i) => (
-          <Card key={i}>
-            <Pill>{r.type}</Pill>
-            <h3 style={{ color: NAVY }} className="mt-2">{r.t}</h3>
-            <div className="text-xs text-gray-500 mt-1">{r.a} · {r.time}</div>
-            <p className="text-sm text-gray-700 mt-3">{r.s}</p>
-            <div className="flex gap-2 mt-4">
-              <button className="flex-1 px-3 py-2 rounded-md text-sm border" style={{ borderColor: "#e2dccf", color: NAVY }}>Save</button>
-              <button className="flex-1 px-3 py-2 rounded-md text-sm" style={{ background: NAVY, color: "#fff" }}>Open</button>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------- Affiliated ----------------------- */
-export function AffiliatedScreen() {
-  const groups = [
-    { name: "Freedom for Faith", desc: "A Christian legal think tank advocating for religious freedom in Australia.", cat: "Advocacy group", poc: "Mike Southon", role: "Executive Director", cipMember: true },
-    { name: "Rebuild Australia", desc: "A movement equipping Christians for public service and civic leadership.", cat: "Training / mobilisation group", poc: "Jane Watson", role: "Programmes Lead", cipMember: false },
-    { name: "Christians for Labor", desc: "A network of Christians within the Australian Labor Party.", cat: "Political network", poc: "David Anderson", role: "Convenor", cipMember: true },
-  ];
-  return (
-    <div className="max-w-5xl">
-      <SectionHeader title="Affiliated Christian groups" subtitle="A curated directory of trusted partner organisations. Introductions are facilitated by CiP." />
-      <Card className="mb-5">
-        <div className="text-sm text-gray-700 flex items-start gap-3">
-          <ShieldCheck size={18} style={{ color: NAVY }} className="mt-0.5" />
-          <span>
-            Members can't directly browse or contact other members. Introductions to partner organisations and individuals are
-            requested through CiP Admin.
-          </span>
-        </div>
-      </Card>
-      <div className="grid grid-cols-2 gap-5">
-        {groups.map((g) => (
-          <Card key={g.name}>
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: MUTED_BLUE, color: NAVY }}>
-                <Users size={22} />
-              </div>
-              <div className="flex-1">
-                <h3 style={{ color: NAVY }}>{g.name}</h3>
-                <Pill>{g.cat}</Pill>
-              </div>
-            </div>
-            <p className="text-sm text-gray-700 mt-3">{g.desc}</p>
-            <div className="text-sm mt-3" style={{ color: NAVY }}>{g.poc} <span className="text-gray-500">· {g.role}</span></div>
-            <div className="text-xs text-gray-500 mt-1">
-              {g.cipMember ? "POC is also a CiP network member" : "External contact"}
-            </div>
-            <button className="mt-4 w-full px-3 py-2 rounded-md text-sm" style={{ background: NAVY, color: "#fff" }}>
-              Request introduction
-            </button>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------- Announcements ----------------------- */
-export function AnnouncementsScreen() {
-  const items = [
-    { tag: "Opportunity", t: "Liberal pre-selection nominations open in QLD", body: "Nominations close 14 June. CiP can connect interested members with current branch members for a chat.", cta: "Express interest", date: "2 days ago" },
-    { tag: "Internship", t: "Summer policy internship — Federal Senator's office", body: "Six-week policy internship for current students. Christian applicants encouraged to apply.", cta: "Read more", date: "5 days ago" },
-    { tag: "Training", t: "Public Service pathway briefing — June", body: "Online briefing for members curious about APS and state roles.", cta: "Register", date: "1 week ago" },
-    { tag: "Prayer", t: "National prayer gathering — June 6", body: "Online prayer for Australia's parliaments and public servants.", cta: "Register", date: "1 week ago" },
-    { tag: "News", t: "CiP welcomes new National Coordinator", body: "We're delighted to introduce our new coordinator for Victoria.", cta: "Read more", date: "2 weeks ago" },
-  ];
-  return (
-    <div className="max-w-3xl">
-      <SectionHeader title="Announcements" subtitle="Opportunities, training and news from CiP. This is not a discussion forum." />
-      <div className="space-y-4">
-        {items.map((a, i) => (
-          <Card key={i}>
-            <div className="flex items-center gap-2">
-              <Pill>{a.tag}</Pill>
-              <span className="text-xs text-gray-500">Posted by CiP Admin · {a.date}</span>
-            </div>
-            <h3 style={{ color: NAVY }} className="mt-2">{a.t}</h3>
-            <p className="text-sm text-gray-700 mt-2">{a.body}</p>
-            <div className="flex gap-2 mt-3">
-              <button className="px-3 py-1.5 rounded-md text-sm" style={{ background: NAVY, color: "#fff" }}>{a.cta}</button>
-              <button className="px-3 py-1.5 rounded-md text-sm border" style={{ borderColor: "#e2dccf", color: NAVY }}>Ask CiP about this</button>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------- Donate ----------------------- */
-export function DonateScreen() {
-  const [amount, setAmount] = useState(50);
-  const [freq, setFreq] = useState("Monthly");
-  return (
-    <div className="max-w-2xl">
-      <Card>
-        <H1>Help grow the movement</H1>
-        <p className="text-gray-700 mt-2 text-sm">
-          Your support helps CiP equip Christians to participate faithfully in politics and public life.
+      <Card className="p-5">
+        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Group visibility</h3>
+        <p className="text-xs mt-1 leading-relaxed" style={{ color: theme.textMuted }}>
+          Your visibility is set per group. Being visible in one group does not make you visible in others.
         </p>
 
-        <div className="mt-5">
-          <label className="text-sm" style={{ color: NAVY, fontWeight: 500 }}>Frequency</label>
-          <div className="flex gap-2 mt-2">
-            {["One-off", "Monthly", "Annual"].map((f) => (
-              <button
-                key={f}
-                onClick={() => setFreq(f)}
-                className="px-4 py-2 rounded-md text-sm border"
-                style={{
-                  borderColor: freq === f ? NAVY : "#e2dccf",
-                  background: freq === f ? NAVY : "#fff",
-                  color: freq === f ? "#fff" : NAVY,
-                }}
-              >
-                {f}
-              </button>
-            ))}
+        <div className="mt-4 divide-y" style={{ borderColor: theme.divider }}>
+          {VISIBILITY_ROWS.map((r) => {
+            const v = VISIBILITY_COLORS[r.status];
+            const Icon = v.icon;
+            return (
+              <div key={r.name} className="flex items-center gap-3 py-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                <div
+                  className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-xs"
+                  style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
+                >
+                  {r.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 500 }}>{r.name}</div>
+                  <div className="inline-flex items-center gap-1 text-[11px] mt-0.5 px-1.5 py-0.5 rounded-md" style={{ background: v.bg, color: v.fg, fontWeight: 500 }}>
+                    <Icon size={10} /> {r.status}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <GhostButton>Change visibility</GhostButton>
+                  <GhostButton>Hide profile</GhostButton>
+                  <GhostButton>Leave group</GhostButton>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Connections & messages</h3>
+        <p className="text-xs mt-1 leading-relaxed" style={{ color: theme.textMuted }}>
+          You can only be messaged by members you've connected with through a shared group.
+          Connections persist even if you later hide your profile from a group.
+        </p>
+        <div className="space-y-3 mt-4 text-sm" style={{ color: theme.text }}>
+          <div className="flex items-center justify-between">
+            <span>Allow new connection requests</span>
+            <input type="checkbox" defaultChecked />
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Show me to other visible group members</span>
+            <input type="checkbox" defaultChecked />
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Allow CiP staff to introduce me to other members</span>
+            <input type="checkbox" defaultChecked />
           </div>
         </div>
+      </Card>
 
-        <div className="mt-5">
-          <label className="text-sm" style={{ color: NAVY, fontWeight: 500 }}>Amount (AUD)</label>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {[25, 50, 100, 250].map((a) => (
-              <button
-                key={a}
-                onClick={() => setAmount(a)}
-                className="px-4 py-2 rounded-md text-sm border"
-                style={{
-                  borderColor: amount === a ? GOLD : "#e2dccf",
-                  background: amount === a ? GOLD : "#fff",
-                  color: NAVY,
-                  fontWeight: amount === a ? 600 : 400,
-                }}
-              >
-                ${a}
-              </button>
-            ))}
+      <Card className="p-5">
+        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Data</h3>
+        <div className="flex gap-2 mt-3 flex-wrap">
+          <GhostButton>Download my data</GhostButton>
+          <GhostButton>Delete my account</GhostButton>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── Network ──────────────────────────────────────────────────────────
+const NETWORK = [
+  { id: "n1", name: "Hannah K.",   title: "Local government candidate",   group: "NSW Politics & Prayer",         state: "NSW", since: "Apr 2026" },
+  { id: "n2", name: "Daniel S.",   title: "Lay preacher · Policy nerd",   group: "NSW Politics & Prayer",         state: "NSW", since: "Apr 2026" },
+  { id: "n3", name: "Priya M.",    title: "Researcher",                   group: "Young CiP",                     state: "VIC", since: "Mar 2026" },
+  { id: "n4", name: "James P.",    title: "Education policy",             group: "NSW Politics & Prayer",         state: "NSW", since: "Mar 2026" },
+  { id: "n5", name: "Margaret O.", title: "Public sector executive",      group: "Christian Women in Public Policy", state: "ACT", since: "Feb 2026" },
+  { id: "n6", name: "Andrew T.",   title: "Anglican lay leader",          group: "Sydney Civic Faith Circle",     state: "NSW", since: "Feb 2026" },
+];
+
+export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  const [search, setSearch] = useState("");
+  const [groupFilter, setGroupFilter] = useState("All groups");
+
+  const groupOptions = ["All groups", ...Array.from(new Set(NETWORK.map((n) => n.group)))];
+  const filtered = NETWORK.filter(
+    (n) =>
+      (groupFilter === "All groups" || n.group === groupFilter) &&
+      (n.name.toLowerCase().includes(search.toLowerCase()) ||
+        n.title.toLowerCase().includes(search.toLowerCase())),
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h1 style={{ color: theme.text }}>Your network</h1>
+            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+              {NETWORK.length} accepted connections from groups you're visible in. You can message,
+              invite to a new group, or remove a connection at any time.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("groups")}
+            className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5"
+            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          >
+            <UserPlus size={13} /> Find more in groups
+          </button>
+        </div>
+        <div className="mt-4 flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: theme.textMuted }} />
             <input
-              type="number"
-              placeholder="Custom"
-              onChange={(e) => setAmount(Number(e.target.value))}
-              className="px-4 py-2 rounded-md text-sm border w-28"
-              style={{ borderColor: "#e2dccf", background: "#faf9f5" }}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or title"
+              className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
+              style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
             />
           </div>
+          <div className="relative">
+            <Filter size={12} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: theme.textMuted }} />
+            <select
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              className="pl-8 pr-8 py-2 rounded-lg text-sm outline-none appearance-none"
+              style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
+            >
+              {groupOptions.map((g) => <option key={g}>{g}</option>)}
+            </select>
+            <ChevronRight size={11} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" style={{ color: theme.textMuted }} />
+          </div>
         </div>
-
-        <div className="mt-5 p-4 rounded-md" style={{ background: "#faf7f0", border: "1px dashed #d8cfb5" }}>
-          <div className="text-xs text-gray-500">Payment area</div>
-          <div className="text-sm mt-1" style={{ color: NAVY }}>FairPay payment integration will be connected here.</div>
-        </div>
-
-        <button className="mt-5 w-full px-5 py-3 rounded-md" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
-          Donate ${amount} {freq.toLowerCase()} securely
-        </button>
-        <p className="text-xs text-gray-500 mt-2 text-center">Donation processing will be connected later.</p>
       </Card>
+
+      {filtered.length > 0 ? (
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+          {filtered.map((n) => (
+            <Card key={n.id} className="p-5">
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
+                  style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                >
+                  {n.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{n.name}</div>
+                  <div className="text-xs truncate" style={{ color: theme.textMuted }}>{n.title}</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{n.state}</div>
+                </div>
+              </div>
+              <div className="text-[11px] mt-3" style={{ color: theme.textSubtle }}>
+                Connected through <span style={{ color: theme.textMuted, fontWeight: 500 }}>{n.group}</span> · {n.since}
+              </div>
+              <div className="flex items-center gap-2 mt-4">
+                <button
+                  onClick={() => navigate("messages")}
+                  className="flex-1 px-3 py-1.5 rounded-lg text-xs inline-flex items-center justify-center gap-1.5"
+                  style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                >
+                  <Send size={11} /> Message
+                </button>
+                <button
+                  className="px-3 py-1.5 rounded-lg text-xs"
+                  style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                >
+                  View
+                </button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="p-10 text-center">
+          <div className="text-sm" style={{ color: theme.textMuted }}>
+            No connections match your search.
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
 
-/* ----------------------- Privacy ----------------------- */
-export function PrivacyScreen() {
-  const items = [
-    "Account details", "Password and security", "Email preferences",
-    "Privacy and consent", "Political information controls", "Religious information controls",
-    "Party guidance results", "Support request history",
-  ];
+// ── Support ──────────────────────────────────────────────────────────
+const SUPPORT_PATHWAYS = [
+  {
+    id: "branch",
+    icon: MapPin,
+    title: "Connect to a local branch",
+    desc: "Be introduced to current members of a political party branch in your electorate so you can attend a meeting and see how it works.",
+    cta: "Request introduction",
+  },
+  {
+    id: "council",
+    icon: Users,
+    title: "Stand for local council",
+    desc: "We'll connect you with someone who has run for council, and walk you through the steps, timing and costs involved.",
+    cta: "Start a conversation",
+  },
+  {
+    id: "preselection",
+    icon: Briefcase,
+    title: "Explore pre-selection",
+    desc: "If you're considering pre-selection at state or federal level, our team can talk you through what's involved and connect you with someone who's done it.",
+    cta: "Request a chat",
+  },
+  {
+    id: "pastoral",
+    icon: Heart,
+    title: "Pastoral support",
+    desc: "Standing for office, working in policy or serving in public life can be lonely. We can connect you with a pastor or chaplain for a confidential conversation.",
+    cta: "Request pastoral care",
+  },
+  {
+    id: "mentor",
+    icon: UserPlus,
+    title: "Be matched with a mentor",
+    desc: "We'll pair you with a more experienced member who can mentor you for a season as you grow in faith and public life.",
+    cta: "Request a mentor",
+  },
+  {
+    id: "policy",
+    icon: FileText,
+    title: "Policy / discernment help",
+    desc: "Wrestling with a policy area through a Christian lens? We can connect you with a thoughtful peer or a relevant resource.",
+    cta: "Ask CiP",
+  },
+];
+
+const SUPPORT_REQUESTS = [
+  { id: "r1", title: "Connect to a local branch",      status: "In review",                  updated: "2 days ago" },
+  { id: "r2", title: "Pastoral conversation",          status: "Awaiting member response",   updated: "Yesterday" },
+  { id: "r3", title: "Explore pre-selection",          status: "Matched / introduced",       updated: "2 weeks ago" },
+];
+
+const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
+  "Submitted":                 { bg: "#dbeafe", fg: "#1d4ed8" },
+  "In review":                 { bg: "#fef3c7", fg: "#92400e" },
+  "Awaiting member response":  { bg: "#fde8d8", fg: "#c2410c" },
+  "Matched / introduced":      { bg: "#d1fae5", fg: "#065f46" },
+  "Closed":                    { bg: "#f3f4f6", fg: "#6b7280" },
+};
+
+function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_PATHWAYS[number]; onClose: () => void }) {
+  const { theme } = useTheme();
+  const Icon = pathway.icon;
   return (
-    <div className="max-w-4xl">
-      <SectionHeader title="Privacy & Settings" />
-      <Card className="mb-5">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl shadow-2xl"
+        style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 flex items-center gap-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <div
+            className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
+            style={{ background: theme.pillBg, color: NAVY }}
+          >
+            <Icon size={16} />
+          </div>
+          <div className="flex-1">
+            <h3 style={{ color: theme.text, fontWeight: 600 }}>{pathway.title}</h3>
+            <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>
+              CiP staff will receive this request and reply within a few days.
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
+            <X size={16} style={{ color: theme.textMuted }} />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <p className="text-sm leading-relaxed" style={{ color: theme.textMuted }}>{pathway.desc}</p>
+          <FormField label="What would help most?" hint="Optional — share a bit of context so we can route this well.">
+            <textarea
+              rows={4}
+              placeholder="A few sentences about where you're at and what you're hoping for…"
+              className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+              style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+            />
+          </FormField>
+          <FormField label="How urgent is this?">
+            <div className="flex gap-2">
+              {["No rush", "Within a month", "This week"].map((u, i) => (
+                <button
+                  key={u}
+                  className="flex-1 px-3 py-2 rounded-lg text-xs"
+                  style={{
+                    border: `1px solid ${i === 1 ? NAVY : theme.cardBorder}`,
+                    background: i === 1 ? "#f0f7ff" : theme.cardBg,
+                    color: theme.text,
+                    fontWeight: i === 1 ? 600 : 400,
+                  }}
+                >
+                  {u}
+                </button>
+              ))}
+            </div>
+          </FormField>
+        </div>
+        <div
+          className="px-6 py-4 flex items-center justify-end gap-2"
+          style={{ borderTop: `1px solid ${theme.divider}` }}
+        >
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm"
+            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            Submit request
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SupportScreen() {
+  const { theme } = useTheme();
+  const [selected, setSelected] = useState<typeof SUPPORT_PATHWAYS[number] | null>(null);
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
         <div className="flex items-start gap-3">
-          <Lock size={20} style={{ color: NAVY }} className="mt-1" />
-          <p className="text-sm text-gray-700">
-            Your political affiliation, religious background and support requests are private. Members are not
-            searchable by other members. CiP only uses your information to provide support, events, resources and
-            relevant introductions where you have given consent.
-          </p>
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: GOLD }}
+          >
+            <LifeBuoy size={18} style={{ color: NAVY }} />
+          </div>
+          <div>
+            <h1 style={{ color: theme.text }}>Support pathways</h1>
+            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+              CiP isn't an open forum or a self-serve directory — but our team can help you take
+              your next step. Pick a pathway and we'll be in touch.
+            </p>
+          </div>
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 gap-5">
-        {items.map((s) => (
-          <Card key={s}>
-            <h3 style={{ color: NAVY }}>{s}</h3>
-            <p className="text-sm text-gray-600 mt-1">Manage settings related to {s.toLowerCase()}.</p>
-            <button className="mt-3 text-sm" style={{ color: NAVY, fontWeight: 500 }}>Manage →</button>
-          </Card>
-        ))}
+      {/* Pathway grid */}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+        {SUPPORT_PATHWAYS.map((p) => {
+          const Icon = p.icon;
+          return (
+            <Card key={p.id} className="p-5 flex flex-col">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: theme.pillBg, color: NAVY }}
+                >
+                  <Icon size={16} />
+                </div>
+                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{p.title}</div>
+              </div>
+              <p className="text-xs mt-3 leading-relaxed flex-1" style={{ color: theme.textMuted }}>
+                {p.desc}
+              </p>
+              <button
+                onClick={() => setSelected(p)}
+                className="mt-4 w-full px-3 py-2 rounded-lg text-xs inline-flex items-center justify-center gap-1.5"
+                style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+              >
+                {p.cta} <ArrowRight size={11} />
+              </button>
+            </Card>
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-2 gap-5 mt-5">
-        <Card>
-          <div className="flex items-center gap-2">
-            <Download size={18} style={{ color: NAVY }} />
-            <h3 style={{ color: NAVY }}>Download my data</h3>
-          </div>
-          <p className="text-sm text-gray-600 mt-2">Export a copy of your profile, support requests and party guidance results.</p>
-          <button className="mt-3 px-4 py-2 rounded-md border text-sm" style={{ borderColor: NAVY, color: NAVY }}>Request export</button>
-        </Card>
-        <Card>
-          <div className="flex items-center gap-2">
-            <Trash2 size={18} style={{ color: "#a93030" }} />
-            <h3 style={{ color: "#a93030" }}>Delete account</h3>
-          </div>
-          <p className="text-sm text-gray-600 mt-2">Request permanent deletion of your CiP account and associated data.</p>
-          <button className="mt-3 px-4 py-2 rounded-md border text-sm" style={{ borderColor: "#a93030", color: "#a93030" }}>Request deletion</button>
-        </Card>
-      </div>
+      {/* Existing requests */}
+      <Card className="p-5">
+        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Your support requests</h3>
+        <div className="mt-3 divide-y" style={{ borderColor: theme.divider }}>
+          {SUPPORT_REQUESTS.map((r, i) => {
+            const s = STATUS_STYLE[r.status] ?? STATUS_STYLE.Submitted;
+            return (
+              <div
+                key={r.id}
+                className="flex items-center gap-3 py-3"
+                style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.title}</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>Updated {r.updated}</div>
+                </div>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full"
+                  style={{ background: s.bg, color: s.fg, fontWeight: 500 }}
+                >
+                  {r.status}
+                </span>
+                <ChevronRight size={14} style={{ color: theme.textSubtle }} />
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {selected && (
+        <NewSupportRequestModal pathway={selected} onClose={() => setSelected(null)} />
+      )}
     </div>
   );
 }
