@@ -3,7 +3,7 @@ import { Screen } from "./components/cip/types";
 import { ThemeContext, getTheme, NAVY, GOLD } from "./components/cip/brand";
 import { useAuth } from "./components/cip/AuthContext";
 import {
-  SignupScreen, AccountScreen, CreedScreen, BlockedScreen, WelcomeScreen,
+  SignupScreen, SignInScreen, AccountScreen, CreedScreen, BlockedScreen, WelcomeScreen,
 } from "./components/cip/PublicScreens";
 import { MemberShell } from "./components/cip/MemberShell";
 import {
@@ -16,7 +16,7 @@ import {
   AdminEvents, AdminContent, AdminDonations, AdminPrivacy,
 } from "./components/cip/AdminScreens";
 
-const PUBLIC_SCREENS: Screen[] = ["signup", "account", "creed", "blocked", "welcome"];
+const PUBLIC_SCREENS: Screen[] = ["signup", "signin", "account", "creed", "blocked", "welcome"];
 const ADMIN_SCREENS: Screen[] = [
   "admin-overview", "admin-members", "admin-support", "admin-support-detail",
   "admin-events", "admin-content", "admin-resources", "admin-announcements",
@@ -95,6 +95,7 @@ export default function App() {
         {isPublic && (
           <>
             {screen === "signup"  && <SignupScreen navigate={setScreen} />}
+            {screen === "signin"  && <SignInScreen navigate={setScreen} />}
             {screen === "account" && <AccountScreen navigate={setScreen} />}
             {screen === "creed"   && <CreedScreen navigate={setScreen} />}
             {screen === "blocked" && <BlockedScreen navigate={setScreen} />}

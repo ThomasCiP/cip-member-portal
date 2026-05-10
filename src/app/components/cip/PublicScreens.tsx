@@ -224,9 +224,11 @@ function LegalModal({ type, onClose }: { type: ModalType; onClose: () => void })
 function PublicFrame({
   children,
   onOpenModal,
+  navigate,
 }: {
   children: ReactNode;
   onOpenModal?: (m: ModalType) => void;
+  navigate?: (s: Screen) => void;
 }) {
   return (
     <div className="min-h-screen w-full bg-white flex flex-col">
@@ -237,7 +239,11 @@ function PublicFrame({
         <CiPLogo />
         <div className="text-sm text-gray-500">
           Already a member?{" "}
-          <span style={{ color: NAVY, cursor: "pointer" }} className="hover:underline">
+          <span
+            style={{ color: NAVY, cursor: "pointer" }}
+            className="hover:underline"
+            onClick={() => navigate && navigate("signin")}
+          >
             Sign in
           </span>
         </div>
@@ -270,7 +276,7 @@ function PublicFrame({
 export function SignupScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [modal, setModal] = useState<ModalType>(null);
   return (
-    <PublicFrame onOpenModal={setModal}>
+    <PublicFrame onOpenModal={setModal} navigate={navigate}>
       <div className="grid md:grid-cols-2 gap-16 items-center">
         <div>
           <div
@@ -340,6 +346,73 @@ export function SignupScreen({ navigate }: { navigate: (s: Screen) => void }) {
   );
 }
 
+export function SignInScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const [modal, setModal] = useState<ModalType>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInError) {
+      setError(signInError.message);
+      setLoading(false);
+    } else {
+      // App.tsx useEffect will catch the user state change and redirect to dashboard
+    }
+  };
+
+  return (
+    <PublicFrame onOpenModal={setModal} navigate={navigate}>
+      <div className="max-w-lg mx-auto py-12">
+        <h1 style={{ color: NAVY, fontWeight: 700, fontSize: 32 }}>Welcome back</h1>
+        <p className="text-gray-500 mt-2 text-sm">Sign in to your member account.</p>
+
+        <form onSubmit={handleSignIn} className="mt-8 space-y-4">
+          <Field label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+
+          {error && <div className="text-sm text-red-600 mt-2">{error}</div>}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full mt-4 px-6 py-3 rounded-xl text-sm"
+            style={{
+              background: NAVY,
+              color: "#fff",
+              fontWeight: 600,
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {loading ? "Signing in..." : "Sign in"}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => navigate("signup")}
+            className="text-sm hover:underline"
+            style={{ color: NAVY }}
+          >
+            Don't have an account? Sign up
+          </button>
+        </div>
+      </div>
+      <LegalModal type={modal} onClose={() => setModal(null)} />
+    </PublicFrame>
+  );
+}
+
 // ── Account creation screen ─────────────────────────────────────────
 export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [agreed, setAgreed] = useState(false);
@@ -361,7 +434,7 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
   };
 
   return (
-    <PublicFrame onOpenModal={setModal}>
+    <PublicFrame onOpenModal={setModal} navigate={navigate}>
       <div className="max-w-lg mx-auto">
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-6">
@@ -569,7 +642,7 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
   };
 
   return (
-    <PublicFrame onOpenModal={setModal}>
+    <PublicFrame onOpenModal={setModal} navigate={navigate}>
       <div className="max-w-2xl mx-auto">
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-6">
@@ -718,7 +791,7 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
 export function BlockedScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [modal, setModal] = useState<ModalType>(null);
   return (
-    <PublicFrame onOpenModal={setModal}>
+    <PublicFrame onOpenModal={setModal} navigate={navigate}>
       <div className="max-w-lg mx-auto text-center py-8">
         <div
           className="mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-6"

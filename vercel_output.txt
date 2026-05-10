@@ -1,0 +1,43 @@
+Retrieving project…
+Deploying thomas-mynotts-projects/cip-member-portal
+Uploading [--------------------] (0.0B/74B)
+Uploading [====================] (74.0B/74B)
+Inspect: https://vercel.com/thomas-mynotts-projects/cip-member-portal/8vgCzUNzbGVEtavCGbTiVJx5sSfW [2s]
+Production: https://cip-member-portal-7465xl6rb-thomas-mynotts-projects.vercel.app [2s]
+https://cip-member-portal-7465xl6rb-thomas-mynotts-projects.vercel.appBuilding...
+Building: Running build in Washington, D.C., USA (East) – iad1
+Building: Build machine configuration: 2 cores, 8 GB
+Building: Retrieving list of deployment files...
+Building: Downloading 84 deployment files...
+Building: Downloading 84 deployment files...
+Building: Restored build cache from previous deployment (3E7mprirN964W2Tt1sWc5k5f4a51)
+Building: Running "vercel build"
+Building: Vercel CLI 53.3.1
+Building: Installing dependencies...
+Building: removed 8 packages in 1s
+Building: 36 packages are looking for funding
+Building: run `npm fund` for details
+Building: Running "npm run build"
+Building: > cip-member-portal@0.0.1 build
+Building: > vite build
+Building: vite v6.3.5 building for production...
+Building: transforming...
+Building: ✓ 16 modules transformed.
+Building: ✗ Build failed in 608ms
+Building: error during build:
+Building: [vite]: Rollup failed to resolve import "@supabase/supabase-js" from "/vercel/path0/src/lib/supabase.ts".
+Building: This is most likely unintended because it can break your application at runtime.
+Building: If you do want to externalize this module explicitly add it to
+Building: `build.rollupOptions.external`
+Building: at viteLog (file:///vercel/path0/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46345:15)
+Building: at file:///vercel/path0/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46403:18
+Building: at onwarn (file:///vercel/path0/node_modules/@vitejs/plugin-react/dist/index.js:90:7)
+Building: at file:///vercel/path0/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46401:7
+Building: at onRollupLog (file:///vercel/path0/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46393:5)
+Building: at onLog (file:///vercel/path0/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46043:7)
+Building: at file:///vercel/path0/node_modules/rollup/dist/es/shared/node-entry.js:21389:32
+Building: at Object.logger [as onLog] (file:///vercel/path0/node_modules/rollup/dist/es/shared/node-entry.js:23384:9)
+Building: at ModuleLoader.handleInvalidResolvedId (file:///vercel/path0/node_modules/rollup/dist/es/shared/node-entry.js:22128:26)
+Building: at file:///vercel/path0/node_modules/rollup/dist/es/shared/node-entry.js:22086:26
+Building: Error: Command "npm run build" exited with 1
+Error: Command "npm run build" exited with 1

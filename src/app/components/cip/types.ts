@@ -1,6 +1,7 @@
 export type Screen =
   // Public flow
   | "signup"
+  | "signin"
   | "account"
   | "creed"
   | "blocked"
