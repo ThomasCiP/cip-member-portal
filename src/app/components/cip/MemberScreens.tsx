@@ -597,7 +597,9 @@ export function ProfileScreen() {
     return <div className="p-12 text-center text-sm text-gray-500">Loading profile...</div>;
   }
 
-  const initials = (profile.firstName[0] ?? "") + (profile.lastName[0] ?? "");
+  const safeFirst = profile?.firstName || "";
+  const safeLast = profile?.lastName || "";
+  const initials = (safeFirst[0] || "") + (safeLast[0] || "");
 
   return (
     <div className="space-y-4">
@@ -1839,7 +1841,7 @@ export function MessagesScreen() {
             {/* List body */}
             <div className="flex-1 overflow-y-auto">
               {tab === "messages" && filteredConnections.map((c) => {
-                const isActive = active.id === c.id;
+                const isActive = active?.id === c.id;
                 return (
                   <button
                     key={c.id}
