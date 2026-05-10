@@ -436,7 +436,7 @@ function TopHeader({
                 { l: "Profile",   k: "profile" as Screen,         icon: UserCircle2 },
                 { l: "Settings",  k: "settings" as Screen,        icon: Settings },
                 { l: "Privacy",   k: "privacy" as Screen,         icon: Lock },
-                { l: "Admin",     k: "admin-overview" as Screen,  icon: ShieldCheck },
+                ...(user?.email?.endsWith("@christiansinpolitics.com") ? [{ l: "Admin", k: "admin-overview" as Screen, icon: ShieldCheck }] : []),
               ].map((it) => {
                 const I = it.icon;
                 return (

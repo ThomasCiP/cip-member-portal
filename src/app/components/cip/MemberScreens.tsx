@@ -2157,6 +2157,7 @@ export function DonateScreen() {
 // ── Settings ─────────────────────────────────────────────────────────
 export function SettingsScreen() {
   const { theme, dark, toggle } = useTheme();
+  const { user } = useAuth();
   return (
     <div className="space-y-4">
       <Card className="p-5">
@@ -2206,13 +2207,30 @@ export function SettingsScreen() {
       <Card className="p-5">
         <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Account</h3>
         <div className="mt-3 space-y-2 text-sm">
-          <div className="flex items-center justify-between"><span style={{ color: theme.textMuted }}>Email</span><span style={{ color: theme.text }}>sarah.reed@example.com</span></div>
-          <div className="flex items-center justify-between"><span style={{ color: theme.textMuted }}>Member since</span><span style={{ color: theme.text }}>March 2026</span></div>
+          <div className="flex items-center justify-between"><span style={{ color: theme.textMuted }}>Email</span><span style={{ color: theme.text }}>{user?.email || "Unknown"}</span></div>
+          <div className="flex items-center justify-between"><span style={{ color: theme.textMuted }}>Member since</span><span style={{ color: theme.text }}>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Just now"}</span></div>
         </div>
         <div className="flex gap-2 mt-4">
           <GhostButton>Change password</GhostButton>
           <GhostButton>Download my data</GhostButton>
         </div>
+      </Card>
+
+      <Card className="p-5 border border-red-200">
+        <h3 className="text-sm font-semibold text-red-600">Danger Zone</h3>
+        <p className="text-xs text-red-500/80 mt-1 mb-4">
+          Once you delete your account, there is no going back. Please be certain.
+        </p>
+        <button
+          onClick={() => {
+            if (window.confirm("Are you absolutely sure you want to delete your account? This action cannot be undone.")) {
+              alert("Account deletion requested. Please contact support to finalize.");
+            }
+          }}
+          className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+        >
+          Delete account
+        </button>
       </Card>
     </div>
   );

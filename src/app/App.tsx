@@ -74,7 +74,7 @@ export default function App() {
 
 
   const isPublic = PUBLIC_SCREENS.includes(screen);
-  const isAdmin = ADMIN_SCREENS.includes(screen);
+  const isAdmin = ADMIN_SCREENS.includes(screen) && user?.email?.endsWith("@christiansinpolitics.com");
 
   const memberContent = (() => {
     switch (screen) {
