@@ -398,6 +398,7 @@ interface ProfileData {
   party: string;
   tradition: string;
   showParty: boolean;
+  avatarUrl?: string;
 }
 
 const DEFAULT_PROFILE: ProfileData = {
@@ -411,6 +412,7 @@ const DEFAULT_PROFILE: ProfileData = {
   party: "No affiliation",
   tradition: "Anglican",
   showParty: false,
+  avatarUrl: "",
 };
 
 function FormField({
@@ -493,6 +495,7 @@ export function ProfileScreen() {
           party: data.party || "No affiliation",
           tradition: data.tradition || "",
           showParty: data.show_party || false,
+          avatarUrl: data.avatar_url || "",
         };
         setProfile(loadedProfile);
         setDraft(loadedProfile);
@@ -519,9 +522,39 @@ export function ProfileScreen() {
       party: draft.party,
       tradition: draft.tradition,
       show_party: draft.showParty,
+      avatar_url: draft.avatarUrl,
     }).eq("id", user.id);
   };
   const cancel = () => setEditing(false);
+
+  const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file || !user) return;
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+
+      setLoading(true);
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file);
+
+      if (uploadError) {
+        alert("Error uploading image");
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      
+      setDraft({ ...draft, avatarUrl: data.publicUrl });
+      setLoading(false);
+    } catch (error) {
+      console.error("Error uploading avatar", error);
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return <div className="p-12 text-center text-sm text-gray-500">Loading profile...</div>;
@@ -535,12 +568,16 @@ export function ProfileScreen() {
       <Card className="overflow-hidden">
         <div className="h-32" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b 60%, ${GOLD})` }} />
         <div className="px-6 pb-5 -mt-12">
-          <div
-            className="w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl"
-            style={{ background: NAVY, border: `4px solid ${theme.cardBg}`, fontWeight: 600 }}
-          >
-            {initials}
-          </div>
+          {profile.avatarUrl ? (
+            <img src={profile.avatarUrl} alt="Avatar" className="w-24 h-24 rounded-full object-cover" style={{ border: `4px solid ${theme.cardBg}` }} />
+          ) : (
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl"
+              style={{ background: NAVY, border: `4px solid ${theme.cardBg}`, fontWeight: 600 }}
+            >
+              {initials}
+            </div>
+          )}
           <div className="mt-3 flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0">
               <h1 style={{ color: theme.text }}>{profile.firstName} {profile.lastName}</h1>
@@ -575,6 +612,22 @@ export function ProfileScreen() {
             </span>
           </div>
           <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+            <div className="col-span-full">
+              <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Profile Picture</label>
+              <div className="flex items-center gap-4">
+                {draft.avatarUrl ? (
+                  <img src={draft.avatarUrl} alt="Draft Avatar" className="w-16 h-16 rounded-full object-cover" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center text-white" style={{ background: NAVY }}>{initials}</div>
+                )}
+                <div>
+                  <input type="file" accept="image/*" id="avatarUpload" className="hidden" onChange={uploadAvatar} disabled={loading} />
+                  <label htmlFor="avatarUpload" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                    {loading ? "Uploading..." : "Upload new image"}
+                  </label>
+                </div>
+              </div>
+            </div>
             <FormField label="First name">
               <TextInput value={draft.firstName} onChange={(v) => setDraft({ ...draft, firstName: v })} />
             </FormField>

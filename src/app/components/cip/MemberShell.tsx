@@ -4,6 +4,8 @@ import {
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
   Network, LifeBuoy, LogOut,
 } from "lucide-react";
+import { supabase } from "../../../lib/supabase";
+import { useAuth } from "./AuthContext";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
 
@@ -107,8 +109,15 @@ export function RailCard({
   );
 }
 
-export function ProfileSummaryCard({ navigate }: { navigate: (s: Screen) => void }) {
+export function ProfileSummaryCard({ navigate, profile }: { navigate: (s: Screen) => void; profile: any }) {
   const { theme } = useTheme();
+  
+  const firstName = profile?.first_name || "Member";
+  const lastName = profile?.last_name || "";
+  const initials = firstName[0] + (lastName ? lastName[0] : "");
+  const fullName = `${firstName} ${lastName}`.trim();
+  const subtitle = [profile?.job_title, profile?.state, profile?.tradition].filter(Boolean).join(" · ") || "Welcome to the Network";
+
   return (
     <div
       className="rounded-2xl overflow-hidden"
@@ -116,15 +125,19 @@ export function ProfileSummaryCard({ navigate }: { navigate: (s: Screen) => void
     >
       <div className="h-16" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b)` }} />
       <div className="px-4 pb-4 -mt-8">
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center text-white"
-          style={{ background: NAVY, border: `3px solid ${theme.cardBg}`, fontWeight: 600 }}
-        >
-          SR
-        </div>
-        <div className="mt-2" style={{ color: theme.text, fontWeight: 600 }}>Sarah Reed</div>
+        {profile?.avatar_url ? (
+          <img src={profile.avatar_url} alt={fullName} className="w-16 h-16 rounded-full object-cover" style={{ border: `3px solid ${theme.cardBg}` }} />
+        ) : (
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center text-white"
+            style={{ background: NAVY, border: `3px solid ${theme.cardBg}`, fontWeight: 600 }}
+          >
+            {initials}
+          </div>
+        )}
+        <div className="mt-2" style={{ color: theme.text, fontWeight: 600 }}>{fullName}</div>
         <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>
-          Policy Adviser · NSW · Anglican
+          {subtitle}
         </div>
         <div
           className="mt-3 pt-3 text-xs flex items-center gap-1.5"
@@ -299,10 +312,16 @@ export function DonateRail({ onDonate }: { onDonate: () => void }) {
 
 // ── Top header ────────────────────────────────────────────────────────
 function TopHeader({
-  current, navigate, onDonate,
-}: { current: Screen; navigate: (s: Screen) => void; onDonate: () => void }) {
+  current, navigate, onDonate, profile
+}: { current: Screen; navigate: (s: Screen) => void; onDonate: () => void; profile: any }) {
   const { theme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const firstName = profile?.first_name || "Member";
+  const lastName = profile?.last_name || "";
+  const initials = firstName[0] + (lastName ? lastName[0] : "");
+  const fullName = `${firstName} ${lastName}`.trim();
+  const subtitle = [profile?.job_title, profile?.state].filter(Boolean).join(" · ") || "Member";
   return (
     <header
       className="h-16 px-6 flex items-center gap-4 shrink-0 sticky top-0 z-30"
@@ -368,12 +387,16 @@ function TopHeader({
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-white/10 transition-colors"
           >
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs"
-              style={{ background: GOLD, color: NAVY, fontWeight: 700 }}
-            >
-              SR
-            </div>
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt={initials} className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-xs"
+                style={{ background: GOLD, color: NAVY, fontWeight: 700 }}
+              >
+                {initials}
+              </div>
+            )}
             <ChevronDown size={12} style={{ color: "rgba(255,255,255,0.7)" }} />
           </button>
           {menuOpen && (
@@ -382,8 +405,8 @@ function TopHeader({
               style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
             >
               <div className="px-4 py-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Sarah Reed</div>
-                <div className="text-[11px]" style={{ color: theme.textMuted }}>Policy Adviser · NSW</div>
+                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{fullName}</div>
+                <div className="text-[11px]" style={{ color: theme.textMuted }}>{subtitle}</div>
               </div>
               {[
                 { l: "Profile",   k: "profile" as Screen,         icon: UserCircle2 },
@@ -436,11 +459,21 @@ export function MemberShell({
   fullWidth?: boolean;
 }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [donateOpen, setDonateOpen] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+
+  useEffect(() => {
+    if (user) {
+      supabase.from("profiles").select("*").eq("id", user.id).single().then(({ data }) => {
+        if (data) setProfile(data);
+      });
+    }
+  }, [user]);
 
   const defaultLeft = (
     <div className="space-y-4">
-      <ProfileSummaryCard navigate={navigate} />
+      <ProfileSummaryCard navigate={navigate} profile={profile} />
       <JoinedGroupsCard navigate={navigate} />
     </div>
   );
@@ -455,7 +488,7 @@ export function MemberShell({
 
   return (
     <div className="flex flex-col h-screen w-full" style={{ background: theme.bg }}>
-      <TopHeader current={current} navigate={navigate} onDonate={() => setDonateOpen(true)} />
+      <TopHeader current={current} navigate={navigate} onDonate={() => setDonateOpen(true)} profile={profile} />
 
       <main className="flex-1 overflow-hidden">
         {fullWidth ? (
