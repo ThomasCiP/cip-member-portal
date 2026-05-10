@@ -4,6 +4,7 @@ import {
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
   Network, LifeBuoy, LogOut,
 } from "lucide-react";
+import { Joyride, Step } from "react-joyride";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
@@ -18,24 +19,7 @@ const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "support",   label: "Support",  icon: LifeBuoy },
 ];
 
-// ── Demo data ─────────────────────────────────────────────────────────
-export const JOINED_GROUPS = [
-  { id: "nsw-pp",    name: "NSW Politics & Prayer",     members: 142, visibility: "anonymous" as const },
-  { id: "syd-civic", name: "Sydney Civic Faith Circle", members:  87, visibility: "visible"   as const },
-  { id: "young-cip", name: "Young CiP",                 members: 213, visibility: "anonymous" as const },
-];
-
-export const SUGGESTED_GROUPS = [
-  { id: "vic-pp",   name: "VIC Politics & Prayer",        members: 96  },
-  { id: "rural-cf", name: "Rural Christians in Politics", members: 54  },
-  { id: "qld-pp",   name: "QLD Politics & Prayer",        members: 118 },
-];
-
-export const UPCOMING_EVENTS = [
-  { id: "e1", title: "National Prayer Breakfast", date: "Tue 19 May",  loc: "Canberra"   },
-  { id: "e2", title: "NSW Members Briefing",      date: "Thu 28 May",  loc: "Online"     },
-  { id: "e3", title: "Faith & Public Life Forum", date: "Sat 6 Jun",   loc: "Sydney"     },
-];
+// ── Dynamic Data Rails ────────────────────────────────────────────────
 
 function DonateModal({ onClose }: { onClose: () => void }) {
   return (
@@ -159,104 +143,150 @@ export function ProfileSummaryCard({ navigate, profile }: { navigate: (s: Screen
 
 export function JoinedGroupsCard({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
+  const [groups, setGroups] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('group_members').select('..., groups(*)').eq('user_id', user.id).then(({ data }) => {
+      if (data) setGroups(data.map((d: any) => d.groups).filter(Boolean));
+    });
+  }, [user]);
+
   return (
     <RailCard
       title="Your groups"
-      action={
-        <button
-          onClick={() => navigate("groups")}
-          className="text-xs"
-          style={{ color: GOLD, fontWeight: 600 }}
-        >
-          See all
-        </button>
-      }
+      action={<button onClick={() => navigate("groups")} className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>See all</button>}
     >
-      <div className="space-y-2.5">
-        {JOINED_GROUPS.map((g) => (
-          <button
-            key={g.id}
-            onClick={() => navigate("group-detail")}
-            className="w-full flex items-center gap-2.5 text-left rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-colors"
-          >
-            <div
-              className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-xs"
-              style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
+      {groups.length === 0 ? (
+        <div className="text-sm py-4 text-center" style={{ color: theme.textMuted }}>You haven't joined any groups yet.</div>
+      ) : (
+        <div className="space-y-2.5">
+          {groups.map((g: any) => (
+            <button
+              key={g.id}
+              onClick={() => navigate("group-detail")}
+              className="w-full flex items-center gap-2.5 text-left rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-colors"
             >
-              {g.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs truncate" style={{ color: theme.text, fontWeight: 500 }}>
-                {g.name}
+              <div
+                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-xs"
+                style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
+              >
+                {g.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
               </div>
-              <div className="flex items-center gap-1 text-[10px]" style={{ color: theme.textMuted }}>
-                {g.visibility === "anonymous" ? (<><Lock size={9} /> Watching anonymously</>) : (<>Visible</>)}
+              <div className="min-w-0 flex-1">
+                <div className="text-xs truncate" style={{ color: theme.text, fontWeight: 500 }}>{g.name}</div>
+                <div className="flex items-center gap-1 text-[10px]" style={{ color: theme.textMuted }}>
+                  {g.visibility === "private" ? (<><Lock size={9} /> Private</>) : (<>Visible</>)}
+                </div>
               </div>
-            </div>
-          </button>
-        ))}
-      </div>
+            </button>
+          ))}
+        </div>
+      )}
     </RailCard>
   );
 }
 
 export function UpcomingEventsRail({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const [events, setEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Graceful fail if events table doesn't exist yet
+    supabase.from('events').select('*').limit(3).then(({ data, error }) => {
+      if (data && !error) setEvents(data);
+    });
+  }, []);
+
   return (
     <RailCard
       title="Upcoming events"
-      action={
-        <button onClick={() => navigate("events")} className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>
-          All events
-        </button>
-      }
+      action={<button onClick={() => navigate("events")} className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>All events</button>}
     >
-      <div className="space-y-3">
-        {UPCOMING_EVENTS.map((e) => (
-          <button key={e.id} onClick={() => navigate("event-detail")} className="w-full text-left">
-            <div className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>{e.date}</div>
-            <div className="text-sm mt-0.5" style={{ color: theme.text, fontWeight: 500 }}>{e.title}</div>
-            <div className="text-xs" style={{ color: theme.textMuted }}>{e.loc}</div>
-          </button>
-        ))}
-      </div>
+      {events.length === 0 ? (
+        <div className="text-sm py-4 text-center" style={{ color: theme.textMuted }}>No upcoming events scheduled.</div>
+      ) : (
+        <div className="space-y-3">
+          {events.map((e: any) => (
+            <button key={e.id} onClick={() => navigate("event-detail")} className="w-full text-left">
+              <div className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>{new Date(e.date).toLocaleDateString()}</div>
+              <div className="text-sm mt-0.5" style={{ color: theme.text, fontWeight: 500 }}>{e.title}</div>
+              <div className="text-xs" style={{ color: theme.textMuted }}>{e.location || "Online"}</div>
+            </button>
+          ))}
+        </div>
+      )}
     </RailCard>
   );
 }
 
 export function SuggestedGroupsRail({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const [groups, setGroups] = useState<any[]>([]);
+
+  useEffect(() => {
+    supabase.from('groups').select('*').limit(3).then(({ data, error }) => {
+      if (data && !error) setGroups(data);
+    });
+  }, []);
+
   return (
     <RailCard title="Suggested groups">
-      <div className="space-y-3">
-        {SUGGESTED_GROUPS.map((g) => (
-          <div key={g.id} className="flex items-center gap-2.5">
-            <div
-              className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-xs"
-              style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
-            >
-              {g.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+      {groups.length === 0 ? (
+        <div className="text-sm py-4 text-center" style={{ color: theme.textMuted }}>No group suggestions available yet.</div>
+      ) : (
+        <div className="space-y-3">
+          {groups.map((g: any) => (
+            <div key={g.id} className="flex items-center gap-2.5">
+              <div
+                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-xs"
+                style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
+              >
+                {g.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs truncate" style={{ color: theme.text, fontWeight: 500 }}>{g.name}</div>
+                <div className="text-[10px]" style={{ color: theme.textMuted }}>Group</div>
+              </div>
+              <button
+                onClick={() => navigate("group-detail")}
+                className="text-[10px] px-2 py-1 rounded-md"
+                style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+              >
+                View
+              </button>
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs truncate" style={{ color: theme.text, fontWeight: 500 }}>{g.name}</div>
-              <div className="text-[10px]" style={{ color: theme.textMuted }}>{g.members} members</div>
-            </div>
-            <button
-              onClick={() => navigate("group-detail")}
-              className="text-[10px] px-2 py-1 rounded-md"
-              style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-            >
-              Join
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </RailCard>
   );
 }
 
 export function SupportStatusRail({ navigate }: { navigate?: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
+  const [requests, setRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('support_requests').select('*').eq('user_id', user.id).then(({ data, error }) => {
+      if (data && !error) setRequests(data);
+    });
+  }, [user]);
+
+  if (requests.length === 0) {
+    return (
+      <RailCard
+        title="Your support requests"
+        action={navigate && <button onClick={() => navigate("support")} className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>Manage</button>}
+      >
+        <div className="text-sm py-4 text-center" style={{ color: theme.textMuted }}>No active support requests.</div>
+      </RailCard>
+    );
+  }
+
   return (
     <RailCard
       title="Your support requests"
@@ -268,18 +298,12 @@ export function SupportStatusRail({ navigate }: { navigate?: (s: Screen) => void
         )
       }
     >
-      <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>
-        Connect to a local branch
-      </div>
-      <div className="text-xs mt-1" style={{ color: theme.textMuted }}>
-        In review · CiP team responded yesterday
-      </div>
-      <div
-        className="mt-3 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md"
-        style={{ background: "#fef3c7", color: "#92400e", fontWeight: 500 }}
-      >
-        Awaiting your reply
-      </div>
+      {requests.map((req: any) => (
+        <div key={req.id} className="mb-3 last:mb-0">
+          <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{req.title || "Support Request"}</div>
+          <div className="text-xs mt-1" style={{ color: theme.textMuted }}>Status: {req.status}</div>
+        </div>
+      ))}
     </RailCard>
   );
 }
@@ -352,7 +376,7 @@ function TopHeader({
             <button
               key={it.key}
               onClick={() => navigate(it.key)}
-              className="flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-colors min-w-[64px]"
+              className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-colors min-w-[64px] tour-nav-${it.key}`}
               style={{
                 color: active ? "#fff" : "rgba(255,255,255,0.65)",
                 fontWeight: active ? 600 : 400,
@@ -459,24 +483,42 @@ export function MemberShell({
   fullWidth?: boolean;
 }) {
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [donateOpen, setDonateOpen] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
+  const [runTour, setRunTour] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      supabase.from("profiles").select("*").eq("id", user.id).single().then(({ data }) => {
-        if (data) setProfile(data);
-      });
+    const hasSeenTour = localStorage.getItem("cip_tour_completed");
+    if (!hasSeenTour) {
+      setRunTour(true);
     }
-  }, [user]);
+  }, []);
+
+  const tourSteps: Step[] = [
+    { target: ".tour-profile", content: "This is your profile card. Keep your details up to date to help others connect with you.", placement: "right", disableBeacon: true },
+    { target: ".tour-nav-home", content: "Your Home feed is where you'll see updates from your groups.", placement: "right" },
+    { target: ".tour-nav-network", content: "Find and connect with other Christians in politics.", placement: "right" },
+    { target: ".tour-nav-groups", content: "Join groups to engage in discussions and find your local branch.", placement: "right" },
+    { target: ".tour-nav-events", content: "Stay updated on upcoming briefings, forums, and prayer meetings.", placement: "right" }
+  ];
+
+  const handleJoyrideCallback = (data: any) => {
+    const { status } = data;
+    if (status === "finished" || status === "skipped") {
+      localStorage.setItem("cip_tour_completed", "true");
+      setRunTour(false);
+    }
+  };
 
   const defaultLeft = (
     <div className="space-y-4">
-      <ProfileSummaryCard navigate={navigate} profile={profile} />
+      <div className="tour-profile">
+        <ProfileSummaryCard navigate={navigate} profile={profile} />
+      </div>
       <JoinedGroupsCard navigate={navigate} />
     </div>
   );
+
   const defaultRight = (
     <div className="space-y-4">
       <UpcomingEventsRail navigate={navigate} />
@@ -488,6 +530,17 @@ export function MemberShell({
 
   return (
     <div className="flex flex-col h-screen w-full" style={{ background: theme.bg }}>
+      <Joyride
+        steps={tourSteps}
+        run={runTour}
+        continuous
+        showProgress
+        showSkipButton
+        callback={handleJoyrideCallback}
+        styles={{
+          options: { primaryColor: NAVY, textColor: theme.text, backgroundColor: theme.cardBg, overlayColor: 'rgba(0, 0, 0, 0.6)' }
+        }}
+      />
       <TopHeader current={current} navigate={navigate} onDonate={() => setDonateOpen(true)} profile={profile} />
 
       <main className="flex-1 overflow-hidden">
