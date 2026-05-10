@@ -223,6 +223,8 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
     setLoading(true);
     const { error } = await supabase.from("profiles").upsert({
       id: user?.id,
+      first_name: user?.user_metadata?.first_name,
+      last_name: user?.user_metadata?.last_name,
       job_title: jobTitle,
       federal_electorate: electorate,
       party: party,
