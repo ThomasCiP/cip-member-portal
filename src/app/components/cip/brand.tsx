@@ -84,7 +84,7 @@ export function CiPLogo({ light = false, size = 28 }: { light?: boolean; size?: 
   // For now we will render the SVG directly. A CSS filter for brightness can be applied if 'light' is true.
   return (
     <img 
-      src="/logo.svg" 
+      src="/logo.png" 
       alt="CiP Logo" 
       style={{ height: size, filter: light ? 'brightness(10)' : 'none' }} 
       className="object-contain"
