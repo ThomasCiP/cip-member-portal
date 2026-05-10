@@ -603,17 +603,9 @@ export function ProfileScreen() {
 }
 
 // ── Groups discovery ─────────────────────────────────────────────────
-const ALL_GROUPS = [
-  { id: "nsw-pp", name: "NSW Politics & Prayer", desc: "Monthly prayer and political reflection for NSW members.", members: 142, joined: true, visibility: "anonymous" },
-  { id: "syd-civic", name: "Sydney Civic Faith Circle", desc: "Sydney-based group focused on local government and council engagement.", members: 87, joined: true, visibility: "visible" },
-  { id: "young-cip", name: "Young CiP", desc: "Members under 35 finding their feet in politics and public life.", members: 213, joined: true, visibility: "anonymous" },
-  { id: "vic-pp", name: "VIC Politics & Prayer", desc: "Victorian counterpart to NSW Politics & Prayer.", members: 96, joined: false, visibility: null },
-  { id: "rural-cf", name: "Rural Christians in Politics", desc: "Members from regional and rural Australia.", members: 54, joined: false, visibility: null },
-  { id: "qld-pp", name: "QLD Politics & Prayer", desc: "Queensland prayer and policy discussion group.", members: 118, joined: false, visibility: null },
-  { id: "policy-women", name: "Christian Women in Public Policy", desc: "A supportive space for women considering or already serving in public roles.", members: 71, joined: false, visibility: null },
-];
+const ALL_GROUPS: any[] = [];
 
-function GroupCard({ g, navigate }: { g: typeof ALL_GROUPS[number]; navigate: (s: Screen) => void }) {
+function GroupCard({ g, navigate }: { g: any; navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   return (
     <Card className="p-4">
@@ -678,6 +670,7 @@ const CAVEAT_OPTIONS: { id: Caveat; label: string; hint: string; icon: any }[] =
 
 function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => void }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -890,7 +883,28 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
             </button>
           ) : (
             <button
-              onClick={() => onCreate(name)}
+              onClick={async () => {
+                if (user) {
+                  const { data } = await supabase.from("groups").insert({
+                    name,
+                    description: desc,
+                    visibility: vis,
+                    caveat_type: caveat,
+                    caveat_value: caveatValue,
+                    created_by: user.id
+                  }).select().single();
+                  
+                  if (data) {
+                    await supabase.from("group_members").insert({
+                      group_id: data.id,
+                      user_id: user.id,
+                      role: "admin"
+                    });
+                    onCreate(name);
+                    window.location.reload();
+                  }
+                }
+              }}
               className="px-4 py-2 rounded-lg text-sm"
               style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
             >
@@ -905,13 +919,40 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
 
 export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [tab, setTab] = useState<"joined" | "discover" | "yours">("joined");
   const [createOpen, setCreateOpen] = useState(false);
+  const [allGroups, setAllGroups] = useState<any[]>([]);
+  const [myMemberships, setMyMemberships] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
 
-  const list =
-    tab === "joined"   ? ALL_GROUPS.filter((g) => g.joined) :
-    tab === "discover" ? ALL_GROUPS.filter((g) => !g.joined) :
-                         []; // groups created by current user (none yet in mock)
+  useEffect(() => {
+    async function fetchGroups() {
+      if (!user) return;
+      const { data: groups } = await supabase.from("groups").select("*");
+      const { data: members } = await supabase.from("group_members").select("group_id").eq("user_id", user.id);
+      
+      if (groups) setAllGroups(groups);
+      if (members) setMyMemberships(new Set(members.map(m => m.group_id)));
+      setLoading(false);
+    }
+    fetchGroups();
+  }, [user]);
+
+  const list = allGroups.map(g => ({
+    id: g.id,
+    name: g.name,
+    desc: g.description,
+    members: 1, // Optional: You can do a count query later
+    joined: myMemberships.has(g.id),
+    visibility: g.visibility,
+    created_by: g.created_by,
+  })).filter(g => {
+    if (tab === "joined") return g.joined;
+    if (tab === "discover") return !g.joined;
+    if (tab === "yours") return g.created_by === user?.id;
+    return false;
+  });
 
   return (
     <div className="space-y-4">
@@ -955,7 +996,9 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
         </div>
       </Card>
 
-      {list.length > 0 ? (
+      {loading ? (
+        <Card className="p-10 text-center text-sm text-gray-500">Loading groups...</Card>
+      ) : list.length > 0 ? (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
           {list.map((g) => <GroupCard key={g.id} g={g} navigate={navigate} />)}
         </div>

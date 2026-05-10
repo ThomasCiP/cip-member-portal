@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
+import { OnboardingFlow } from "./components/cip/OnboardingFlow";
 import { Screen } from "./components/cip/types";
 import { ThemeContext, getTheme, NAVY, GOLD } from "./components/cip/brand";
 import { useAuth } from "./components/cip/AuthContext";
@@ -37,6 +39,24 @@ export default function App() {
   const [dark, setDark] = useState(false);
   const theme = getTheme(dark);
 
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    async function checkProfile() {
+      if (user) {
+        const { data } = await supabase.from("profiles").select("onboarded").eq("id", user.id).single();
+        if (data) {
+           setOnboarded(data.onboarded);
+        } else {
+           setOnboarded(false); // Default to false if profile doesn't have it yet
+        }
+      }
+    }
+    if (user && !loading) {
+       checkProfile();
+    }
+  }, [user, loading]);
+
   useEffect(() => {
     if (!loading) {
       if (user && PUBLIC_SCREENS.includes(screen)) {
@@ -47,8 +67,16 @@ export default function App() {
     }
   }, [user, loading]);
 
-  if (loading) {
+  if (loading || (user && onboarded === null)) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  if (user && onboarded === false) {
+    return (
+      <ThemeContext.Provider value={{ dark, toggle: () => setDark((d) => !d), theme }}>
+        <OnboardingFlow user={user} onComplete={() => { setOnboarded(true); setScreen("dashboard"); }} />
+      </ThemeContext.Provider>
+    );
   }
 
   const isPublic = PUBLIC_SCREENS.includes(screen);
