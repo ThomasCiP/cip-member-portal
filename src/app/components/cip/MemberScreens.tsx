@@ -1,4 +1,6 @@
-import { useState, ReactNode } from "react";
+import { useState, useEffect, ReactNode } from "react";
+import { supabase } from "../../../lib/supabase";
+import { useAuth } from "./AuthContext";
 import { Screen } from "./types";
 import { NAVY, GOLD, useTheme } from "./brand";
 import {
@@ -208,6 +210,32 @@ function FeedPost({ item, navigate }: { item: typeof FEED_ITEMS[number]; navigat
 
 export function Dashboard({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const [feedItems, setFeedItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchFeed() {
+      const { data, error } = await supabase
+        .from("feed_items")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (!error && data) {
+        // Map database fields to the UI properties expected by FeedPost
+        const formattedData = data.map(d => ({
+          type: d.type,
+          title: d.title,
+          body: d.body,
+          cta: d.cta_text,
+          date: new Date(d.created_at).toLocaleDateString(),
+          image: d.image,
+        }));
+        setFeedItems(formattedData);
+      }
+      setLoading(false);
+    }
+    fetchFeed();
+  }, []);
   return (
     <div className="space-y-4">
       {/* Read-only composer */}
@@ -229,9 +257,19 @@ export function Dashboard({ navigate }: { navigate: (s: Screen) => void }) {
         </div>
       </Card>
 
-      {FEED_ITEMS.map((item, i) => (
-        <FeedPost key={i} item={item} navigate={navigate} />
-      ))}
+      {loading ? (
+        <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>
+          Loading feed...
+        </div>
+      ) : feedItems.length === 0 ? (
+        <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>
+          No feed items available.
+        </div>
+      ) : (
+        feedItems.map((item, i) => (
+          <FeedPost key={i} item={item} navigate={navigate} />
+        ))
+      )}
     </div>
   );
 }
@@ -347,13 +385,61 @@ function ProfileMetaRow({ icon: Icon, label, value }: { icon: any; label: string
 
 export function ProfileScreen() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState<ProfileData>(DEFAULT_PROFILE);
   const [draft, setDraft] = useState<ProfileData>(DEFAULT_PROFILE);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadProfile() {
+      if (!user) return;
+      const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      if (data && !error) {
+        const loadedProfile = {
+          firstName: data.first_name || "",
+          lastName: data.last_name || "",
+          jobTitle: data.job_title || "",
+          bio: data.bio || "",
+          state: data.state || "",
+          federalElectorate: data.federal_electorate || "",
+          stateElectorate: data.state_electorate || "",
+          party: data.party || "No affiliation",
+          tradition: data.tradition || "",
+          showParty: data.show_party || false,
+        };
+        setProfile(loadedProfile);
+        setDraft(loadedProfile);
+      }
+      setLoading(false);
+    }
+    loadProfile();
+  }, [user]);
 
   const startEdit = () => { setDraft(profile); setEditing(true); };
-  const save = () => { setProfile(draft); setEditing(false); };
+  const save = async () => {
+    if (!user) return;
+    setProfile(draft);
+    setEditing(false);
+    
+    await supabase.from("profiles").update({
+      first_name: draft.firstName,
+      last_name: draft.lastName,
+      job_title: draft.jobTitle,
+      bio: draft.bio,
+      state: draft.state,
+      federal_electorate: draft.federalElectorate,
+      state_electorate: draft.stateElectorate,
+      party: draft.party,
+      tradition: draft.tradition,
+      show_party: draft.showParty,
+    }).eq("id", user.id);
+  };
   const cancel = () => setEditing(false);
+
+  if (loading) {
+    return <div className="p-12 text-center text-sm text-gray-500">Loading profile...</div>;
+  }
 
   const initials = (profile.firstName[0] ?? "") + (profile.lastName[0] ?? "");
 
