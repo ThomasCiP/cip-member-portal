@@ -499,7 +499,8 @@ export function MemberShell({
     { target: ".tour-nav-home", content: "Your Home feed is where you'll see updates from your groups.", placement: "right" },
     { target: ".tour-nav-network", content: "Find and connect with other Christians in politics.", placement: "right" },
     { target: ".tour-nav-groups", content: "Join groups to engage in discussions and find your local branch.", placement: "right" },
-    { target: ".tour-nav-events", content: "Stay updated on upcoming briefings, forums, and prayer meetings.", placement: "right" }
+    { target: ".tour-nav-events", content: "Stay updated on upcoming briefings, forums, and prayer meetings.", placement: "right" },
+    { target: ".tour-nav-support", content: "Need help? The support tab connects you to our team and local branches.", placement: "right" }
   ];
 
   const handleJoyrideCallback = (data: any) => {

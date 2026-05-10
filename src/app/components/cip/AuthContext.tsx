@@ -8,9 +8,10 @@ type AuthContextType = {
   profile: any | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
+  updateProfileLocally: (updates: any) => void;
 };
 
-const AuthContext = createContext<AuthContextType>({ user: null, session: null, profile: null, loading: true, refreshProfile: async () => {} });
+const AuthContext = createContext<AuthContextType>({ user: null, session: null, profile: null, loading: true, refreshProfile: async () => {}, updateProfileLocally: () => {} });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -24,7 +25,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user.id);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      await fetchProfile(session.user.id);
+    }
+  };
+
+  const updateProfileLocally = (updates: any) => {
+    setProfile((prev: any) => ({ ...prev, ...updates }));
   };
 
   useEffect(() => {
@@ -47,7 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, refreshProfile, updateProfileLocally }}>
       {children}
     </AuthContext.Provider>
   );

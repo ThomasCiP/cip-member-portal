@@ -210,7 +210,7 @@ function FeedPost({ item, navigate }: { item: typeof FEED_ITEMS[number]; navigat
 
 function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => void }) {
   const { theme } = useTheme();
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, updateProfileLocally } = useAuth();
   const [loading, setLoading] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
   const [electorate, setElectorate] = useState("");
@@ -224,9 +224,15 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
       federal_electorate: electorate,
       party: party,
       bio: bio,
-      onboarded: true,
     }).eq("id", user?.id);
-    await refreshProfile();
+    updateProfileLocally({
+      job_title: jobTitle,
+      federal_electorate: electorate,
+      party: party,
+      bio: bio,
+      onboarded: true,
+    });
+    refreshProfile(); // background sync
     setOnboarded(true);
   };
 
@@ -474,7 +480,7 @@ function ProfileMetaRow({ icon: Icon, label, value }: { icon: any; label: string
 
 export function ProfileScreen() {
   const { theme } = useTheme();
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, updateProfileLocally } = useAuth();
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState<ProfileData>(DEFAULT_PROFILE);
   const [draft, setDraft] = useState<ProfileData>(DEFAULT_PROFILE);
@@ -525,7 +531,21 @@ export function ProfileScreen() {
       show_party: draft.showParty,
       avatar_url: draft.avatarUrl,
     }).eq("id", user.id);
-    await refreshProfile();
+    
+    updateProfileLocally({
+      first_name: draft.firstName,
+      last_name: draft.lastName,
+      job_title: draft.jobTitle,
+      bio: draft.bio,
+      state: draft.state,
+      federal_electorate: draft.federalElectorate,
+      state_electorate: draft.stateElectorate,
+      party: draft.party,
+      tradition: draft.tradition,
+      show_party: draft.showParty,
+      avatar_url: draft.avatarUrl,
+    });
+    refreshProfile(); // background sync
   };
   const cancel = () => setEditing(false);
 
