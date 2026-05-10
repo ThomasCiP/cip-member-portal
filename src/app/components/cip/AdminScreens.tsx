@@ -168,11 +168,11 @@ function StatusPill({ label, color }: { label: string; color?: string }) {
 export function AdminOverview() {
   const { theme } = useTheme();
   const stats = [
-    { l: "New members (30d)", v: "82", d: "+18%" },
-    { l: "Completed onboarding", v: "61", d: "+12%" },
-    { l: "Affirmed creed", v: "94%", d: "" },
-    { l: "Interested in joining a party", v: "143", d: "" },
-    { l: "Support requests open", v: "11", d: "urgent" },
+    { l: "New members (30d)", v: "0", d: "" },
+    { l: "Completed onboarding", v: "0", d: "" },
+    { l: "Affirmed creed", v: "0", d: "" },
+    { l: "Interested in joining a party", v: "0", d: "" },
+    { l: "Support requests open", v: "0", d: "" },
   ];
 
   return (
@@ -213,12 +213,7 @@ export function AdminOverview() {
             <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#fee2e2", color: "#dc2626" }}>11 open</span>
           </div>
           <div className="space-y-2">
-            {[
-              ["Connect to local branch (Sydney)", "In review", "High"],
-              ["Help me choose a party", "Submitted", "Medium"],
-              ["Connect to advocacy group", "Submitted", "Medium"],
-              ["Mentor others", "Matched", "Low"],
-            ].map(([t, s, u], i) => (
+            {([] as any[]).map(([t, s, u], i) => (
               <div
                 key={i}
                 className="flex items-center justify-between p-3 rounded-xl"
@@ -238,13 +233,7 @@ export function AdminOverview() {
         <AdminCard className="p-5">
           <h3 className="mb-4" style={{ color: theme.text }}>Recent sign-ups</h3>
           <div className="space-y-2">
-            {[
-              ["S. Reed", "NSW", "1h"],
-              ["M. Abadi", "VIC", "3h"],
-              ["J. Patel", "QLD", "5h"],
-              ["A. McLeod", "WA", "8h"],
-              ["L. Tran", "NSW", "1d"],
-            ].map(([name, state, time], i) => (
+            {([] as any[]).map(([name, state, time], i) => (
               <div
                 key={i}
                 className="flex items-center justify-between px-3 py-2 rounded-xl"
@@ -273,13 +262,7 @@ export function AdminOverview() {
 // ── Admin Members ──────────────────────────────────────────────────
 export function AdminMembers() {
   const { theme } = useTheme();
-  const rows = [
-    { n: "Sarah Reed", e: "sarah@example.com", st: "NSW", eng: "Interested in joining", party: "Not sure", needs: "Branch intro", status: "Active", creed: true },
-    { n: "Mark Abadi", e: "mark@example.com", st: "VIC", eng: "Active in branch", party: "Liberal", needs: "Mentoring", status: "Active", creed: true },
-    { n: "Jess Patel", e: "jess@example.com", st: "QLD", eng: "Public servant", party: "Prefer not to say", needs: "Resources", status: "Active", creed: true },
-    { n: "Andrew McLeod", e: "andrew@example.com", st: "WA", eng: "Just curious", party: "Not sure", needs: "Pathways", status: "Onboarding", creed: true },
-    { n: "Lucy Tran", e: "lucy@example.com", st: "NSW", eng: "Campaign volunteer", party: "ALP", needs: "Candidate selection", status: "Active", creed: true },
-  ];
+  const rows: any[] = [];
 
   return (
     <div className="max-w-7xl">
@@ -352,12 +335,7 @@ export function AdminMembers() {
 // ── Admin Support queue ────────────────────────────────────────────
 export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
-  const rows = [
-    { t: "Connect to local branch", n: "Sarah Reed", st: "NSW", p: "Not sure", u: "High", a: "M. Andrews", s: "In review", d: "2h" },
-    { t: "Help me choose a party", n: "Lucy Tran", st: "NSW", p: "—", u: "Medium", a: "Unassigned", s: "Submitted", d: "4h" },
-    { t: "Connect to advocacy group", n: "Jess Patel", st: "QLD", p: "—", u: "Medium", a: "Unassigned", s: "Submitted", d: "1d" },
-    { t: "Mentor others", n: "Mark Abadi", st: "VIC", p: "Liberal", u: "Low", a: "J. Carter", s: "Matched", d: "1d" },
-  ];
+  const rows: any[] = [];
 
   return (
     <div className="max-w-7xl">
@@ -548,13 +526,7 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
 // ── Admin Events ───────────────────────────────────────────────────
 export function AdminEvents() {
   const { theme } = useTheme();
-  const rows = [
-    ["Faithful Politics with Tim Costello", "27 May", "Public lecture", "Online", "184", "Published"],
-    ["Sydney Members Prayer", "31 May", "Prayer", "Sydney CBD", "26", "Published"],
-    ["Public Service Pathway Briefing", "10 Jun", "Training", "Online", "92", "Published"],
-    ["Brisbane Members Dinner", "13 Jun", "Fellowship", "Brisbane", "12", "Draft"],
-    ["Candidate Selection 101", "18 Jun", "Training", "Online", "0", "Scheduled"],
-  ];
+  const rows: any[] = [];
   return (
     <AdminTablePage
       title="Events"
@@ -572,24 +544,9 @@ export function AdminContent() {
   const [tab, setTab] = useState<"resources" | "announcements" | "affiliated">("resources");
   const { theme } = useTheme();
 
-  const resourceRows = [
-    ["Politics — A Case for Christian Engagement", "Book", "Christian formation", "John Anderson", "Featured"],
-    ["How to Join a Political Party", "Article", "Political literacy", "CiP Guide", "—"],
-    ["Faithfulness in Public Life", "Bible study", "Christian formation", "CiP", "—"],
-    ["Candidate Selection 101", "Course", "Candidate selection", "CiP", "Featured"],
-    ["Religious Freedom in Australia", "Article", "Religious freedom", "Freedom for Faith", "—"],
-  ];
-  const announcementRows = [
-    ["Liberal pre-selection nominations open in QLD", "Opportunity", "Express interest", "Published", "2d"],
-    ["Summer policy internship", "Internship", "Read more", "Published", "5d"],
-    ["Public Service briefing", "Training", "Register", "Scheduled", "—"],
-    ["National prayer gathering", "Prayer", "Register", "Published", "1w"],
-  ];
-  const affiliatedRows = [
-    ["Freedom for Faith", "Advocacy group", "Mike Southon", "CiP member", "Approved"],
-    ["Rebuild Australia", "Training / mobilisation", "Jane Watson", "External", "Approved"],
-    ["Christians for Labor", "Political network", "David Anderson", "CiP member", "Approved"],
-  ];
+  const resourceRows: any[] = [];
+  const announcementRows: any[] = [];
+  const affiliatedRows: any[] = [];
 
   return (
     <div className="max-w-7xl">

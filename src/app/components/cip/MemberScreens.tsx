@@ -275,12 +275,7 @@ export function Dashboard({ navigate }: { navigate: (s: Screen) => void }) {
 }
 
 // ── Profile (read-only) ──────────────────────────────────────────────
-const PROFILE_ACTIVITY = [
-  { type: "Event", title: "Registered: Faithful Politics with Tim Costello", date: "3 days ago" },
-  { type: "Resource", title: "Saved: Branch meetings — an inside look", date: "1 week ago" },
-  { type: "Support", title: "Open request: Connect to a local branch", date: "2 weeks ago" },
-  { type: "Group", title: "Joined: NSW Politics & Prayer (anonymous)", date: "3 weeks ago" },
-];
+const PROFILE_ACTIVITY: any[] = [];
 
 const PARTIES = [
   "No affiliation", "Independent", "Australian Labor Party", "Liberal Party of Australia",
@@ -650,14 +645,7 @@ function GroupCard({ g, navigate }: { g: any; navigate: (s: Screen) => void }) {
 }
 
 // Mock network used by the Create Group invite step
-const MY_NETWORK = [
-  { id: "n1", name: "Hannah K.",  title: "Local government candidate" },
-  { id: "n2", name: "Daniel S.",  title: "Lay preacher · Policy nerd" },
-  { id: "n3", name: "Priya M.",   title: "Researcher · Young CiP" },
-  { id: "n4", name: "James P.",   title: "Education policy" },
-  { id: "n5", name: "Margaret O.", title: "Christian Women in Public Policy" },
-  { id: "n6", name: "Andrew T.",  title: "Anglican lay leader" },
-];
+const MY_NETWORK: any[] = [];
 
 type GroupVisibility = "public" | "private" | "restricted";
 type Caveat = "electorate" | "party" | "tradition";
@@ -1037,41 +1025,9 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
 }
 
 // ── Group detail ─────────────────────────────────────────────────────
-const GROUP_POSTS = [
-  {
-    pinned: true,
-    author: "Group moderator",
-    avatar: "GM",
-    role: "Moderator",
-    date: "Pinned",
-    body: "Welcome to NSW Politics & Prayer. Please read the group rules below before posting. We pray together on the first Tuesday of each month at 7pm.",
-    likes: 18, comments: 4,
-  },
-  {
-    author: "Daniel S.",
-    avatar: "DS",
-    role: "Visible member",
-    date: "Yesterday",
-    body: "Sharing a thoughtful piece on the Voice referendum aftermath and how Christian voters reflected on the outcome. Worth a slow read this weekend.",
-    link: "https://example.org/article",
-    likes: 12, comments: 6,
-  },
-  {
-    author: "Hannah K.",
-    avatar: "HK",
-    role: "Visible member",
-    date: "3 days ago",
-    body: "Anyone else attending the State Council meeting next week? Would be good to compare notes afterwards. Happy to host a coffee debrief.",
-    likes: 7, comments: 9,
-  },
-];
+const GROUP_POSTS: any[] = [];
 
-const GROUP_MEMBERS = [
-  { id: "1", name: "Daniel S.", bio: "Lay preacher, policy nerd. NSW.", state: "NSW", connected: false },
-  { id: "2", name: "Hannah K.", bio: "Local government candidate, mum of three.", state: "NSW", connected: true },
-  { id: "3", name: "James P.", bio: "Anglican, working in education policy.", state: "NSW", connected: false },
-  { id: "4", name: "Priya M.", bio: "Considering pre-selection. Listening for now.", state: "NSW", connected: false },
-];
+const GROUP_MEMBERS: any[] = [];
 
 function RevealModal({ onClose, onReveal }: { onClose: () => void; onReveal: () => void }) {
   const { theme } = useTheme();
@@ -1510,16 +1466,22 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
 }
 
 // ── Events ───────────────────────────────────────────────────────────
-const EVENTS = [
-  { id: "e1", title: "National Prayer Breakfast", date: "Tue 19 May · 7:30 AM", loc: "Canberra", kind: "In person" },
-  { id: "e2", title: "NSW Members Briefing", date: "Thu 28 May · 7:00 PM", loc: "Online", kind: "Online" },
-  { id: "e3", title: "Faith & Public Life Forum", date: "Sat 6 Jun · 10:00 AM", loc: "Sydney", kind: "In person" },
-  { id: "e4", title: "Faithful Politics with Tim Costello", date: "Wed 27 May · 7:00 PM", loc: "Online", kind: "Online" },
-  { id: "e5", title: "Young CiP gathering", date: "Fri 11 Jul · 6:30 PM", loc: "Melbourne", kind: "In person" },
-];
+const EVENTS: any[] = [];
 
 export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadEvents() {
+      const { data } = await supabase.from("events").select("*").order("created_at", { ascending: false });
+      if (data) setEvents(data);
+      setLoading(false);
+    }
+    loadEvents();
+  }, []);
+
   return (
     <div className="space-y-4">
       <Card className="p-5">
@@ -1530,30 +1492,40 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
       </Card>
       <Card>
         <div className="divide-y" style={{ borderColor: theme.divider }}>
-          {EVENTS.map((e, i) => (
-            <button
-              key={e.id}
-              onClick={() => navigate("event-detail")}
-              className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 transition-colors"
-              style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
-            >
-              <div
-                className="w-12 h-12 rounded-xl shrink-0 flex flex-col items-center justify-center"
-                style={{ background: theme.pillBg, color: NAVY }}
+          {loading ? (
+            <div className="py-8 text-center text-sm text-gray-500">Loading events...</div>
+          ) : events.length === 0 ? (
+            <div className="py-10 text-center">
+              <CalendarDays size={24} className="mx-auto mb-3" style={{ color: theme.textMuted }} />
+              <div className="text-sm font-bold" style={{ color: theme.text }}>No upcoming events</div>
+              <div className="text-xs mt-1" style={{ color: theme.textMuted }}>Check back later for new gatherings and forums.</div>
+            </div>
+          ) : (
+            events.map((e, i) => (
+              <button
+                key={e.id}
+                onClick={() => navigate("event-detail")}
+                className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 transition-colors"
+                style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
               >
-                <CalendarDays size={16} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{e.title}</div>
-                <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: theme.textMuted }}>
-                  <span className="inline-flex items-center gap-1"><Clock size={11} /> {e.date}</span>
-                  <span className="inline-flex items-center gap-1"><MapPin size={11} /> {e.loc}</span>
+                <div
+                  className="w-12 h-12 rounded-xl shrink-0 flex flex-col items-center justify-center"
+                  style={{ background: theme.pillBg, color: NAVY }}
+                >
+                  <CalendarDays size={16} />
                 </div>
-              </div>
-              <Pill color={e.kind === "Online" ? "#dbeafe" : "#fef3c7"}>{e.kind}</Pill>
-              <ChevronRight size={14} style={{ color: theme.textSubtle }} />
-            </button>
-          ))}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{e.title}</div>
+                  <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: theme.textMuted }}>
+                    <span className="inline-flex items-center gap-1"><Clock size={11} /> {e.date}</span>
+                    <span className="inline-flex items-center gap-1"><MapPin size={11} /> {e.location}</span>
+                  </div>
+                </div>
+                <Pill color={e.type === "Online" ? "#dbeafe" : "#fef3c7"}>{e.type}</Pill>
+                <ChevronRight size={14} style={{ color: theme.textSubtle }} />
+              </button>
+            ))
+          )}
         </div>
       </Card>
     </div>
@@ -1592,32 +1564,15 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
 }
 
 // ── Messages ─────────────────────────────────────────────────────────
-const CONNECTIONS = [
-  { id: "1", name: "Hannah K.", group: "NSW Politics & Prayer", last: "Thanks Sarah, that's really helpful — talk soon.", time: "2h", unread: 0, active: true },
-  { id: "2", name: "Daniel S.", group: "NSW Politics & Prayer", last: "Yes I'll send through the article tonight.", time: "1d", unread: 2, active: false },
-  { id: "3", name: "Priya M.", group: "Young CiP", last: "Would love to hear how you found pre-selection.", time: "3d", unread: 0, active: false },
-];
-
-const PENDING_RECEIVED = [
-  { id: "p1", name: "James P.", group: "NSW Politics & Prayer", message: "Hi Sarah, would value connecting given your council work." },
-];
-
-const PENDING_SENT = [
-  { id: "s1", name: "Margaret O.", group: "Christian Women in Public Policy" },
-];
-
-const THREAD = [
-  { from: "them", body: "Hi Sarah, glad we connected. I noticed your comment on the council post — really thoughtful.", time: "Yesterday" },
-  { from: "me",   body: "Thanks Hannah, appreciated yours too. Are you going to the next state meeting?", time: "Yesterday" },
-  { from: "them", body: "Planning to. Want to grab coffee beforehand?", time: "Yesterday" },
-  { from: "me",   body: "Yes please — let's lock something in.", time: "2h" },
-  { from: "them", body: "Thanks Sarah, that's really helpful — talk soon.", time: "2h" },
-];
+const CONNECTIONS: any[] = [];
+const PENDING_RECEIVED: any[] = [];
+const PENDING_SENT: any[] = [];
+const THREAD: any[] = [];
 
 export function MessagesScreen() {
   const { theme } = useTheme();
   const [tab, setTab] = useState<"messages" | "received" | "sent" | "blocked">("messages");
-  const [active, setActive] = useState(CONNECTIONS[0]);
+  const [active, setActive] = useState<any>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -2175,26 +2130,53 @@ export function PrivacyScreen() {
 }
 
 // ── Network ──────────────────────────────────────────────────────────
-const NETWORK = [
-  { id: "n1", name: "Hannah K.",   title: "Local government candidate",   group: "NSW Politics & Prayer",         state: "NSW", since: "Apr 2026" },
-  { id: "n2", name: "Daniel S.",   title: "Lay preacher · Policy nerd",   group: "NSW Politics & Prayer",         state: "NSW", since: "Apr 2026" },
-  { id: "n3", name: "Priya M.",    title: "Researcher",                   group: "Young CiP",                     state: "VIC", since: "Mar 2026" },
-  { id: "n4", name: "James P.",    title: "Education policy",             group: "NSW Politics & Prayer",         state: "NSW", since: "Mar 2026" },
-  { id: "n5", name: "Margaret O.", title: "Public sector executive",      group: "Christian Women in Public Policy", state: "ACT", since: "Feb 2026" },
-  { id: "n6", name: "Andrew T.",   title: "Anglican lay leader",          group: "Sydney Civic Faith Circle",     state: "NSW", since: "Feb 2026" },
-];
+const NETWORK: any[] = [];
 
 export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
-  const [groupFilter, setGroupFilter] = useState("All groups");
+  const [connections, setConnections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const groupOptions = ["All groups", ...Array.from(new Set(NETWORK.map((n) => n.group)))];
-  const filtered = NETWORK.filter(
+  useEffect(() => {
+    async function loadNetwork() {
+      if (!user) return;
+      const { data } = await supabase
+        .from('network_connections')
+        .select(`
+          id,
+          status,
+          created_at,
+          requester:profiles!requester_id (id, first_name, last_name, job_title, state),
+          receiver:profiles!receiver_id (id, first_name, last_name, job_title, state)
+        `)
+        .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+        
+      if (data) {
+        const parsed = data.map((c: any) => {
+           const isRequester = c.requester?.id === user.id;
+           const peer = isRequester ? c.receiver : c.requester;
+           return {
+             id: c.id,
+             name: `${peer?.first_name || 'Unknown'} ${peer?.last_name || ''}`.trim(),
+             title: peer?.job_title || 'Member',
+             state: peer?.state || 'Unknown',
+             status: c.status,
+             since: new Date(c.created_at).toLocaleDateString(),
+           };
+        });
+        setConnections(parsed);
+      }
+      setLoading(false);
+    }
+    loadNetwork();
+  }, [user]);
+
+  const filtered = connections.filter(
     (n) =>
-      (groupFilter === "All groups" || n.group === groupFilter) &&
-      (n.name.toLowerCase().includes(search.toLowerCase()) ||
-        n.title.toLowerCase().includes(search.toLowerCase())),
+      n.name.toLowerCase().includes(search.toLowerCase()) ||
+      n.title.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -2204,8 +2186,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
           <div>
             <h1 style={{ color: theme.text }}>Your network</h1>
             <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
-              {NETWORK.length} accepted connections from groups you're visible in. You can message,
-              invite to a new group, or remove a connection at any time.
+              {connections.length} connections. You can message, invite to a new group, or remove a connection at any time.
             </p>
           </div>
           <button
@@ -2226,18 +2207,6 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
               className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
               style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
             />
-          </div>
-          <div className="relative">
-            <Filter size={12} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: theme.textMuted }} />
-            <select
-              value={groupFilter}
-              onChange={(e) => setGroupFilter(e.target.value)}
-              className="pl-8 pr-8 py-2 rounded-lg text-sm outline-none appearance-none"
-              style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
-            >
-              {groupOptions.map((g) => <option key={g}>{g}</option>)}
-            </select>
-            <ChevronRight size={11} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" style={{ color: theme.textMuted }} />
           </div>
         </div>
       </Card>
@@ -2260,7 +2229,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 </div>
               </div>
               <div className="text-[11px] mt-3" style={{ color: theme.textSubtle }}>
-                Connected through <span style={{ color: theme.textMuted, fontWeight: 500 }}>{n.group}</span> · {n.since}
+                <span style={{ color: theme.textMuted, fontWeight: 500 }}>{n.status === 'pending' ? 'Pending connection' : 'Connected'}</span> · {n.since}
               </div>
               <div className="flex items-center gap-2 mt-4">
                 <button
@@ -2337,11 +2306,7 @@ const SUPPORT_PATHWAYS = [
   },
 ];
 
-const SUPPORT_REQUESTS = [
-  { id: "r1", title: "Connect to a local branch",      status: "In review",                  updated: "2 days ago" },
-  { id: "r2", title: "Pastoral conversation",          status: "Awaiting member response",   updated: "Yesterday" },
-  { id: "r3", title: "Explore pre-selection",          status: "Matched / introduced",       updated: "2 weeks ago" },
-];
+const SUPPORT_REQUESTS: any[] = [];
 
 const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   "Submitted":                 { bg: "#dbeafe", fg: "#1d4ed8" },
@@ -2351,14 +2316,33 @@ const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   "Closed":                    { bg: "#f3f4f6", fg: "#6b7280" },
 };
 
-function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_PATHWAYS[number]; onClose: () => void }) {
+function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_PATHWAYS[number]; onClose: (refresh?: boolean) => void }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const Icon = pathway.icon;
+  const [contextText, setContextText] = useState("");
+  const [urgency, setUrgency] = useState("Within a month");
+  const [loading, setLoading] = useState(false);
+
+  const submitRequest = async () => {
+    if (!user) return;
+    setLoading(true);
+    await supabase.from("support_requests").insert({
+      user_id: user.id,
+      request_type: pathway.title,
+      description: contextText || pathway.desc,
+      urgency: urgency,
+      status: "Submitted"
+    });
+    setLoading(false);
+    onClose(true);
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
       style={{ background: "rgba(0,0,0,0.5)" }}
-      onClick={onClose}
+      onClick={() => onClose()}
     >
       <div
         className="w-full max-w-lg rounded-2xl shadow-2xl"
@@ -2378,7 +2362,7 @@ function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_
               CiP staff will receive this request and reply within a few days.
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
+          <button onClick={() => onClose()} className="p-1 rounded-md hover:bg-gray-100">
             <X size={16} style={{ color: theme.textMuted }} />
           </button>
         </div>
@@ -2387,6 +2371,8 @@ function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_
           <FormField label="What would help most?" hint="Optional — share a bit of context so we can route this well.">
             <textarea
               rows={4}
+              value={contextText}
+              onChange={(e) => setContextText(e.target.value)}
               placeholder="A few sentences about where you're at and what you're hoping for…"
               className="w-full px-3 py-2 rounded-lg outline-none text-sm"
               style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
@@ -2394,15 +2380,16 @@ function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_
           </FormField>
           <FormField label="How urgent is this?">
             <div className="flex gap-2">
-              {["No rush", "Within a month", "This week"].map((u, i) => (
+              {["No rush", "Within a month", "This week"].map((u) => (
                 <button
                   key={u}
+                  onClick={() => setUrgency(u)}
                   className="flex-1 px-3 py-2 rounded-lg text-xs"
                   style={{
-                    border: `1px solid ${i === 1 ? NAVY : theme.cardBorder}`,
-                    background: i === 1 ? "#f0f7ff" : theme.cardBg,
+                    border: `1px solid ${urgency === u ? NAVY : theme.cardBorder}`,
+                    background: urgency === u ? "#f0f7ff" : theme.cardBg,
                     color: theme.text,
-                    fontWeight: i === 1 ? 600 : 400,
+                    fontWeight: urgency === u ? 600 : 400,
                   }}
                 >
                   {u}
@@ -2416,18 +2403,19 @@ function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_
           style={{ borderTop: `1px solid ${theme.divider}` }}
         >
           <button
-            onClick={onClose}
+            onClick={() => onClose()}
             className="px-4 py-2 rounded-lg text-sm"
             style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
           >
             Cancel
           </button>
           <button
-            onClick={onClose}
+            onClick={submitRequest}
+            disabled={loading}
             className="px-4 py-2 rounded-lg text-sm"
             style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
           >
-            Submit request
+            {loading ? "Submitting..." : "Submit request"}
           </button>
         </div>
       </div>
@@ -2437,7 +2425,21 @@ function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_
 
 export function SupportScreen() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [selected, setSelected] = useState<typeof SUPPORT_PATHWAYS[number] | null>(null);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadRequests = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("support_requests").select("*").eq("user_id", user.id).order('created_at', { ascending: false });
+    if (data) setRequests(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadRequests();
+  }, [user]);
 
   return (
     <div className="space-y-4">
@@ -2493,33 +2495,45 @@ export function SupportScreen() {
       <Card className="p-5">
         <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Your support requests</h3>
         <div className="mt-3 divide-y" style={{ borderColor: theme.divider }}>
-          {SUPPORT_REQUESTS.map((r, i) => {
-            const s = STATUS_STYLE[r.status] ?? STATUS_STYLE.Submitted;
-            return (
-              <div
-                key={r.id}
-                className="flex items-center gap-3 py-3"
-                style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.title}</div>
-                  <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>Updated {r.updated}</div>
-                </div>
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full"
-                  style={{ background: s.bg, color: s.fg, fontWeight: 500 }}
+          {requests.length === 0 ? (
+            <div className="py-6 text-sm text-center" style={{ color: theme.textMuted }}>
+              You don't have any open support requests.
+            </div>
+          ) : (
+            requests.map((r, i) => {
+              const s = STATUS_STYLE[r.status] ?? STATUS_STYLE.Submitted;
+              return (
+                <div
+                  key={r.id}
+                  className="flex items-center gap-3 py-3"
+                  style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
                 >
-                  {r.status}
-                </span>
-                <ChevronRight size={14} style={{ color: theme.textSubtle }} />
-              </div>
-            );
-          })}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.request_type}</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>Updated {new Date(r.created_at).toLocaleDateString()}</div>
+                  </div>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full"
+                    style={{ background: s.bg, color: s.fg, fontWeight: 500 }}
+                  >
+                    {r.status}
+                  </span>
+                  <ChevronRight size={14} style={{ color: theme.textSubtle }} />
+                </div>
+              );
+            })
+          )}
         </div>
       </Card>
 
       {selected && (
-        <NewSupportRequestModal pathway={selected} onClose={() => setSelected(null)} />
+        <NewSupportRequestModal 
+          pathway={selected} 
+          onClose={(refresh) => {
+            setSelected(null);
+            if (refresh) loadRequests();
+          }} 
+        />
       )}
     </div>
   );
