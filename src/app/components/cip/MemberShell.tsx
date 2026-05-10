@@ -452,6 +452,7 @@ function TopHeader({
                 );
               })}
               <button
+                onClick={() => supabase.auth.signOut()}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"
                 style={{ color: theme.text, borderTop: `1px solid ${theme.divider}` }}
               >

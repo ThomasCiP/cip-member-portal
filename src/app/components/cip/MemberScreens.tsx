@@ -219,12 +219,13 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
 
   const saveProfile = async () => {
     setLoading(true);
-    await supabase.from("profiles").update({
+    await supabase.from("profiles").upsert({
+      id: user?.id,
       job_title: jobTitle,
       federal_electorate: electorate,
       party: party,
       bio: bio,
-    }).eq("id", user?.id);
+    });
     updateProfileLocally({
       job_title: jobTitle,
       federal_electorate: electorate,
@@ -518,7 +519,8 @@ export function ProfileScreen() {
     setProfile(draft);
     setEditing(false);
     
-    await supabase.from("profiles").update({
+    await supabase.from("profiles").upsert({
+      id: user.id,
       first_name: draft.firstName,
       last_name: draft.lastName,
       job_title: draft.jobTitle,
@@ -530,7 +532,7 @@ export function ProfileScreen() {
       tradition: draft.tradition,
       show_party: draft.showParty,
       avatar_url: draft.avatarUrl,
-    }).eq("id", user.id);
+    });
     
     updateProfileLocally({
       first_name: draft.firstName,
