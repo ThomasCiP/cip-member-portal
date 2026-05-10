@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-import { OnboardingFlow } from "./components/cip/OnboardingFlow";
+
 import { Screen } from "./components/cip/types";
 import { ThemeContext, getTheme, NAVY, GOLD } from "./components/cip/brand";
 import { useAuth } from "./components/cip/AuthContext";
@@ -71,20 +71,14 @@ export default function App() {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  if (user && onboarded === false) {
-    return (
-      <ThemeContext.Provider value={{ dark, toggle: () => setDark((d) => !d), theme }}>
-        <OnboardingFlow user={user} onComplete={() => { setOnboarded(true); setScreen("dashboard"); }} />
-      </ThemeContext.Provider>
-    );
-  }
+
 
   const isPublic = PUBLIC_SCREENS.includes(screen);
   const isAdmin = ADMIN_SCREENS.includes(screen);
 
   const memberContent = (() => {
     switch (screen) {
-      case "dashboard":    return <Dashboard navigate={setScreen} />;
+      case "dashboard":    return <Dashboard navigate={setScreen} onboarded={onboarded ?? true} setOnboarded={setOnboarded} />;
       case "profile":      return <ProfileScreen />;
       case "network":      return <NetworkScreen navigate={setScreen} />;
       case "groups":       return <GroupsScreen navigate={setScreen} />;
@@ -96,7 +90,7 @@ export default function App() {
       case "donate":       return <DonateScreen />;
       case "privacy":      return <PrivacyScreen />;
       case "settings":     return <SettingsScreen />;
-      default:             return <Dashboard navigate={setScreen} />;
+      default:             return <Dashboard navigate={setScreen} onboarded={onboarded ?? true} setOnboarded={setOnboarded} />;
     }
   })();
 

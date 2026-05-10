@@ -208,7 +208,95 @@ function FeedPost({ item, navigate }: { item: typeof FEED_ITEMS[number]; navigat
   );
 }
 
-export function Dashboard({ navigate }: { navigate: (s: Screen) => void }) {
+function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => void }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [jobTitle, setJobTitle] = useState("");
+  const [electorate, setElectorate] = useState("");
+  const [party, setParty] = useState("No affiliation");
+  const [bio, setBio] = useState("");
+
+  const saveProfile = async () => {
+    setLoading(true);
+    await supabase.from("profiles").update({
+      job_title: jobTitle,
+      federal_electorate: electorate,
+      party: party,
+      bio: bio,
+      onboarded: true,
+    }).eq("id", user?.id);
+    setOnboarded(true);
+  };
+
+  const skip = async () => {
+    await supabase.from("profiles").update({ onboarded: true }).eq("id", user?.id);
+    setOnboarded(true);
+  };
+
+  return (
+    <Card className="p-6 mb-4 relative overflow-hidden" style={{ borderColor: GOLD }}>
+      <div className="absolute top-0 left-0 w-1 h-full" style={{ background: GOLD }} />
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h2 className="text-lg font-bold" style={{ color: theme.text }}>Welcome to CiP! Complete your profile.</h2>
+          <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+            These details are optional, but adding them helps others in the network find and connect with you.
+          </p>
+        </div>
+        <button onClick={skip} className="text-xs px-3 py-1.5 rounded hover:bg-gray-100" style={{ color: theme.textMuted }}>
+          Skip for now
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Job Title or Calling</label>
+          <input 
+            value={jobTitle} onChange={e => setJobTitle(e.target.value)}
+            placeholder="e.g. Policy Advisor, Teacher"
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none border"
+            style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Federal Electorate</label>
+          <input 
+            value={electorate} onChange={e => setElectorate(e.target.value)}
+            placeholder="e.g. Bennelong"
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none border"
+            style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Political Affiliation</label>
+          <select 
+            value={party} onChange={e => setParty(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none border appearance-none"
+            style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}
+          >
+            {["No affiliation", "Independent", "Australian Labor Party", "Liberal Party of Australia", "The Nationals", "Australian Greens", "One Nation", "Family First"].map(p => <option key={p}>{p}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Short Bio</label>
+          <input 
+            value={bio} onChange={e => setBio(e.target.value)}
+            placeholder="A short sentence about you..."
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none border"
+            style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}
+          />
+        </div>
+      </div>
+      
+      <PrimaryButton onClick={saveProfile} disabled={loading}>
+        {loading ? "Saving..." : "Save Profile"}
+      </PrimaryButton>
+    </Card>
+  );
+}
+
+export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s: Screen) => void; onboarded?: boolean; setOnboarded?: (b: boolean) => void }) {
   const { theme } = useTheme();
   const [feedItems, setFeedItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -238,6 +326,9 @@ export function Dashboard({ navigate }: { navigate: (s: Screen) => void }) {
   }, []);
   return (
     <div className="space-y-4">
+      {onboarded === false && setOnboarded && (
+        <GettingStartedWidget setOnboarded={setOnboarded} />
+      )}
       {/* Read-only composer */}
       <Card className="p-4">
         <div className="flex items-center gap-3">
