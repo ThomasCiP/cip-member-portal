@@ -3,6 +3,8 @@ import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { Screen } from "./types";
 import { NAVY, GOLD, useTheme } from "./brand";
+import { AutocompleteInput } from "./AutocompleteInput";
+import { FEDERAL_ELECTORATES, STATE_ELECTORATES } from "./electorates";
 import {
   CalendarDays, Clock, MapPin, Lock, ShieldCheck, Users,
   ChevronRight, ExternalLink, Heart, Sun, Moon, Eye, EyeOff,
@@ -219,13 +221,18 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
 
   const saveProfile = async () => {
     setLoading(true);
-    await supabase.from("profiles").upsert({
+    const { error } = await supabase.from("profiles").upsert({
       id: user?.id,
       job_title: jobTitle,
       federal_electorate: electorate,
       party: party,
       bio: bio,
     });
+    if (error) {
+      alert("Error saving profile: " + error.message);
+      setLoading(false);
+      return;
+    }
     updateProfileLocally({
       job_title: jobTitle,
       federal_electorate: electorate,
@@ -269,11 +276,10 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
         </div>
         <div>
           <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Federal Electorate</label>
-          <input 
-            value={electorate} onChange={e => setElectorate(e.target.value)}
+          <AutocompleteInput 
+            value={electorate} onChange={setElectorate}
+            options={FEDERAL_ELECTORATES}
             placeholder="e.g. Bennelong"
-            className="w-full px-3 py-2 rounded-lg text-sm outline-none border"
-            style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}
           />
         </div>
         <div>
@@ -519,7 +525,7 @@ export function ProfileScreen() {
     setProfile(draft);
     setEditing(false);
     
-    await supabase.from("profiles").upsert({
+    const { error } = await supabase.from("profiles").upsert({
       id: user.id,
       first_name: draft.firstName,
       last_name: draft.lastName,
@@ -533,6 +539,11 @@ export function ProfileScreen() {
       show_party: draft.showParty,
       avatar_url: draft.avatarUrl,
     });
+    
+    if (error) {
+      alert("Error saving profile: " + error.message);
+      return;
+    }
     
     updateProfileLocally({
       first_name: draft.firstName,
@@ -635,7 +646,7 @@ export function ProfileScreen() {
               You control what's shared, per group
             </span>
           </div>
-          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          <div className="flex flex-col gap-4">
             <div className="col-span-full">
               <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Profile Picture</label>
               <div className="flex items-center gap-4">
@@ -665,10 +676,10 @@ export function ProfileScreen() {
               <SelectInput value={draft.state} onChange={(v) => setDraft({ ...draft, state: v })} options={STATES} />
             </FormField>
             <FormField label="Federal electorate" hint="Optional. Used only for electorate-based groups.">
-              <TextInput value={draft.federalElectorate} onChange={(v) => setDraft({ ...draft, federalElectorate: v })} placeholder="e.g. Bennelong" />
+              <AutocompleteInput value={draft.federalElectorate} onChange={(v) => setDraft({ ...draft, federalElectorate: v })} options={FEDERAL_ELECTORATES} placeholder="e.g. Bennelong" />
             </FormField>
             <FormField label="State electorate" hint="Optional.">
-              <TextInput value={draft.stateElectorate} onChange={(v) => setDraft({ ...draft, stateElectorate: v })} placeholder="e.g. Ryde" />
+              <AutocompleteInput value={draft.stateElectorate} onChange={(v) => setDraft({ ...draft, stateElectorate: v })} options={STATE_ELECTORATES} placeholder="e.g. Ryde" />
             </FormField>
             <FormField label="Political party affiliation" hint='Pick "No affiliation" if you prefer.'>
               <SelectInput value={draft.party} onChange={(v) => setDraft({ ...draft, party: v })} options={PARTIES} />
@@ -961,7 +972,7 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
                     ) : caveat === "tradition" ? (
                       <SelectInput value={caveatValue || TRADITIONS[0]} onChange={setCaveatValue} options={TRADITIONS} />
                     ) : (
-                      <TextInput value={caveatValue} onChange={setCaveatValue} placeholder="e.g. Bennelong" />
+                      <AutocompleteInput value={caveatValue} onChange={setCaveatValue} options={FEDERAL_ELECTORATES} placeholder="e.g. Bennelong" />
                     )}
                   </FormField>
                 </div>
@@ -1041,7 +1052,7 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
             <button
               onClick={async () => {
                 if (user) {
-                  const { data } = await supabase.from("groups").insert({
+                  const { data, error } = await supabase.from("groups").insert({
                     name,
                     description: desc,
                     visibility: vis,
@@ -1049,6 +1060,11 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
                     caveat_value: caveatValue,
                     created_by: user.id
                   }).select().single();
+                  
+                  if (error) {
+                    alert("Error creating group: " + error.message);
+                    return;
+                  }
                   
                   if (data) {
                     await supabase.from("group_members").insert({
@@ -1931,6 +1947,7 @@ export function MessagesScreen() {
           {/* Right pane: thread */}
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
             {tab === "messages" ? (
+              active ? (
               <>
                 {/* Thread header */}
                 <div
@@ -2065,6 +2082,12 @@ export function MessagesScreen() {
                   </div>
                 </div>
               </>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center" style={{ color: theme.textMuted }}>
+                  <MessageSquare size={32} className="mb-4 opacity-50" />
+                  <p className="text-sm">Select a conversation to start messaging</p>
+                </div>
+              )
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
                 <div
