@@ -80,22 +80,14 @@ export function useTheme() {
 
 // ── Logo ──────────────────────────────────────────────────────────────
 export function CiPLogo({ light = false, size = 28 }: { light?: boolean; size?: number }) {
+  // Since the image itself has a white/light version or we can just apply a CSS filter if needed.
+  // For now we will render the SVG directly. A CSS filter for brightness can be applied if 'light' is true.
   return (
-    <div className="flex items-center gap-2">
-      <div
-        className="rounded-md flex items-center justify-center"
-        style={{ width: size, height: size, background: light ? "rgba(255,255,255,0.15)" : NAVY }}
-      >
-        <span style={{ color: light ? GOLD : GOLD, fontWeight: 700, fontSize: size * 0.48 }}>✚</span>
-      </div>
-      <div className="flex flex-col leading-tight">
-        <span style={{ color: light ? "#fff" : NAVY, fontWeight: 700, letterSpacing: "0.04em", fontSize: 14 }}>
-          CiP
-        </span>
-        <span style={{ color: light ? "rgba(255,255,255,0.55)" : "#9ca3af", fontSize: 9, letterSpacing: "0.1em" }}>
-          CHRISTIANS IN POLITICS
-        </span>
-      </div>
-    </div>
+    <img 
+      src="/logo.svg" 
+      alt="CiP Logo" 
+      style={{ height: size, filter: light ? 'brightness(10)' : 'none' }} 
+      className="object-contain"
+    />
   );
 }
