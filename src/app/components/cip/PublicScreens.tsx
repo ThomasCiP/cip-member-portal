@@ -220,6 +220,39 @@ function LegalModal({ type, onClose }: { type: ModalType; onClose: () => void })
   );
 }
 
+export function DeletedAccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+
+  return (
+    <div className="min-h-screen flex items-center justify-center relative p-6">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] rounded-full opacity-30" style={{ background: `radial-gradient(circle, ${GOLD} 0%, transparent 70%)`, filter: "blur(80px)" }} />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full opacity-20" style={{ background: `radial-gradient(circle, ${NAVY} 0%, transparent 70%)`, filter: "blur(60px)" }} />
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
+        <div className="text-center mb-10">
+          <CiPLogo size={48} className="mx-auto" />
+          <h1 className="text-3xl font-bold tracking-tight mt-6" style={{ color: theme.text }}>
+            Account Deleted
+          </h1>
+          <p className="text-[15px] mt-3" style={{ color: theme.textMuted }}>
+            Your account and all associated data have been permanently removed from the Christians in Politics Network.
+          </p>
+        </div>
+
+        <button
+          onClick={() => navigate("signup")}
+          className="w-full h-12 rounded-xl text-[15px] transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{ background: NAVY, color: "#fff", fontWeight: 600, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+        >
+          Return to Home
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── PublicFrame ─────────────────────────────────────────────────────
 function PublicFrame({
   children,

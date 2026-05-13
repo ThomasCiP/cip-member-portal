@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import {
   Home, UserCircle2, Users, CalendarDays, MessageSquare, Settings,
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
@@ -489,12 +489,15 @@ export function MemberShell({
   const [donateOpen, setDonateOpen] = useState(false);
   const [runTour, setRunTour] = useState(false);
 
+  const prevOnboarded = useRef(profile?.onboarded);
+
   useEffect(() => {
-    const hasSeenTour = localStorage.getItem("cip_tour_completed");
-    if (!hasSeenTour) {
+    // If they just transitioned from not onboarded to onboarded, run the tour
+    if (profile?.onboarded === true && prevOnboarded.current === false) {
       setRunTour(true);
     }
-  }, []);
+    prevOnboarded.current = profile?.onboarded;
+  }, [profile?.onboarded]);
 
   const tourSteps: Step[] = [
     { target: ".tour-profile", content: "This is your profile card. Keep your details up to date to help others connect with you.", placement: "right", disableBeacon: true },
@@ -508,7 +511,6 @@ export function MemberShell({
   const handleJoyrideCallback = (data: any) => {
     const { status } = data;
     if (status === "finished" || status === "skipped") {
-      localStorage.setItem("cip_tour_completed", "true");
       setRunTour(false);
     }
   };

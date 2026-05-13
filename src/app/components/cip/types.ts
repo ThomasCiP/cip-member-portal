@@ -6,6 +6,7 @@ export type Screen =
   | "creed"
   | "blocked"
   | "welcome"
+  | "deleted-account"
   // Member area (social platform)
   | "dashboard"        // admin-controlled home feed
   | "profile"          // own profile (editable)

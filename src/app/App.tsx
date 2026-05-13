@@ -5,7 +5,7 @@ import { Screen } from "./components/cip/types";
 import { ThemeContext, getTheme, NAVY, GOLD } from "./components/cip/brand";
 import { useAuth } from "./components/cip/AuthContext";
 import {
-  SignupScreen, SignInScreen, AccountScreen, CreedScreen, BlockedScreen, WelcomeScreen,
+  SignupScreen, SignInScreen, AccountScreen, CreedScreen, BlockedScreen, WelcomeScreen, DeletedAccountScreen
 } from "./components/cip/PublicScreens";
 import { MemberShell } from "./components/cip/MemberShell";
 import {
@@ -18,7 +18,7 @@ import {
   AdminEvents, AdminContent, AdminDonations, AdminPrivacy,
 } from "./components/cip/AdminScreens";
 
-const PUBLIC_SCREENS: Screen[] = ["signup", "signin", "account", "creed", "blocked", "welcome"];
+const PUBLIC_SCREENS: Screen[] = ["signup", "signin", "account", "creed", "blocked", "welcome", "deleted-account"];
 const ADMIN_SCREENS: Screen[] = [
   "admin-overview", "admin-members", "admin-support", "admin-support-detail",
   "admin-events", "admin-content", "admin-resources", "admin-announcements",
@@ -88,8 +88,8 @@ export default function App() {
       case "messages":     return <MessagesScreen />;
       case "support":      return <SupportScreen />;
       case "donate":       return <DonateScreen />;
-      case "privacy":      return <PrivacyScreen />;
-      case "settings":     return <SettingsScreen />;
+      case "privacy":      return <PrivacyScreen navigate={setScreen} />;
+      case "settings":     return <SettingsScreen navigate={setScreen} />;
       default:             return <Dashboard navigate={setScreen} onboarded={onboarded ?? true} setOnboarded={setOnboarded} />;
     }
   })();
@@ -122,6 +122,7 @@ export default function App() {
             {screen === "creed"   && <CreedScreen navigate={setScreen} />}
             {screen === "blocked" && <BlockedScreen navigate={setScreen} />}
             {screen === "welcome" && <WelcomeScreen navigate={setScreen} />}
+            {screen === "deleted-account" && <DeletedAccountScreen navigate={setScreen} />}
           </>
         )}
 

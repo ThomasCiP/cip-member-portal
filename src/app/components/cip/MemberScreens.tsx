@@ -214,21 +214,33 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
   const { theme } = useTheme();
   const { user, refreshProfile, updateProfileLocally } = useAuth();
   const [loading, setLoading] = useState(false);
+
+  const [firstName, setFirstName] = useState(user?.user_metadata?.first_name || "");
+  const [lastName, setLastName] = useState(user?.user_metadata?.last_name || "");
   const [jobTitle, setJobTitle] = useState("");
-  const [electorate, setElectorate] = useState("");
-  const [party, setParty] = useState("No affiliation");
   const [bio, setBio] = useState("");
+  const [state, setState] = useState("");
+  const [electorate, setElectorate] = useState("");
+  const [stateElectorate, setStateElectorate] = useState("");
+  const [party, setParty] = useState("No affiliation");
+  const [tradition, setTradition] = useState("");
+  const [showParty, setShowParty] = useState(false);
 
   const saveProfile = async () => {
     setLoading(true);
     const { error } = await supabase.from("profiles").upsert({
       id: user?.id,
-      first_name: user?.user_metadata?.first_name,
-      last_name: user?.user_metadata?.last_name,
+      first_name: firstName,
+      last_name: lastName,
       job_title: jobTitle,
-      federal_electorate: electorate,
-      party: party,
       bio: bio,
+      state: state,
+      federal_electorate: electorate,
+      state_electorate: stateElectorate,
+      party: party,
+      tradition: tradition,
+      show_party: showParty,
+      onboarded: true
     });
     if (error) {
       alert("Error saving profile: " + error.message);
@@ -236,10 +248,16 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
       return;
     }
     updateProfileLocally({
+      first_name: firstName,
+      last_name: lastName,
       job_title: jobTitle,
-      federal_electorate: electorate,
-      party: party,
       bio: bio,
+      state: state,
+      federal_electorate: electorate,
+      state_electorate: stateElectorate,
+      party: party,
+      tradition: tradition,
+      show_party: showParty,
       onboarded: true,
     });
     refreshProfile(); // background sync
@@ -247,68 +265,99 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
   };
 
   const skip = async () => {
-    await supabase.from("profiles").update({ onboarded: true }).eq("id", user?.id);
+    await supabase.from("profiles").upsert({ id: user?.id, onboarded: true });
     setOnboarded(true);
   };
 
   return (
-    <Card className="p-6 mb-4 relative overflow-hidden" style={{ borderColor: GOLD }}>
-      <div className="absolute top-0 left-0 w-1 h-full" style={{ background: GOLD }} />
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h2 className="text-lg font-bold" style={{ color: theme.text }}>Welcome to CiP! Complete your profile.</h2>
-          <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
-            These details are optional, but adding them helps others in the network find and connect with you.
-          </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+      <Card className="w-full max-w-2xl p-8 relative overflow-hidden my-auto shadow-2xl" style={{ borderColor: GOLD }}>
+        <div className="absolute top-0 left-0 w-1.5 h-full" style={{ background: GOLD }} />
+        
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight" style={{ color: theme.text }}>Welcome to CiP!</h2>
+            <p className="text-[15px] mt-2" style={{ color: theme.textMuted }}>
+              Before you jump in, please complete your profile. These details help you connect with others in your electorate and state.
+            </p>
+          </div>
         </div>
-        <button onClick={skip} className="text-xs px-3 py-1.5 rounded hover:bg-gray-100" style={{ color: theme.textMuted }}>
-          Skip for now
-        </button>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <div>
-          <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Job Title or Calling</label>
-          <input 
-            value={jobTitle} onChange={e => setJobTitle(e.target.value)}
-            placeholder="e.g. Policy Advisor, Teacher"
-            className="w-full px-3 py-2 rounded-lg text-sm outline-none border"
-            style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}
-          />
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>First Name</label>
+              <input value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
+            </div>
+            <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Last Name</label>
+              <input value={lastName} onChange={e => setLastName(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Job Title / Calling</label>
+              <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Policy Advisor, Teacher" className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
+            </div>
+            <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Short Bio</label>
+              <input value={bio} onChange={e => setBio(e.target.value)} placeholder="A short sentence about you..." className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>State</label>
+              <select value={state} onChange={e => setState(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none appearance-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}>
+                <option value="">Select State</option>
+                {["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Federal Electorate</label>
+              <AutocompleteInput value={electorate} onChange={setElectorate} options={FEDERAL_ELECTORATES} placeholder="e.g. Bennelong" />
+            </div>
+            <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>State Electorate</label>
+              <AutocompleteInput value={stateElectorate} onChange={setStateElectorate} options={STATE_ELECTORATES} placeholder="e.g. Ryde" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Political Affiliation</label>
+              <select value={party} onChange={e => setParty(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none appearance-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}>
+                {["No affiliation", "Independent", "Australian Labor Party", "Liberal Party of Australia", "The Nationals", "Australian Greens", "One Nation", "Family First"].map(p => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Christian Tradition</label>
+              <select value={tradition} onChange={e => setTradition(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none appearance-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}>
+                <option value="">Select Tradition</option>
+                {["Anglican", "Assembly of God", "Baptist", "Catholic", "Coptic", "Eastern Orthodox", "Evangelical", "Lutheran", "Methodist", "Pentecostal", "Presbyterian", "Reformed", "Uniting Church", "Other Christian", "Prefer not to say"].map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 py-2">
+            <input type="checkbox" id="showPartyOnboard" checked={showParty} onChange={e => setShowParty(e.target.checked)} className="w-4 h-4 rounded" style={{ accentColor: NAVY }} />
+            <label htmlFor="showPartyOnboard" className="text-sm select-none" style={{ color: theme.text }}>
+              Show political affiliation on my public profile
+            </label>
+          </div>
         </div>
-        <div>
-          <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Federal Electorate</label>
-          <AutocompleteInput 
-            value={electorate} onChange={setElectorate}
-            options={FEDERAL_ELECTORATES}
-            placeholder="e.g. Bennelong"
-          />
+        
+        <div className="flex items-center gap-4 mt-8 pt-6 border-t" style={{ borderColor: theme.divider }}>
+          <PrimaryButton onClick={saveProfile} disabled={loading} className="px-8 py-2.5 text-[15px]">
+            {loading ? "Saving..." : "Save Profile & Continue"}
+          </PrimaryButton>
+          <button onClick={skip} className="text-[14px] font-medium hover:underline" style={{ color: theme.textMuted }}>
+            Skip for now
+          </button>
         </div>
-        <div>
-          <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Political Affiliation</label>
-          <select 
-            value={party} onChange={e => setParty(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg text-sm outline-none border appearance-none"
-            style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}
-          >
-            {["No affiliation", "Independent", "Australian Labor Party", "Liberal Party of Australia", "The Nationals", "Australian Greens", "One Nation", "Family First"].map(p => <option key={p}>{p}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-bold mb-1 block" style={{ color: theme.text }}>Short Bio</label>
-          <input 
-            value={bio} onChange={e => setBio(e.target.value)}
-            placeholder="A short sentence about you..."
-            className="w-full px-3 py-2 rounded-lg text-sm outline-none border"
-            style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}
-          />
-        </div>
-      </div>
-      
-      <PrimaryButton onClick={saveProfile} disabled={loading}>
-        {loading ? "Saving..." : "Save Profile"}
-      </PrimaryButton>
-    </Card>
+      </Card>
+    </div>
   );
 }
 
@@ -2165,9 +2214,10 @@ export function DonateScreen() {
 }
 
 // ── Settings ─────────────────────────────────────────────────────────
-export function SettingsScreen() {
+export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme, dark, toggle } = useTheme();
   const { user } = useAuth();
+  const [isDeleting, setIsDeleting] = useState(false);
   return (
     <div className="space-y-4">
       <Card className="p-5">
@@ -2232,14 +2282,23 @@ export function SettingsScreen() {
           Once you delete your account, there is no going back. Please be certain.
         </p>
         <button
-          onClick={() => {
+          disabled={isDeleting}
+          onClick={async () => {
             if (window.confirm("Are you absolutely sure you want to delete your account? This action cannot be undone.")) {
-              alert("Account deletion requested. Please contact support to finalize.");
+              setIsDeleting(true);
+              const { error } = await supabase.rpc("delete_current_user");
+              if (error) {
+                alert("Failed to delete account: " + error.message);
+                setIsDeleting(false);
+              } else {
+                await supabase.auth.signOut();
+                navigate("deleted-account");
+              }
             }
           }}
-          className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+          className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${isDeleting ? "bg-red-400" : "bg-red-600 hover:bg-red-700"}`}
         >
-          Delete account
+          {isDeleting ? "Deleting..." : "Delete account"}
         </button>
       </Card>
     </div>
