@@ -98,7 +98,7 @@ export function ProfileSummaryCard({ navigate, profile }: { navigate: (s: Screen
   
   const firstName = profile?.first_name || "Member";
   const lastName = profile?.last_name || "";
-  const initials = firstName[0] + (lastName ? lastName[0] : "");
+  const initials = (firstName[0] || "") + (lastName ? (lastName[0] || "") : "");
   const fullName = `${firstName} ${lastName}`.trim();
   const subtitle = [profile?.job_title, profile?.state, profile?.tradition].filter(Boolean).join(" · ") || "Welcome to the Network";
 
@@ -339,11 +339,12 @@ function TopHeader({
   current, navigate, onDonate, profile
 }: { current: Screen; navigate: (s: Screen) => void; onDonate: () => void; profile: any }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const firstName = profile?.first_name || "Member";
   const lastName = profile?.last_name || "";
-  const initials = firstName[0] + (lastName ? lastName[0] : "");
+  const initials = (firstName[0] || "") + (lastName ? (lastName[0] || "") : "");
   const fullName = `${firstName} ${lastName}`.trim();
   const subtitle = [profile?.job_title, profile?.state].filter(Boolean).join(" · ") || "Member";
   return (

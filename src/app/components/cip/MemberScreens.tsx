@@ -501,8 +501,8 @@ export function ProfileScreen() {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       if (data && !error) {
         const loadedProfile = {
-          firstName: data.first_name || "",
-          lastName: data.last_name || "",
+          firstName: data.first_name || user.user_metadata?.first_name || "",
+          lastName: data.last_name || user.user_metadata?.last_name || "",
           jobTitle: data.job_title || "",
           bio: data.bio || "",
           state: data.state || "",
@@ -515,6 +515,14 @@ export function ProfileScreen() {
         };
         setProfile(loadedProfile);
         setDraft(loadedProfile);
+      } else {
+        const fallbackProfile = {
+          ...DEFAULT_PROFILE,
+          firstName: user.user_metadata?.first_name || "",
+          lastName: user.user_metadata?.last_name || "",
+        };
+        setProfile(fallbackProfile);
+        setDraft(fallbackProfile);
       }
       setLoading(false);
     }
@@ -792,7 +800,7 @@ function GroupCard({ g, navigate }: { g: any; navigate: (s: Screen) => void }) {
           className="w-12 h-12 rounded-xl shrink-0 flex items-center justify-center"
           style={{ background: theme.pillBg, color: NAVY, fontWeight: 700 }}
         >
-          {g.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+          {(g.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -1005,7 +1013,7 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
                         className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs"
                         style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                       >
-                        {p.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                        {(p.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{p.name}</div>
@@ -1535,7 +1543,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                     className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-xs"
                     style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                   >
-                    {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                    {(m.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{m.name}</div>
@@ -1765,8 +1773,8 @@ export function MessagesScreen() {
   const [search, setSearch] = useState("");
 
   const filteredConnections = CONNECTIONS.filter(
-    (c) => c.name.toLowerCase().includes(search.toLowerCase()) ||
-           c.last.toLowerCase().includes(search.toLowerCase()),
+    (c) => (c.name || "").toLowerCase().includes(search.toLowerCase()) ||
+           (c.last || "").toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -1856,7 +1864,7 @@ export function MessagesScreen() {
                       className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
                       style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                     >
-                      {c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                      {(c.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -1903,7 +1911,7 @@ export function MessagesScreen() {
                       className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
                       style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                     >
-                      {p.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                      {(p.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{p.name}</div>
@@ -1927,7 +1935,7 @@ export function MessagesScreen() {
                       className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
                       style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                     >
-                      {p.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                      {(p.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{p.name}</div>
@@ -1962,7 +1970,7 @@ export function MessagesScreen() {
                     className="w-11 h-11 rounded-full shrink-0 flex items-center justify-center text-sm"
                     style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                   >
-                    {active.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                    {(active.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
@@ -2031,7 +2039,7 @@ export function MessagesScreen() {
                             className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] mt-auto"
                             style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                           >
-                            {active.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                            {(active.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                           </div>
                         )}
                         <div className="max-w-[60%]">
@@ -2290,7 +2298,7 @@ export function PrivacyScreen() {
                   className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-xs"
                   style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
                 >
-                  {r.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                  {(r.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 500 }}>{r.name}</div>
@@ -2433,7 +2441,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                   className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
                   style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                 >
-                  {n.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                  {(n.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{n.name}</div>
