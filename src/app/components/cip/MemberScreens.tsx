@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, useRef, ReactNode } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { Screen } from "./types";
@@ -1815,12 +1815,131 @@ const THREAD: any[] = [];
 
 export function MessagesScreen() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [tab, setTab] = useState<"messages" | "received" | "sent" | "blocked">("messages");
   const [active, setActive] = useState<any>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
+  
+  const [connections, setConnections] = useState<any[]>([]);
+  const [pendingReceived, setPendingReceived] = useState<any[]>([]);
+  const [pendingSent, setPendingSent] = useState<any[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [composerText, setComposerText] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const filteredConnections = CONNECTIONS.filter(
+  const loadNetwork = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('network_connections')
+      .select(`
+        id,
+        status,
+        requester:profiles!requester_id (id, first_name, last_name, job_title, state),
+        receiver:profiles!receiver_id (id, first_name, last_name, job_title, state)
+      `)
+      .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+      
+    if (data) {
+      const acc: any[] = [];
+      const rx: any[] = [];
+      const tx: any[] = [];
+      
+      for (const c of data) {
+         const isRequester = c.requester?.id === user.id;
+         const peer = isRequester ? c.receiver : c.requester;
+         if (!peer) continue;
+         
+         const parsed = {
+           id: c.id,
+           peerId: peer.id,
+           name: `${peer.first_name || 'Unknown'} ${peer.last_name || ''}`.trim(),
+           title: peer.job_title || 'Member',
+           group: "CiP Network",
+           unread: 0,
+           last: "",
+           time: "",
+         };
+
+         if (c.status === 'accepted') acc.push(parsed);
+         else if (c.status === 'pending') {
+           if (isRequester) tx.push(parsed);
+           else rx.push({ ...parsed, message: "Would like to connect on CiP." });
+         }
+      }
+      setConnections(acc);
+      setPendingReceived(rx);
+      setPendingSent(tx);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadNetwork();
+  }, [user]);
+
+  const loadMessages = async () => {
+    if (!user || !active) return;
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${active.peerId}),and(sender_id.eq.${active.peerId},receiver_id.eq.${user.id})`)
+      .order('created_at', { ascending: true });
+      
+    if (data) {
+      setMessages(data.map(m => ({
+        id: m.id,
+        from: m.sender_id === user.id ? 'me' : 'them',
+        body: m.content,
+        time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      })));
+    }
+  };
+
+  useEffect(() => {
+    loadMessages();
+
+    if (active && user) {
+       const channel = supabase.channel(`messages_${active.peerId}`)
+         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+             const m = payload.new;
+             if ((m.sender_id === user.id && m.receiver_id === active.peerId) ||
+                 (m.sender_id === active.peerId && m.receiver_id === user.id)) {
+                 loadMessages();
+             }
+         }).subscribe();
+       return () => { supabase.removeChannel(channel); };
+    }
+  }, [active, user]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!user || !active || !composerText.trim()) return;
+    const msg = composerText;
+    setComposerText("");
+    await supabase.from('messages').insert({
+      sender_id: user.id,
+      receiver_id: active.peerId,
+      content: msg
+    });
+  };
+
+  const handleAccept = async (connId: string) => {
+    await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', connId);
+    setPendingReceived(prev => prev.filter(c => c.id !== connId));
+    loadNetwork();
+  };
+
+  const handleDecline = async (connId: string) => {
+    await supabase.from('network_connections').delete().eq('id', connId);
+    setPendingReceived(prev => prev.filter(c => c.id !== connId));
+  };
+
+  const filteredConnections = connections.filter(
     (c) => (c.name || "").toLowerCase().includes(search.toLowerCase()) ||
            (c.last || "").toLowerCase().includes(search.toLowerCase()),
   );
@@ -1873,7 +1992,7 @@ export function MessagesScreen() {
               <div className="flex gap-1 mt-3">
                 {([
                   ["messages", "Inbox"],
-                  ["received", `Requests${PENDING_RECEIVED.length ? ` · ${PENDING_RECEIVED.length}` : ""}`],
+                  ["received", `Requests${pendingReceived.length ? ` · ${pendingReceived.length}` : ""}`],
                   ["sent", "Sent"],
                   ["blocked", "Blocked"],
                 ] as const).map(([k, l]) => (
@@ -1952,7 +2071,7 @@ export function MessagesScreen() {
                 </div>
               )}
 
-              {tab === "received" && PENDING_RECEIVED.map((p) => (
+              {tab === "received" && pendingReceived.map((p) => (
                 <div key={p.id} className="px-5 py-4" style={{ borderBottom: `1px solid ${theme.divider}` }}>
                   <div className="flex items-start gap-3">
                     <div
@@ -1968,15 +2087,15 @@ export function MessagesScreen() {
                         {p.message}
                       </p>
                       <div className="flex gap-2 mt-3">
-                        <PrimaryButton>Accept</PrimaryButton>
-                        <GhostButton>Decline</GhostButton>
+                        <PrimaryButton onClick={() => handleAccept(p.id)}>Accept</PrimaryButton>
+                        <GhostButton onClick={() => handleDecline(p.id)}>Decline</GhostButton>
                       </div>
                     </div>
                   </div>
                 </div>
               ))}
 
-              {tab === "sent" && PENDING_SENT.map((p) => (
+              {tab === "sent" && pendingSent.map((p) => (
                 <div key={p.id} className="px-5 py-4" style={{ borderBottom: `1px solid ${theme.divider}` }}>
                   <div className="flex items-start gap-3">
                     <div
@@ -2075,10 +2194,12 @@ export function MessagesScreen() {
 
                 {/* Thread body */}
                 <div className="flex-1 overflow-y-auto px-6 py-6 space-y-3 min-h-0">
-                  <div className="text-center text-[11px]" style={{ color: theme.textSubtle }}>
-                    Yesterday
-                  </div>
-                  {THREAD.map((m, i) => {
+                  {messages.length === 0 && (
+                    <div className="text-center text-[11px]" style={{ color: theme.textSubtle }}>
+                      This is the beginning of your conversation with {active.name}.
+                    </div>
+                  )}
+                  {messages.map((m, i) => {
                     const mine = m.from === "me";
                     return (
                       <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"} gap-2`}>
@@ -2113,6 +2234,7 @@ export function MessagesScreen() {
                       </div>
                     );
                   })}
+                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Composer */}
@@ -2123,6 +2245,14 @@ export function MessagesScreen() {
                   >
                     <textarea
                       rows={1}
+                      value={composerText}
+                      onChange={(e) => setComposerText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
                       placeholder="Write a message…"
                       className="flex-1 px-2 py-1.5 text-sm outline-none resize-none bg-transparent"
                       style={{ color: theme.text, minHeight: 32, maxHeight: 120 }}
@@ -2134,6 +2264,7 @@ export function MessagesScreen() {
                       <Link2 size={15} style={{ color: theme.textMuted }} />
                     </button>
                     <button
+                      onClick={handleSend}
                       className="px-4 py-1.5 rounded-lg text-sm inline-flex items-center gap-1.5"
                       style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                     >
