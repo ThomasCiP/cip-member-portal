@@ -60,12 +60,14 @@ export default function App() {
   useEffect(() => {
     if (!loading) {
       if (user && PUBLIC_SCREENS.includes(screen)) {
-        setScreen("dashboard");
+        if (screen !== "deleted-account") {
+          setScreen("dashboard");
+        }
       } else if (!user && !PUBLIC_SCREENS.includes(screen)) {
         setScreen("signup");
       }
     }
-  }, [user, loading]);
+  }, [user, loading, screen]);
 
   if (loading || (user && onboarded === null)) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
