@@ -1808,33 +1808,15 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
   );
 }
 
-// ── Messages ─────────────────────────────────────────────────────────
-const CONNECTIONS = [
-  { id: "1", name: "Hannah K.", group: "NSW Politics & Prayer", last: "Thanks Sarah, that's really helpful — talk soon.", time: "2h", unread: 0, active: true },
-  { id: "2", name: "Daniel S.", group: "NSW Politics & Prayer", last: "Yes I'll send through the article tonight.", time: "1d", unread: 2, active: false },
-  { id: "3", name: "Priya M.", group: "Young CiP", last: "Would love to hear how you found pre-selection.", time: "3d", unread: 0, active: false },
-];
-
-const PENDING_RECEIVED = [
-  { id: "p1", name: "James P.", group: "NSW Politics & Prayer", message: "Hi Sarah, would value connecting given your council work." },
-];
-
-const PENDING_SENT = [
-  { id: "s1", name: "Margaret O.", group: "Christian Women in Public Policy" },
-];
-
-const THREAD = [
-  { from: "them", body: "Hi Sarah, glad we connected. I noticed your comment on the council post — really thoughtful.", time: "Yesterday" },
-  { from: "me",   body: "Thanks Hannah, appreciated yours too. Are you going to the next state meeting?", time: "Yesterday" },
-  { from: "them", body: "Planning to. Want to grab coffee beforehand?", time: "Yesterday" },
-  { from: "me",   body: "Yes please — let's lock something in.", time: "2h" },
-  { from: "them", body: "Thanks Sarah, that's really helpful — talk soon.", time: "2h" },
-];
+const CONNECTIONS: any[] = [];
+const PENDING_RECEIVED: any[] = [];
+const PENDING_SENT: any[] = [];
+const THREAD: any[] = [];
 
 export function MessagesScreen() {
   const { theme } = useTheme();
   const [tab, setTab] = useState<"messages" | "received" | "sent" | "blocked">("messages");
-  const [active, setActive] = useState<any>(CONNECTIONS[0] || null);
+  const [active, setActive] = useState<any>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
 
