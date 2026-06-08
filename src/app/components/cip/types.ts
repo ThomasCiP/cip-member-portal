@@ -31,4 +31,5 @@ export type Screen =
   | "admin-announcements"
   | "admin-affiliated"
   | "admin-donations"
-  | "admin-privacy";
+  | "admin-privacy"
+  | "admin-groups";

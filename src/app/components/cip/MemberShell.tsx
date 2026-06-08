@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect, useRef } from "react";
 import {
   Home, UserCircle2, Users, CalendarDays, MessageSquare, Settings,
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
-  Network, LifeBuoy, LogOut,
+  Network, Activity, LogOut, ArrowUpRight
 } from "lucide-react";
 import { Joyride, Step } from "react-joyride";
 import { supabase } from "../../../lib/supabase";
@@ -16,7 +16,7 @@ const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "groups",    label: "Groups",   icon: Users },
   { key: "events",    label: "Events",   icon: CalendarDays },
   { key: "messages",  label: "Messages", icon: MessageSquare },
-  { key: "support",   label: "Support",  icon: LifeBuoy },
+  { key: "support",   label: "Get Involved",  icon: ArrowUpRight },
 ];
 
 // ── Dynamic Data Rails ────────────────────────────────────────────────
@@ -318,7 +318,7 @@ export function DonateRail({ onDonate }: { onDonate: () => void }) {
       >
         <Heart size={16} style={{ color: NAVY }} />
       </div>
-      <div style={{ fontWeight: 600 }}>Support CiP</div>
+      <div style={{ fontWeight: 600 }}>Get Involved</div>
       <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.7)" }}>
         Help equip Christians for faithful public life.
       </div>

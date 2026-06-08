@@ -1,8 +1,9 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
+import { supabase } from "../../../lib/supabase";
 import {
   LayoutDashboard, Users, LifeBuoy, CalendarDays, FileText, Lock,
   Settings, Bell, Search, Plus, Edit3, Eye, TrendingUp, ChevronDown,
-  ShieldCheck, ArrowLeft, CheckCircle2, Circle,
+  ShieldCheck, ArrowLeft, CheckCircle2, Circle, Network, X
 } from "lucide-react";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
@@ -10,6 +11,7 @@ import { Screen } from "./types";
 const ADMIN_ITEMS: { key: Screen; label: string; icon: any }[] = [
   { key: "admin-overview",  label: "Overview",      icon: LayoutDashboard },
   { key: "admin-members",   label: "Members",        icon: Users },
+  { key: "admin-groups",    label: "Groups",         icon: Network },
   { key: "admin-support",   label: "Requests",       icon: LifeBuoy },
   { key: "admin-events",    label: "Events",         icon: CalendarDays },
   { key: "admin-content",   label: "Content",        icon: FileText },
@@ -828,6 +830,192 @@ export function AdminPrivacy() {
                 ))}
               </tr>
             ))}
+          </tbody>
+        </table>
+      </AdminCard>
+    </div>
+  );
+}
+
+export function AdminGroups() {
+  const { theme } = useTheme();
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newVis, setNewVis] = useState("public");
+  const [newCaveatType, setNewCaveatType] = useState("electorate");
+  const [newCaveatValue, setNewCaveatValue] = useState("");
+  const [creating, setCreating] = useState(false);
+  const { user } = useAuth();
+
+  const loadGroups = async () => {
+    const { data } = await supabase.from('groups').select('*').order('created_at', { ascending: false });
+    if (data) setGroups(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadGroups();
+  }, []);
+
+  const handleCreate = async () => {
+    if (!newName.trim() || !user) return;
+    setCreating(true);
+    const { error } = await supabase.from('groups').insert({
+      name: newName,
+      description: newDesc,
+      visibility: newVis,
+      caveat_type: newVis === "restricted" ? newCaveatType : null,
+      caveat_value: newVis === "restricted" ? newCaveatValue : null,
+      created_by: user.id
+    });
+    setCreating(false);
+    if (error) {
+      alert("Failed to create group: " + error.message);
+    } else {
+      setNewName("");
+      setNewDesc("");
+      setNewVis("public");
+      setNewCaveatType("electorate");
+      setNewCaveatValue("");
+      setShowCreate(false);
+      loadGroups();
+    }
+  };
+
+  return (
+    <div className="max-w-7xl">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <H1>Groups</H1>
+          <p className="text-sm mt-1" style={{ color: theme.textMuted }}>Manage community and special interest groups.</p>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
+          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+        >
+          <Plus size={13} /> Create group
+        </button>
+      </div>
+
+      {showCreate && (
+        <AdminCard className="p-5 mb-5 border border-dashed border-gray-300 relative">
+          <button onClick={() => setShowCreate(false)} className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100"><X size={16}/></button>
+          <h3 className="font-semibold mb-4" style={{ color: theme.text }}>Create New Group</h3>
+          <div className="space-y-4 max-w-md">
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Group Name</label>
+              <input 
+                value={newName} onChange={e => setNewName(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+                style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
+                placeholder="e.g. Christian Lawyers Network"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Description</label>
+              <textarea 
+                value={newDesc} onChange={e => setNewDesc(e.target.value)} rows={3}
+                className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+                style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
+                placeholder="What is this group about?"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Visibility</label>
+              <select 
+                value={newVis} 
+                onChange={e => setNewVis(e.target.value)}
+                className="w-full text-sm p-2 rounded-lg outline-none"
+                style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}
+              >
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+                <option value="restricted">Restricted (Curated)</option>
+              </select>
+            </div>
+            {newVis === "restricted" && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Caveat Type</label>
+                  <select 
+                    value={newCaveatType} 
+                    onChange={e => setNewCaveatType(e.target.value)}
+                    className="w-full text-sm p-2 rounded-lg outline-none"
+                    style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}
+                  >
+                    <option value="electorate">Same Federal Electorate</option>
+                    <option value="party">Same Political Party</option>
+                    <option value="tradition">Same Christian Tradition</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Caveat Value</label>
+                  <input
+                    type="text"
+                    value={newCaveatValue}
+                    onChange={e => setNewCaveatValue(e.target.value)}
+                    placeholder={
+                      newCaveatType === "electorate" ? "e.g. Bennelong" :
+                      newCaveatType === "party" ? "e.g. Liberal Party" :
+                      "e.g. Catholic"
+                    }
+                    className="w-full text-sm p-2 rounded-lg outline-none"
+                    style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}
+                  />
+                </div>
+              </>
+            )}
+            <button 
+              onClick={handleCreate} disabled={creating || !newName.trim() || (newVis === "restricted" && !newCaveatValue.trim())}
+              className="w-full py-2 rounded-lg text-sm disabled:opacity-50"
+              style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+            >
+              {creating ? "Creating..." : "Save Group"}
+            </button>
+          </div>
+        </AdminCard>
+      )}
+
+      <AdminCard className="overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${theme.divider}` }}>
+              <th className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>Group Name</th>
+              <th className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>Privacy</th>
+              <th className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>Created</th>
+              <th className="text-right px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={4} className="px-5 py-4 text-center text-sm text-gray-500">Loading groups...</td></tr>
+            ) : groups.length === 0 ? (
+              <tr><td colSpan={4} className="px-5 py-4 text-center text-sm text-gray-500">No groups found. Create one above!</td></tr>
+            ) : (
+              groups.map((g, i) => (
+                <tr key={g.id} style={{ borderBottom: i < groups.length - 1 ? `1px solid ${theme.divider}` : "none" }}>
+                  <td className="px-5 py-3">
+                    <div style={{ color: theme.text, fontWeight: 500 }}>{g.name}</div>
+                    <div className="text-xs mt-0.5 truncate max-w-sm" style={{ color: theme.textMuted }}>{g.description || "No description"}</div>
+                  </td>
+                  <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>
+                    <span className="capitalize">{g.privacy_level}</span>
+                  </td>
+                  <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>
+                    {new Date(g.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50" style={{ borderColor: theme.cardBorder, color: theme.textMuted }}>
+                      <Edit3 size={11} /> Edit
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </AdminCard>

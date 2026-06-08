@@ -8,10 +8,10 @@ import { FEDERAL_ELECTORATES, STATE_ELECTORATES } from "./electorates";
 import {
   CalendarDays, Clock, MapPin, Lock, ShieldCheck, Users,
   ChevronRight, ExternalLink, Heart, Sun, Moon, Eye, EyeOff,
-  Pin, MessageCircle, ThumbsUp, Send, MoreHorizontal, X,
+  Pin, MessageCircle, MessageSquare, ThumbsUp, Send, MoreHorizontal, X,
   FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
   Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
-  Plus, LifeBuoy, ArrowRight, Search, Filter,
+  Plus, LifeBuoy, ArrowRight, Search, Filter, Activity, ArrowUpRight
 } from "lucide-react";
 
 // ── Shared primitives ─────────────────────────────────────────────────
@@ -840,7 +840,7 @@ export function ProfileScreen() {
 // ── Groups discovery ─────────────────────────────────────────────────
 const ALL_GROUPS: any[] = [];
 
-function GroupCard({ g, navigate }: { g: any; navigate: (s: Screen) => void }) {
+function GroupCard({ g, navigate, onJoin }: { g: any; navigate: (s: Screen) => void; onJoin?: (id: string) => void }) {
   const { theme } = useTheme();
   return (
     <Card className="p-4">
@@ -874,8 +874,12 @@ function GroupCard({ g, navigate }: { g: any; navigate: (s: Screen) => void }) {
             <span className="text-xs" style={{ color: theme.textSubtle }}>{g.members} members</span>
             {g.joined ? (
               <GhostButton onClick={() => navigate("group-detail")}>Open</GhostButton>
+            ) : g.allowed === false ? (
+              <div className="text-[11px] flex items-center gap-1" style={{ color: "#92400e", background: "#fff7ed", padding: "4px 8px", borderRadius: "6px" }}>
+                <Lock size={10} /> {g.restrictionMessage}
+              </div>
             ) : (
-              <PrimaryButton onClick={() => navigate("group-detail")}>Join</PrimaryButton>
+              <PrimaryButton onClick={() => onJoin?.(g.id)}>Join</PrimaryButton>
             )}
           </div>
         </div>
@@ -1159,28 +1163,66 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [myMemberships, setMyMemberships] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
+  const [myProfile, setMyProfile] = useState<any>(null);
+
+  const fetchGroups = async () => {
+    if (!user) return;
+    const { data: groups } = await supabase.from("groups").select("*");
+    const { data: members } = await supabase.from("group_members").select("group_id").eq("user_id", user.id);
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    
+    if (groups) setAllGroups(groups);
+    if (members) setMyMemberships(new Set(members.map(m => m.group_id)));
+    if (profile) setMyProfile(profile);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    async function fetchGroups() {
-      if (!user) return;
-      const { data: groups } = await supabase.from("groups").select("*");
-      const { data: members } = await supabase.from("group_members").select("group_id").eq("user_id", user.id);
-      
-      if (groups) setAllGroups(groups);
-      if (members) setMyMemberships(new Set(members.map(m => m.group_id)));
-      setLoading(false);
-    }
     fetchGroups();
   }, [user]);
 
-  const list = allGroups.map(g => ({
-    id: g.id,
-    name: g.name,
-    desc: g.description,
-    members: 1, // Optional: You can do a count query later
-    joined: myMemberships.has(g.id),
-    visibility: g.visibility,
-    created_by: g.created_by,
-  })).filter(g => {
+  const handleJoin = async (groupId: string) => {
+    if (!user) return;
+    const { error } = await supabase.from("group_members").insert({
+      group_id: groupId,
+      user_id: user.id
+    });
+    if (!error) {
+      fetchGroups();
+    } else {
+      alert("Error joining group: " + error.message);
+    }
+  };
+
+  const list = allGroups.map(g => {
+    let allowed = true;
+    let restrictionMessage = "";
+
+    if (g.visibility === "restricted") {
+      if (g.caveat_type === "electorate" && myProfile?.federal_electorate !== g.caveat_value) {
+        allowed = false;
+        restrictionMessage = `Must be in the ${g.caveat_value} electorate to join.`;
+      } else if (g.caveat_type === "party" && myProfile?.party !== g.caveat_value) {
+        allowed = false;
+        restrictionMessage = `Must be affiliated with ${g.caveat_value} to join.`;
+      } else if (g.caveat_type === "tradition" && myProfile?.tradition !== g.caveat_value) {
+        allowed = false;
+        restrictionMessage = `Must share the ${g.caveat_value} tradition to join.`;
+      }
+    }
+
+    return {
+      id: g.id,
+      name: g.name,
+      desc: g.description,
+      members: 1, // Optional: You can do a count query later
+      joined: myMemberships.has(g.id),
+      visibility: g.visibility,
+      created_by: g.created_by,
+      allowed,
+      restrictionMessage
+    };
+  }).filter(g => {
     if (tab === "joined") return g.joined;
     if (tab === "discover") return !g.joined;
     if (tab === "yours") return g.created_by === user?.id;
@@ -1233,7 +1275,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
         <Card className="p-10 text-center text-sm text-gray-500">Loading groups...</Card>
       ) : list.length > 0 ? (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
-          {list.map((g) => <GroupCard key={g.id} g={g} navigate={navigate} />)}
+          {list.map((g) => <GroupCard key={g.id} g={g} navigate={navigate} onJoin={handleJoin} />)}
         </div>
       ) : (
         <Card className="p-10 text-center">
@@ -1396,8 +1438,30 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const { theme } = useTheme();
   const [visible, setVisible] = useState(false);
   const [revealOpen, setRevealOpen] = useState(false);
-  const [connectName, setConnectName] = useState<string | null>(null);
+  const [connectUser, setConnectUser] = useState<{id: string, name: string} | null>(null);
   const [tab, setTab] = useState<"feed" | "members" | "events" | "resources" | "about">("feed");
+  const [dbMembers, setDbMembers] = useState<any[]>([]);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    async function loadProfiles() {
+      if (!user) return;
+      const { data } = await supabase.from('profiles').select('*').neq('id', user.id);
+      if (data) setDbMembers(data);
+    }
+    loadProfiles();
+  }, [user]);
+
+  const allMembers = [
+    ...dbMembers.map(m => ({
+      id: m.id,
+      name: `${m.first_name || 'Anonymous'} ${m.last_name || ''}`.trim(),
+      state: m.state || 'Unknown',
+      bio: m.bio || 'New member',
+      connected: false
+    })),
+    ...GROUP_MEMBERS
+  ];
 
   return (
     <div className="space-y-4">
@@ -1581,7 +1645,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
             </span>
           </div>
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
-            {GROUP_MEMBERS.map((m) => (
+            {allMembers.map((m) => (
               <div
                 key={m.id}
                 className="rounded-xl p-3"
@@ -1605,7 +1669,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                     <Pill color="#d1fae5" fg="#065f46">Connected</Pill>
                   ) : (
                     <button
-                      onClick={() => setConnectName(m.name)}
+                      onClick={() => setConnectUser({ id: m.id, name: m.name })}
                       disabled={!visible}
                       className="text-xs px-3 py-1.5 rounded-lg w-full inline-flex items-center justify-center gap-1.5"
                       style={{
@@ -1703,8 +1767,21 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       {revealOpen && (
         <RevealModal onClose={() => setRevealOpen(false)} onReveal={() => { setVisible(true); setRevealOpen(false); }} />
       )}
-      {connectName && (
-        <ConnectModal name={connectName} onClose={() => setConnectName(null)} onSend={() => setConnectName(null)} />
+      {connectUser && (
+        <ConnectModal 
+          name={connectUser.name} 
+          onClose={() => setConnectUser(null)} 
+          onSend={async () => {
+            if (user && connectUser.id.length > 10) {
+              await supabase.from('network_connections').insert({
+                requester_id: user.id,
+                receiver_id: connectUser.id,
+                status: 'pending'
+              });
+            }
+            setConnectUser(null);
+          }} 
+        />
       )}
     </div>
   );
@@ -1808,22 +1885,13 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
   );
 }
 
-const CONNECTIONS: any[] = [];
-const PENDING_RECEIVED: any[] = [];
-const PENDING_SENT: any[] = [];
-const THREAD: any[] = [];
-
 export function MessagesScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
-  const [tab, setTab] = useState<"messages" | "received" | "sent" | "blocked">("messages");
   const [active, setActive] = useState<any>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   
   const [connections, setConnections] = useState<any[]>([]);
-  const [pendingReceived, setPendingReceived] = useState<any[]>([]);
-  const [pendingSent, setPendingSent] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [composerText, setComposerText] = useState("");
@@ -1839,19 +1907,17 @@ export function MessagesScreen() {
         requester:profiles!requester_id (id, first_name, last_name, job_title, state),
         receiver:profiles!receiver_id (id, first_name, last_name, job_title, state)
       `)
-      .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+      .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`)
+      .eq('status', 'accepted');
       
     if (data) {
       const acc: any[] = [];
-      const rx: any[] = [];
-      const tx: any[] = [];
-      
       for (const c of data) {
          const isRequester = c.requester?.id === user.id;
          const peer = isRequester ? c.receiver : c.requester;
          if (!peer) continue;
          
-         const parsed = {
+         acc.push({
            id: c.id,
            peerId: peer.id,
            name: `${peer.first_name || 'Unknown'} ${peer.last_name || ''}`.trim(),
@@ -1860,17 +1926,9 @@ export function MessagesScreen() {
            unread: 0,
            last: "",
            time: "",
-         };
-
-         if (c.status === 'accepted') acc.push(parsed);
-         else if (c.status === 'pending') {
-           if (isRequester) tx.push(parsed);
-           else rx.push({ ...parsed, message: "Would like to connect on CiP." });
-         }
+         });
       }
       setConnections(acc);
-      setPendingReceived(rx);
-      setPendingSent(tx);
     }
     setLoading(false);
   };
@@ -1902,12 +1960,8 @@ export function MessagesScreen() {
 
     if (active && user) {
        const channel = supabase.channel(`messages_${active.peerId}`)
-         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-             const m = payload.new;
-             if ((m.sender_id === user.id && m.receiver_id === active.peerId) ||
-                 (m.sender_id === active.peerId && m.receiver_id === user.id)) {
-                 loadMessages();
-             }
+         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+             loadMessages();
          }).subscribe();
        return () => { supabase.removeChannel(channel); };
     }
@@ -1921,6 +1975,15 @@ export function MessagesScreen() {
     if (!user || !active || !composerText.trim()) return;
     const msg = composerText;
     setComposerText("");
+
+    // Optimistic UI update
+    setMessages(prev => [...prev, {
+      id: Math.random().toString(),
+      from: 'me',
+      body: msg,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }]);
+
     await supabase.from('messages').insert({
       sender_id: user.id,
       receiver_id: active.peerId,
@@ -1928,25 +1991,12 @@ export function MessagesScreen() {
     });
   };
 
-  const handleAccept = async (connId: string) => {
-    await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', connId);
-    setPendingReceived(prev => prev.filter(c => c.id !== connId));
-    loadNetwork();
-  };
-
-  const handleDecline = async (connId: string) => {
-    await supabase.from('network_connections').delete().eq('id', connId);
-    setPendingReceived(prev => prev.filter(c => c.id !== connId));
-  };
-
   const filteredConnections = connections.filter(
-    (c) => (c.name || "").toLowerCase().includes(search.toLowerCase()) ||
-           (c.last || "").toLowerCase().includes(search.toLowerCase()),
+    (c) => (c.name || "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div className="h-full flex flex-col" style={{ background: theme.bg }}>
-      {/* Page header strip */}
       <div
         className="px-8 py-5 shrink-0"
         style={{ background: theme.headerBg, borderBottom: `1px solid ${theme.divider}` }}
@@ -1957,7 +2007,6 @@ export function MessagesScreen() {
         </p>
       </div>
 
-      {/* Two-pane messenger */}
       <div className="flex-1 min-h-0 px-8 py-6">
         <div
           className="h-full rounded-2xl overflow-hidden flex"
@@ -1968,17 +2017,8 @@ export function MessagesScreen() {
             className="w-[340px] shrink-0 flex flex-col min-h-0"
             style={{ borderRight: `1px solid ${theme.divider}` }}
           >
-            {/* List header */}
             <div className="px-5 py-4 shrink-0" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-              <div className="flex items-center justify-between">
-                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
-                  Conversations
-                </div>
-                <button className="p-1.5 rounded-md hover:bg-gray-100" title="More options">
-                  <MoreHorizontal size={16} style={{ color: theme.textMuted }} />
-                </button>
-              </div>
-
+              <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Conversations</div>
               <div className="relative mt-3">
                 <input
                   value={search}
@@ -1988,147 +2028,56 @@ export function MessagesScreen() {
                   style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
                 />
               </div>
-
-              <div className="flex gap-1 mt-3">
-                {([
-                  ["messages", "Inbox"],
-                  ["received", `Requests${pendingReceived.length ? ` · ${pendingReceived.length}` : ""}`],
-                  ["sent", "Sent"],
-                  ["blocked", "Blocked"],
-                ] as const).map(([k, l]) => (
-                  <button
-                    key={k}
-                    onClick={() => setTab(k)}
-                    className="px-3 py-1 rounded-full text-[11px] whitespace-nowrap"
-                    style={{
-                      background: tab === k ? NAVY : "transparent",
-                      color: tab === k ? "#fff" : theme.textMuted,
-                      border: `1px solid ${tab === k ? NAVY : theme.cardBorder}`,
-                      fontWeight: tab === k ? 600 : 500,
-                    }}
-                  >
-                    {l}
-                  </button>
-                ))}
-              </div>
             </div>
 
-            {/* List body */}
             <div className="flex-1 overflow-y-auto">
-              {tab === "messages" && filteredConnections.map((c) => {
-                const isActive = active?.id === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => setActive(c)}
-                    className="w-full flex items-start gap-3 px-5 py-3.5 text-left transition-colors"
-                    style={{
-                      background: isActive ? theme.bg : "transparent",
-                      borderBottom: `1px solid ${theme.divider}`,
-                    }}
-                  >
-                    <div
-                      className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
-                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+              {loading ? (
+                 <div className="p-8 text-center text-xs" style={{ color: theme.textSubtle }}>Loading conversations...</div>
+              ) : filteredConnections.length === 0 ? (
+                <div className="p-8 text-center text-xs leading-relaxed" style={{ color: theme.textSubtle }}>
+                  You have no active conversations. Start connecting with members in your groups!
+                </div>
+              ) : (
+                filteredConnections.map((c) => {
+                  const isActive = active?.id === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setActive(c)}
+                      className="w-full flex items-start gap-3 px-5 py-3.5 text-left transition-colors"
+                      style={{
+                        background: isActive ? theme.bg : "transparent",
+                        borderBottom: `1px solid ${theme.divider}`,
+                      }}
                     >
-                      {(c.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div
+                        className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
+                        style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                      >
+                        {(c.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
+                      </div>
+                      <div className="flex-1 min-w-0 flex flex-col justify-center h-12">
                         <div
                           className="text-sm truncate"
-                          style={{ color: theme.text, fontWeight: c.unread > 0 ? 700 : 600 }}
+                          style={{ color: theme.text, fontWeight: 600 }}
                         >
                           {c.name}
                         </div>
-                        <div className="text-[10px] ml-auto shrink-0" style={{ color: theme.textSubtle }}>
-                          {c.time}
+                        <div className="text-[11px] truncate" style={{ color: theme.textSubtle }}>
+                          Connected via {c.group}
                         </div>
                       </div>
-                      <div className="text-[11px] truncate" style={{ color: theme.textSubtle }}>
-                        via {c.group}
-                      </div>
-                      <div
-                        className="text-xs mt-1 truncate"
-                        style={{ color: c.unread > 0 ? theme.text : theme.textMuted, fontWeight: c.unread > 0 ? 500 : 400 }}
-                      >
-                        {c.last}
-                      </div>
-                    </div>
-                    {c.unread > 0 && (
-                      <span
-                        className="w-2 h-2 rounded-full mt-1.5 shrink-0"
-                        style={{ background: GOLD }}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-
-              {tab === "messages" && filteredConnections.length === 0 && (
-                <div className="p-8 text-center text-xs" style={{ color: theme.textSubtle }}>
-                  No conversations match your search.
-                </div>
-              )}
-
-              {tab === "received" && pendingReceived.map((p) => (
-                <div key={p.id} className="px-5 py-4" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-                  <div className="flex items-start gap-3">
-                    <div
-                      className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
-                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                    >
-                      {(p.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{p.name}</div>
-                      <div className="text-[11px]" style={{ color: theme.textSubtle }}>via {p.group}</div>
-                      <p className="text-xs mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
-                        {p.message}
-                      </p>
-                      <div className="flex gap-2 mt-3">
-                        <PrimaryButton onClick={() => handleAccept(p.id)}>Accept</PrimaryButton>
-                        <GhostButton onClick={() => handleDecline(p.id)}>Decline</GhostButton>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {tab === "sent" && pendingSent.map((p) => (
-                <div key={p.id} className="px-5 py-4" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-                  <div className="flex items-start gap-3">
-                    <div
-                      className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
-                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                    >
-                      {(p.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{p.name}</div>
-                      <div className="text-[11px]" style={{ color: theme.textSubtle }}>via {p.group}</div>
-                      <div className="mt-2">
-                        <Pill color="#fef3c7" fg="#92400e">Request sent</Pill>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {tab === "blocked" && (
-                <div className="p-10 text-center text-xs" style={{ color: theme.textSubtle }}>
-                  You haven't blocked anyone.
-                </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
 
-          {/* Right pane: thread */}
+          {/* Right pane */}
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
-            {tab === "messages" ? (
-              active ? (
+            {active ? (
               <>
-                {/* Thread header */}
                 <div
                   className="px-6 py-4 flex items-center gap-3 shrink-0 relative"
                   style={{ borderBottom: `1px solid ${theme.divider}` }}
@@ -2143,56 +2092,9 @@ export function MessagesScreen() {
                     <div className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
                       {active.name}
                     </div>
-                    <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>
-                      Connected through <span style={{ fontWeight: 500 }}>{active.group}</span>
-                    </div>
                   </div>
-                  <button
-                    onClick={() => setMenuOpen(!menuOpen)}
-                    className="p-2 rounded-lg hover:bg-gray-100"
-                  >
-                    <MoreHorizontal size={18} style={{ color: theme.textMuted }} />
-                  </button>
-                  {menuOpen && (
-                    <div
-                      className="absolute right-6 top-16 w-56 rounded-xl shadow-xl z-10 overflow-hidden"
-                      style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
-                    >
-                      {[
-                        { l: "Report conversation", icon: AlertTriangle },
-                        { l: "Block member", icon: X },
-                        { l: "Remove connection", icon: UserPlus },
-                      ].map((it) => {
-                        const I = it.icon;
-                        return (
-                          <button
-                            key={it.l}
-                            onClick={() => setMenuOpen(false)}
-                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"
-                            style={{ color: theme.text }}
-                          >
-                            <I size={13} style={{ color: theme.textMuted }} />
-                            {it.l}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
 
-                {/* Safety banner */}
-                <div
-                  className="px-6 py-2.5 text-[11px] flex items-start gap-2 shrink-0"
-                  style={{ background: "#fff7ed", color: "#92400e", borderBottom: `1px solid ${theme.divider}` }}
-                >
-                  <Shield size={12} className="mt-0.5 shrink-0" />
-                  <span className="leading-relaxed">
-                    CiP connections are intended for encouragement, support and faithful participation in
-                    public life. Please communicate with charity and respect.
-                  </span>
-                </div>
-
-                {/* Thread body */}
                 <div className="flex-1 overflow-y-auto px-6 py-6 space-y-3 min-h-0">
                   {messages.length === 0 && (
                     <div className="text-center text-[11px]" style={{ color: theme.textSubtle }}>
@@ -2203,14 +2105,6 @@ export function MessagesScreen() {
                     const mine = m.from === "me";
                     return (
                       <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"} gap-2`}>
-                        {!mine && (
-                          <div
-                            className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] mt-auto"
-                            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                          >
-                            {(active.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                          </div>
-                        )}
                         <div className="max-w-[60%]">
                           <div
                             className="rounded-2xl px-4 py-2.5"
@@ -2237,7 +2131,6 @@ export function MessagesScreen() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Composer */}
                 <div className="px-6 py-4 shrink-0" style={{ borderTop: `1px solid ${theme.divider}` }}>
                   <div
                     className="flex items-end gap-2 rounded-2xl px-3 py-2"
@@ -2248,24 +2141,19 @@ export function MessagesScreen() {
                       value={composerText}
                       onChange={(e) => setComposerText(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSend();
-                        }
+                         if (e.key === "Enter" && !e.shiftKey) {
+                           e.preventDefault();
+                           handleSend();
+                         }
                       }}
                       placeholder="Write a message…"
                       className="flex-1 px-2 py-1.5 text-sm outline-none resize-none bg-transparent"
                       style={{ color: theme.text, minHeight: 32, maxHeight: 120 }}
                     />
                     <button
-                      className="p-2 rounded-md hover:bg-gray-200/50"
-                      title="Add link"
-                    >
-                      <Link2 size={15} style={{ color: theme.textMuted }} />
-                    </button>
-                    <button
                       onClick={handleSend}
-                      className="px-4 py-1.5 rounded-lg text-sm inline-flex items-center gap-1.5"
+                      disabled={!composerText.trim()}
+                      className="px-4 py-1.5 rounded-lg text-sm inline-flex items-center gap-1.5 disabled:opacity-50"
                       style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                     >
                       <Send size={13} /> Send
@@ -2273,28 +2161,10 @@ export function MessagesScreen() {
                   </div>
                 </div>
               </>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center" style={{ color: theme.textMuted }}>
-                  <MessageSquare size={32} className="mb-4 opacity-50" />
-                  <p className="text-sm">Select a conversation to start messaging</p>
-                </div>
-              )
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
-                <div
-                  className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
-                  style={{ background: theme.pillBg }}
-                >
-                  <MessageCircle size={22} style={{ color: NAVY }} />
-                </div>
-                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
-                  {tab === "received" && "Connection requests"}
-                  {tab === "sent" && "Pending sent requests"}
-                  {tab === "blocked" && "Blocked members"}
-                </div>
-                <p className="text-xs mt-2 max-w-xs" style={{ color: theme.textMuted }}>
-                  Select an item from the list on the left to view details.
-                </p>
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center" style={{ color: theme.textMuted }}>
+                <MessageSquare size={32} className="mb-4 opacity-50" />
+                <p className="text-sm">Select a conversation to start messaging</p>
               </div>
             )}
           </div>
@@ -2859,10 +2729,10 @@ export function SupportScreen() {
             className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
             style={{ background: GOLD }}
           >
-            <LifeBuoy size={18} style={{ color: NAVY }} />
+            <ArrowUpRight size={18} style={{ color: NAVY }} />
           </div>
           <div>
-            <h1 style={{ color: theme.text }}>Support pathways</h1>
+            <h1 style={{ color: theme.text }}>Ways to get involved</h1>
             <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
               CiP isn't an open forum or a self-serve directory — but our team can help you take
               your next step. Pick a pathway and we'll be in touch.

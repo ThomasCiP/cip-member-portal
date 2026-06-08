@@ -15,14 +15,14 @@ import {
 } from "./components/cip/MemberScreens";
 import {
   AdminShell, AdminOverview, AdminMembers, AdminSupport, AdminSupportDetail,
-  AdminEvents, AdminContent, AdminDonations, AdminPrivacy,
+  AdminEvents, AdminContent, AdminDonations, AdminPrivacy, AdminGroups,
 } from "./components/cip/AdminScreens";
 
 const PUBLIC_SCREENS: Screen[] = ["signup", "signin", "account", "creed", "blocked", "welcome", "deleted-account"];
 const ADMIN_SCREENS: Screen[] = [
   "admin-overview", "admin-members", "admin-support", "admin-support-detail",
   "admin-events", "admin-content", "admin-resources", "admin-announcements",
-  "admin-affiliated", "admin-donations", "admin-privacy",
+  "admin-affiliated", "admin-donations", "admin-privacy", "admin-groups",
 ];
 
 function normalizeMember(s: Screen): Screen {
@@ -100,6 +100,7 @@ export default function App() {
     switch (screen) {
       case "admin-overview":       return <AdminOverview />;
       case "admin-members":        return <AdminMembers />;
+      case "admin-groups":         return <AdminGroups />;
       case "admin-support":        return <AdminSupport navigate={setScreen} />;
       case "admin-support-detail": return <AdminSupportDetail navigate={setScreen} />;
       case "admin-events":         return <AdminEvents />;
