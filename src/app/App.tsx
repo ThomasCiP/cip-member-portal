@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Component, ErrorInfo, ReactNode } from "react";
 import { supabase } from "../lib/supabase";
 
 import { Screen } from "./components/cip/types";
@@ -17,6 +17,30 @@ import {
   AdminShell, AdminOverview, AdminMembers, AdminSupport, AdminSupportDetail,
   AdminEvents, AdminContent, AdminDonations, AdminPrivacy, AdminGroups,
 } from "./components/cip/AdminScreens";
+
+class ErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error: Error | null}> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 20, color: 'red' }}>
+          <h2>Something went wrong in this tab.</h2>
+          <pre>{this.state.error?.message}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const PUBLIC_SCREENS: Screen[] = ["signup", "signin", "account", "creed", "blocked", "welcome", "deleted-account"];
 const ADMIN_SCREENS: Screen[] = [
@@ -100,7 +124,7 @@ export default function App() {
     switch (screen) {
       case "admin-overview":       return <AdminOverview />;
       case "admin-members":        return <AdminMembers />;
-      case "admin-groups":         return <AdminGroups />;
+      case "admin-groups":         return <ErrorBoundary><AdminGroups /></ErrorBoundary>;
       case "admin-support":        return <AdminSupport navigate={setScreen} />;
       case "admin-support-detail": return <AdminSupportDetail navigate={setScreen} />;
       case "admin-events":         return <AdminEvents />;
@@ -135,7 +159,9 @@ export default function App() {
             navigate={setScreen}
             fullWidth={screen === "messages"}
           >
-            {memberContent}
+            <ErrorBoundary>
+              {memberContent}
+            </ErrorBoundary>
           </MemberShell>
         )}
 

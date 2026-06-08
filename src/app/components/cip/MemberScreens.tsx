@@ -108,58 +108,7 @@ const FEED_TYPE_COLORS: Record<string, string> = {
 
 const FEED_ITEMS: {
   type: string; title: string; body: string; cta: string; date: string; image?: boolean; cta2?: string;
-}[] = [
-  {
-    type: "Announcement",
-    title: "Liberal pre-selection nominations open in QLD",
-    body: "Nominations close 14 June. CiP can connect interested members with current branch members for a private conversation before you decide.",
-    cta: "Express interest",
-    date: "2 days ago",
-  },
-  {
-    type: "Event",
-    title: "Faithful Politics: An evening with Tim Costello",
-    body: "A wide-ranging conversation about discipleship in public life. Q&A included. Wed 27 May · 7:00 PM AEST · Online.",
-    cta: "Register",
-    date: "3 days ago",
-    image: true,
-  },
-  {
-    type: "Reflection",
-    title: "On disagreeing well: a short reflection from our chair",
-    body: "Public life is increasingly polarised. How do we hold convictions while loving those who hold different ones? A 4-minute read.",
-    cta: "Read more",
-    date: "5 days ago",
-  },
-  {
-    type: "Resource",
-    title: "New: Branch meetings — an inside look",
-    body: "What to expect at your first branch meeting, how to prepare, and how to make the most of it. 8-min video.",
-    cta: "View resource",
-    date: "1 week ago",
-  },
-  {
-    type: "Support",
-    title: "Considering standing for council? Talk to us first.",
-    body: "Local government is a meaningful entry point. Our team can walk you through what's involved and connect you with someone who's done it.",
-    cta: "Request support",
-    date: "1 week ago",
-  },
-  {
-    type: "Opportunity",
-    title: "Summer policy internship — Federal Senator's office",
-    body: "Six-week policy internship for current students. Christian applicants encouraged to apply.",
-    cta: "Read more",
-    date: "1 week ago",
-  },
-  {
-    type: "Donate",
-    title: "Help us reach more young Christians considering public service",
-    body: "Your support funds the mentoring conversations, training events and pastoral care that quietly shape Australia's next generation of public servants.",
-    cta: "Donate",
-    date: "2 weeks ago",
-  },
-];
+}[] = [];
 
 function FeedPost({ item, navigate }: { item: typeof FEED_ITEMS[number]; navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
@@ -417,21 +366,21 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>
           Loading feed...
         </div>
-      ) : feedItems.length === 0 ? (
-        <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>
-          No feed items available.
-        </div>
-      ) : (
+      ) : feedItems.length > 0 ? (
         feedItems.map((item, i) => (
           <FeedPost key={i} item={item} navigate={navigate} />
         ))
+      ) : (
+        <div className="text-center py-12 text-sm" style={{ color: theme.textMuted }}>
+          No new updates right now. Check back later!
+        </div>
       )}
     </div>
   );
 }
 
 // ── Profile (read-only) ──────────────────────────────────────────────
-const PROFILE_ACTIVITY: any[] = [];
+
 
 const PARTIES = [
   "No affiliation", "Independent", "Australian Labor Party", "Liberal Party of Australia",
@@ -815,21 +764,9 @@ export function ProfileScreen() {
                 Personal posting is not enabled in v1
               </span>
             </div>
-            <div className="space-y-3">
-              {PROFILE_ACTIVITY.map((a, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 py-2.5"
-                  style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
-                >
-                  <div className="shrink-0">
-                    <Pill color={FEED_TYPE_COLORS[a.type] ?? "#f3f4f6"}>{a.type}</Pill>
-                  </div>
-                  <div className="flex-1 text-sm" style={{ color: theme.text }}>{a.title}</div>
-                  <div className="text-xs" style={{ color: theme.textSubtle }}>{a.date}</div>
-                </div>
-              ))}
-            </div>
+              <div className="text-center text-sm py-8" style={{ color: theme.textMuted }}>
+                No activity to show yet.
+              </div>
           </Card>
         </>
       )}
@@ -838,8 +775,6 @@ export function ProfileScreen() {
 }
 
 // ── Groups discovery ─────────────────────────────────────────────────
-const ALL_GROUPS: any[] = [];
-
 function GroupCard({ g, navigate, onJoin }: { g: any; navigate: (s: Screen) => void; onJoin?: (id: string) => void }) {
   const { theme } = useTheme();
   return (
@@ -854,7 +789,10 @@ function GroupCard({ g, navigate, onJoin }: { g: any; navigate: (s: Screen) => v
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => navigate("group-detail")}
+              onClick={() => {
+                localStorage.setItem('activeGroupId', g.id);
+                navigate("group-detail");
+              }}
               className="text-sm hover:underline text-left"
               style={{ color: theme.text, fontWeight: 600 }}
             >
@@ -873,7 +811,10 @@ function GroupCard({ g, navigate, onJoin }: { g: any; navigate: (s: Screen) => v
           <div className="flex items-center justify-between mt-3">
             <span className="text-xs" style={{ color: theme.textSubtle }}>{g.members} members</span>
             {g.joined ? (
-              <GhostButton onClick={() => navigate("group-detail")}>Open</GhostButton>
+              <GhostButton onClick={() => {
+                localStorage.setItem('activeGroupId', g.id);
+                navigate("group-detail");
+              }}>Open</GhostButton>
             ) : g.allowed === false ? (
               <div className="text-[11px] flex items-center gap-1" style={{ color: "#92400e", background: "#fff7ed", padding: "4px 8px", borderRadius: "6px" }}>
                 <Lock size={10} /> {g.restrictionMessage}
@@ -887,9 +828,6 @@ function GroupCard({ g, navigate, onJoin }: { g: any; navigate: (s: Screen) => v
     </Card>
   );
 }
-
-// Mock network used by the Create Group invite step
-const MY_NETWORK: any[] = [];
 
 type GroupVisibility = "public" | "private" | "restricted";
 type Caveat = "electorate" | "party" | "tradition";
@@ -1052,38 +990,9 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
                   ? "Invite people from your network. They'll receive an invitation to join."
                   : "Invite a few people from your network to seed the group. You can invite more later."}
               </div>
-              <div className="mt-3 rounded-xl divide-y" style={{ border: `1px solid ${theme.cardBorder}`, borderColor: theme.divider }}>
-                {MY_NETWORK.map((p) => {
-                  const checked = !!invited[p.id];
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => toggleInvite(p.id)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left"
-                      style={{ borderBottom: `1px solid ${theme.divider}`, background: checked ? "#f0f7ff" : "transparent" }}
-                    >
-                      <div
-                        className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs"
-                        style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                      >
-                        {(p.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{p.name}</div>
-                        <div className="text-[11px]" style={{ color: theme.textSubtle }}>{p.title}</div>
-                      </div>
-                      <div
-                        className="w-5 h-5 rounded shrink-0 flex items-center justify-center"
-                        style={{ background: checked ? NAVY : "#fff", border: `1px solid ${checked ? NAVY : theme.cardBorder}` }}
-                      >
-                        {checked && <CheckCircle2 size={14} className="text-white" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                {/* Network invites disabled for now */}
               <div className="mt-3 text-xs" style={{ color: theme.textSubtle }}>
-                {invitedCount} {invitedCount === 1 ? "person" : "people"} selected
+                0 people selected
               </div>
             </div>
           )}
@@ -1166,15 +1075,23 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [myProfile, setMyProfile] = useState<any>(null);
 
   const fetchGroups = async () => {
-    if (!user) return;
-    const { data: groups } = await supabase.from("groups").select("*");
-    const { data: members } = await supabase.from("group_members").select("group_id").eq("user_id", user.id);
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    
-    if (groups) setAllGroups(groups);
-    if (members) setMyMemberships(new Set(members.map(m => m.group_id)));
-    if (profile) setMyProfile(profile);
-    setLoading(false);
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const { data: groups } = await supabase.from("groups").select("*");
+      const { data: members } = await supabase.from("group_members").select("group_id").eq("user_id", user.id);
+      const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      
+      if (groups) setAllGroups(groups);
+      if (members) setMyMemberships(new Set(members.map(m => m.group_id)));
+      if (profile) setMyProfile(profile);
+    } catch (err) {
+      console.error("Error fetching groups:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -1312,9 +1229,6 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
 }
 
 // ── Group detail ─────────────────────────────────────────────────────
-const GROUP_POSTS: any[] = [];
-
-const GROUP_MEMBERS: any[] = [];
 
 function RevealModal({ onClose, onReveal }: { onClose: () => void; onReveal: () => void }) {
   const { theme } = useTheme();
@@ -1441,16 +1355,31 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const [connectUser, setConnectUser] = useState<{id: string, name: string} | null>(null);
   const [tab, setTab] = useState<"feed" | "members" | "events" | "resources" | "about">("feed");
   const [dbMembers, setDbMembers] = useState<any[]>([]);
+  const [group, setGroup] = useState<any>(null);
+  const [loadingGroup, setLoadingGroup] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
-    async function loadProfiles() {
-      if (!user) return;
-      const { data } = await supabase.from('profiles').select('*').neq('id', user.id);
-      if (data) setDbMembers(data);
+    async function initGroup() {
+      const groupId = localStorage.getItem('activeGroupId');
+      if (!groupId) {
+        navigate('groups');
+        return;
+      }
+      const { data } = await supabase.from('groups').select('*').eq('id', groupId).single();
+      if (data) {
+        setGroup(data);
+      }
+      setLoadingGroup(false);
+      
+      if (user) {
+        // Only fetch other members for now
+        const { data: members } = await supabase.from('profiles').select('*').neq('id', user.id);
+        if (members) setDbMembers(members);
+      }
     }
-    loadProfiles();
-  }, [user]);
+    initGroup();
+  }, [user, navigate]);
 
   const allMembers = [
     ...dbMembers.map(m => ({
@@ -1459,9 +1388,25 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       state: m.state || 'Unknown',
       bio: m.bio || 'New member',
       connected: false
-    })),
-    ...GROUP_MEMBERS
+    }))
   ];
+
+  const handleDelete = async () => {
+    if (!group || !window.confirm("Are you sure you want to delete this group?")) return;
+    const { error } = await supabase.from('groups').delete().eq('id', group.id);
+    if (error) {
+      alert("Failed to delete group: " + error.message);
+      return;
+    }
+    navigate('groups');
+  };
+
+  if (loadingGroup) {
+    return <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>Loading group...</div>;
+  }
+  if (!group) {
+    return <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>Group not found.</div>;
+  }
 
   return (
     <div className="space-y-4">
@@ -1475,20 +1420,26 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 className="w-20 h-20 rounded-2xl shrink-0 flex items-center justify-center"
                 style={{ background: GOLD, color: NAVY, fontWeight: 700, fontSize: 22, border: `4px solid ${theme.cardBg}` }}
               >
-                NP
+                {(group.name || "GRP").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
               </div>
               <div className="pb-1">
-                <h1 style={{ color: theme.text }}>NSW Politics & Prayer</h1>
+                <h1 style={{ color: theme.text }}>{group.name}</h1>
                 <div className="flex items-center gap-3 text-xs mt-1" style={{ color: theme.textMuted }}>
-                  <span className="inline-flex items-center gap-1"><Users size={12} /> 142 members</span>
-                  <span className="inline-flex items-center gap-1"><Globe size={12} /> Private group</span>
-                  <span className="inline-flex items-center gap-1"><Shield size={12} /> Moderated</span>
+                  <span className="inline-flex items-center gap-1"><Users size={12} /> {allMembers.length} members</span>
+                  <span className="inline-flex items-center gap-1"><Globe size={12} /> <span className="capitalize">{group.visibility}</span></span>
                 </div>
               </div>
             </div>
-            <button onClick={() => navigate("groups")} className="text-xs hover:underline" style={{ color: NAVY }}>
-              ← All groups
-            </button>
+            <div className="flex items-center gap-3">
+              {group.created_by === user?.id && (
+                <button onClick={handleDelete} className="text-xs hover:underline text-red-600">
+                  Delete group
+                </button>
+              )}
+              <button onClick={() => navigate("groups")} className="text-xs hover:underline" style={{ color: NAVY }}>
+                ← All groups
+              </button>
+            </div>
           </div>
 
           {/* Privacy status bar */}
@@ -1585,51 +1536,9 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
             )}
           </Card>
 
-          {GROUP_POSTS.map((p, i) => (
-            <Card key={i} className="p-5">
-              {p.pinned && (
-                <div className="flex items-center gap-1.5 mb-3 text-xs" style={{ color: GOLD, fontWeight: 600 }}>
-                  <Pin size={12} /> Pinned by moderator
-                </div>
-              )}
-              <div className="flex items-start gap-3">
-                <div
-                  className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-xs"
-                  style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
-                >
-                  {p.avatar}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{p.author}</span>
-                    <span className="text-xs" style={{ color: theme.textSubtle }}>· {p.role} · {p.date}</span>
-                  </div>
-                  <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.text }}>{p.body}</p>
-                  {p.link && (
-                    <a
-                      className="inline-flex items-center gap-1 text-xs mt-2 hover:underline"
-                      style={{ color: NAVY }}
-                    >
-                      <Link2 size={11} /> {p.link}
-                    </a>
-                  )}
-                  <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
-                    <button className="text-xs inline-flex items-center gap-1.5" style={{ color: theme.textMuted }}>
-                      <ThumbsUp size={12} /> {p.likes}
-                    </button>
-                    <button className="text-xs inline-flex items-center gap-1.5" style={{ color: theme.textMuted }}>
-                      <MessageCircle size={12} /> {p.comments} comments
-                    </button>
-                    {!visible && (
-                      <span className="text-[11px] ml-auto inline-flex items-center gap-1" style={{ color: theme.textSubtle }}>
-                        <Lock size={10} /> Reveal to react or comment
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))}
+          <div className="text-center text-sm py-10" style={{ color: theme.textMuted }}>
+            No posts in this group yet.
+          </div>
         </div>
       )}
 
@@ -1701,19 +1610,9 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         <Card className="p-5">
           <h3 className="text-sm mb-3" style={{ color: theme.text, fontWeight: 600 }}>Group events</h3>
           <div className="space-y-3">
-            {[
-              { title: "Monthly prayer meeting", date: "Tue 3 Jun · 7:00 PM", loc: "Online" },
-              { title: "Sydney coffee + civic chat", date: "Sat 14 Jun · 10:00 AM", loc: "Surry Hills" },
-            ].map((e) => (
-              <div key={e.title} className="flex items-center gap-3 py-2" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-                <CalendarDays size={16} style={{ color: GOLD }} />
-                <div className="flex-1">
-                  <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{e.title}</div>
-                  <div className="text-xs" style={{ color: theme.textMuted }}>{e.date} · {e.loc}</div>
-                </div>
-                <GhostButton>RSVP</GhostButton>
-              </div>
-            ))}
+            <div className="text-center py-6 text-sm" style={{ color: theme.textMuted }}>
+              No events scheduled for this group.
+            </div>
           </div>
         </Card>
       )}
@@ -1722,20 +1621,9 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         <Card className="p-5">
           <h3 className="text-sm mb-3" style={{ color: theme.text, fontWeight: 600 }}>Group resources</h3>
           <div className="space-y-3">
-            {[
-              { title: "How to attend a state branch meeting", kind: "Guide" },
-              { title: "Praying for elected officials", kind: "Liturgy" },
-              { title: "What pre-selection actually involves", kind: "Video" },
-            ].map((r) => (
-              <div key={r.title} className="flex items-center gap-3 py-2" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-                <FileText size={16} style={{ color: theme.textMuted }} />
-                <div className="flex-1">
-                  <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.title}</div>
-                  <div className="text-xs" style={{ color: theme.textMuted }}>{r.kind}</div>
-                </div>
-                <GhostButton>Open</GhostButton>
-              </div>
-            ))}
+            <div className="text-center py-6 text-sm" style={{ color: theme.textMuted }}>
+              No resources have been shared in this group.
+            </div>
           </div>
         </Card>
       )}
@@ -1744,8 +1632,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         <Card className="p-5">
           <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>About this group</h3>
           <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
-            NSW Politics & Prayer is a private group for NSW members to pray for our state, share
-            reflections on current political issues, and support one another in faithful public life.
+            {group.description || "No description provided."}
           </p>
           <h4 className="text-xs mt-5 uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>
             Group rules
@@ -1826,7 +1713,7 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
             events.map((e, i) => (
               <button
                 key={e.id}
-                onClick={() => navigate("event-detail")}
+                onClick={() => { localStorage.setItem('activeEventId', e.id); navigate("event-detail"); }}
                 className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 transition-colors"
                 style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
               >
@@ -1856,6 +1743,30 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
 export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const [event, setEvent] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadEvent() {
+      const eventId = localStorage.getItem('activeEventId');
+      if (!eventId) {
+        navigate('events');
+        return;
+      }
+      const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
+      if (data) setEvent(data);
+      setLoading(false);
+    }
+    loadEvent();
+  }, [navigate]);
+
+  if (loading) {
+    return <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>Loading event...</div>;
+  }
+  if (!event) {
+    return <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>Event not found.</div>;
+  }
+
   return (
     <div className="space-y-4">
       <button onClick={() => navigate("events")} className="text-xs hover:underline" style={{ color: NAVY }}>
@@ -1864,16 +1775,14 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
       <Card className="overflow-hidden">
         <div className="h-44" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b 60%, ${GOLD})` }} />
         <div className="p-6">
-          <Pill color="#dbeafe">Online · Free</Pill>
-          <h1 className="mt-3" style={{ color: theme.text }}>Faithful Politics with Tim Costello</h1>
+          <Pill color="#dbeafe">{event.type || 'In-person'}</Pill>
+          <h1 className="mt-3" style={{ color: theme.text }}>{event.title}</h1>
           <div className="flex flex-wrap items-center gap-4 mt-3 text-sm" style={{ color: theme.textMuted }}>
-            <span className="inline-flex items-center gap-1.5"><Clock size={14} /> Wed 27 May · 7:00 PM AEST</span>
-            <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> Online (Zoom)</span>
-            <span className="inline-flex items-center gap-1.5"><Users size={14} /> 132 registered</span>
+            <span className="inline-flex items-center gap-1.5"><Clock size={14} /> {event.date}</span>
+            <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> {event.location}</span>
           </div>
           <p className="text-sm mt-4 leading-relaxed" style={{ color: theme.text }}>
-            Join us for a wide-ranging conversation with Tim Costello about discipleship, public life
-            and how Christian values shape engagement with politics in Australia today. Q&A included.
+            {event.description || "No description provided."}
           </p>
           <div className="flex items-center gap-2 mt-5">
             <GoldButton>Register</GoldButton>

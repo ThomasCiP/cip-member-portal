@@ -385,11 +385,13 @@ export function SignInScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setResetMessage("");
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
@@ -404,6 +406,28 @@ export function SignInScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!email) {
+      setError("Please enter your email address first.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setResetMessage("");
+    
+    // Redirect back to members site to update password
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/?reset=true",
+    });
+    
+    if (error) {
+      setError(error.message);
+    } else {
+      setResetMessage("Check your email for the password reset link.");
+    }
+    setLoading(false);
+  };
+
   return (
     <PublicFrame onOpenModal={setModal} navigate={navigate}>
       <div className="max-w-lg mx-auto py-12">
@@ -412,9 +436,22 @@ export function SignInScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
         <form onSubmit={handleSignIn} className="mt-8 space-y-4">
           <Field label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <div>
+            <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <div className="text-right mt-1">
+              <button 
+                type="button" 
+                onClick={handleResetPassword}
+                className="text-xs hover:underline"
+                style={{ color: NAVY }}
+              >
+                Forgot your password?
+              </button>
+            </div>
+          </div>
 
           {error && <div className="text-sm text-red-600 mt-2">{error}</div>}
+          {resetMessage && <div className="text-sm text-green-600 mt-2">{resetMessage}</div>}
 
           <button
             type="submit"
@@ -427,7 +464,7 @@ export function SignInScreen({ navigate }: { navigate: (s: Screen) => void }) {
               opacity: loading ? 0.7 : 1,
             }}
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Please wait..." : "Sign in"}
           </button>
         </form>
 

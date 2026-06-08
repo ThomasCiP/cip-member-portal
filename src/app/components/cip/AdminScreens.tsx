@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
+import { useAuth } from "./AuthContext";
 
 const ADMIN_ITEMS: { key: Screen; label: string; icon: any }[] = [
   { key: "admin-overview",  label: "Overview",      icon: LayoutDashboard },
@@ -169,20 +170,53 @@ function StatusPill({ label, color }: { label: string; color?: string }) {
 // ── Admin Overview ──────────────────────────────────────────────────
 export function AdminOverview() {
   const { theme } = useTheme();
-  const stats = [
-    { l: "New members (30d)", v: "0", d: "" },
+  const [stats, setStats] = useState([
+    { l: "Total members", v: "0", d: "" },
     { l: "Completed onboarding", v: "0", d: "" },
     { l: "Affirmed creed", v: "0", d: "" },
-    { l: "Interested in joining a party", v: "0", d: "" },
+    { l: "Interested in party", v: "0", d: "" },
     { l: "Support requests open", v: "0", d: "" },
-  ];
+  ]);
+  const [supportQueue, setSupportQueue] = useState<any[]>([]);
+  const [recentSignups, setRecentSignups] = useState<any[]>([]);
+  const [openSupportCount, setOpenSupportCount] = useState(0);
+
+  useEffect(() => {
+    const loadData = async () => {
+      const { data: profiles } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+      if (profiles) {
+        setStats(prev => {
+          const newStats = [...prev];
+          newStats[0].v = profiles.length.toString();
+          newStats[1].v = profiles.filter(p => p.onboarded).length.toString();
+          newStats[2].v = profiles.filter(p => p.creed_affirmed).length.toString();
+          newStats[3].v = profiles.filter(p => p.engagement && p.engagement.toLowerCase().includes('party')).length.toString();
+          return newStats;
+        });
+        setRecentSignups(profiles.slice(0, 5));
+      }
+
+      const { data: requests } = await supabase.from('support_requests').select('*, profiles!inner(first_name, last_name)').order('created_at', { ascending: false });
+      if (requests) {
+        const openReqs = requests.filter(r => r.status !== 'Closed');
+        setOpenSupportCount(openReqs.length);
+        setStats(prev => {
+          const newStats = [...prev];
+          newStats[4].v = openReqs.length.toString();
+          return newStats;
+        });
+        setSupportQueue(openReqs.slice(0, 5));
+      }
+    };
+    loadData();
+  }, []);
 
   return (
     <div className="max-w-6xl">
       <div className="flex items-center justify-between mb-6">
         <div>
           <H1>Admin overview</H1>
-          <p className="text-xs mt-1" style={{ color: theme.textMuted }}>Last updated 2 mins ago</p>
+          <p className="text-xs mt-1" style={{ color: theme.textMuted }}>Live from database</p>
         </div>
       </div>
 
@@ -212,22 +246,26 @@ export function AdminOverview() {
         <AdminCard className="p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 style={{ color: theme.text }}>Support queue</h3>
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#fee2e2", color: "#dc2626" }}>11 open</span>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#fee2e2", color: "#dc2626" }}>{openSupportCount} open</span>
           </div>
           <div className="space-y-2">
-            {([] as any[]).map(([t, s, u], i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between p-3 rounded-xl"
-                style={{ background: theme.tableHead }}
-              >
-                <div className="text-sm truncate mr-3" style={{ color: theme.text }}>{t}</div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <StatusPill label={s} />
-                  <span className="text-xs" style={{ color: theme.textSubtle }}>{u}</span>
+            {supportQueue.length === 0 ? (
+               <div className="text-sm p-3" style={{ color: theme.textMuted }}>No open support requests.</div>
+            ) : (
+              supportQueue.map((r, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-3 rounded-xl"
+                  style={{ background: theme.tableHead }}
+                >
+                  <div className="text-sm truncate mr-3" style={{ color: theme.text }}>{r.request_type}</div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <StatusPill label={r.status} />
+                    <span className="text-xs" style={{ color: theme.textSubtle }}>{r.urgency}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </AdminCard>
 
@@ -235,25 +273,31 @@ export function AdminOverview() {
         <AdminCard className="p-5">
           <h3 className="mb-4" style={{ color: theme.text }}>Recent sign-ups</h3>
           <div className="space-y-2">
-            {([] as any[]).map(([name, state, time], i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between px-3 py-2 rounded-xl"
-                style={{ background: theme.tableHead }}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px]"
-                    style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
-                  >
-                    {(name as string).charAt(0)}
+            {recentSignups.length === 0 ? (
+               <div className="text-sm p-3" style={{ color: theme.textMuted }}>No sign-ups yet.</div>
+            ) : (
+              recentSignups.map((p, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between px-3 py-2 rounded-xl"
+                  style={{ background: theme.tableHead }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px]"
+                      style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
+                    >
+                      {p.first_name ? p.first_name.charAt(0) : "?"}
+                    </div>
+                    <span className="text-sm" style={{ color: theme.text }}>{p.first_name} {p.last_name}</span>
+                    <span className="text-xs" style={{ color: theme.textSubtle }}>{p.state}</span>
                   </div>
-                  <span className="text-sm" style={{ color: theme.text }}>{name}</span>
-                  <span className="text-xs" style={{ color: theme.textSubtle }}>{state}</span>
+                  <span className="text-xs" style={{ color: theme.textSubtle }}>
+                    {new Date(p.created_at).toLocaleDateString()}
+                  </span>
                 </div>
-                <span className="text-xs" style={{ color: theme.textSubtle }}>{time} ago</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </AdminCard>
       </div>
@@ -264,7 +308,19 @@ export function AdminOverview() {
 // ── Admin Members ──────────────────────────────────────────────────
 export function AdminMembers() {
   const { theme } = useTheme();
-  const rows: any[] = [];
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMembers = async () => {
+      const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+      if (data) {
+        setRows(data);
+      }
+      setLoading(false);
+    };
+    fetchMembers();
+  }, []);
 
   return (
     <div className="max-w-7xl">
@@ -305,28 +361,36 @@ export function AdminMembers() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.n} style={{ borderBottom: `1px solid ${theme.divider}` }}>
-                <td className="px-5 py-3">
-                  <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.n}</div>
-                  <div className="text-xs" style={{ color: theme.textMuted }}>{r.e}</div>
-                </td>
-                <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.st}</td>
-                <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.eng}</td>
-                <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.party}</td>
-                <td className="px-5 py-3">
-                  {r.creed
-                    ? <CheckCircle2 size={14} style={{ color: "#059669" }} />
-                    : <Circle size={14} style={{ color: theme.divider }} />}
-                </td>
-                <td className="px-5 py-3"><StatusPill label={r.status} /></td>
-                <td className="px-5 py-3 text-right">
-                  <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: theme.textMuted }}>
-                    <Eye size={14} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {loading ? (
+              <tr><td colSpan={7} className="px-5 py-4 text-center text-sm text-gray-500">Loading members...</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={7} className="px-5 py-4 text-center text-sm text-gray-500">No members found.</td></tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.id} style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                  <td className="px-5 py-3">
+                    <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.first_name} {r.last_name}</div>
+                    <div className="text-xs" style={{ color: theme.textMuted }}>{r.email}</div>
+                  </td>
+                  <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.state}</td>
+                  <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.engagement}</td>
+                  <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.party}</td>
+                  <td className="px-5 py-3">
+                    {r.creed_affirmed
+                      ? <CheckCircle2 size={14} style={{ color: "#059669" }} />
+                      : <Circle size={14} style={{ color: theme.divider }} />}
+                  </td>
+                  <td className="px-5 py-3">
+                    <StatusPill label={r.onboarded ? "Active" : "Onboarding"} />
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: theme.textMuted }}>
+                      <Eye size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </AdminCard>
@@ -337,7 +401,30 @@ export function AdminMembers() {
 // ── Admin Support queue ────────────────────────────────────────────
 export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
-  const rows: any[] = [];
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [counts, setCounts] = useState({ open: 0, inReview: 0, awaiting: 0, matched: 0 });
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      const { data } = await supabase
+        .from('support_requests')
+        .select('*, profiles!user_id(first_name, last_name, state, party)')
+        .order('created_at', { ascending: false });
+
+      if (data) {
+        setRows(data);
+        setCounts({
+          open: data.filter((r) => r.status === 'Submitted').length,
+          inReview: data.filter((r) => r.status === 'In review').length,
+          awaiting: data.filter((r) => r.status === 'Awaiting member').length,
+          matched: data.filter((r) => r.status === 'Matched').length,
+        });
+      }
+      setLoading(false);
+    };
+    fetchRequests();
+  }, []);
 
   return (
     <div className="max-w-7xl">
@@ -349,10 +436,10 @@ export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
       {/* Status summary */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         {[
-          { label: "Open", count: 11, color: "#fee2e2", text: "#dc2626" },
-          { label: "In review", count: 4, color: "#fef3c7", text: "#92400e" },
-          { label: "Awaiting member", count: 3, color: "#fde8d8", text: "#c2410c" },
-          { label: "Matched", count: 2, color: "#d1fae5", text: "#065f46" },
+          { label: "Submitted", count: counts.open, color: "#fee2e2", text: "#dc2626" },
+          { label: "In review", count: counts.inReview, color: "#fef3c7", text: "#92400e" },
+          { label: "Awaiting member", count: counts.awaiting, color: "#fde8d8", text: "#c2410c" },
+          { label: "Matched", count: counts.matched, color: "#d1fae5", text: "#065f46" },
         ].map((s) => (
           <AdminCard key={s.label} className="p-4 text-center">
             <div className="text-2xl" style={{ color: theme.text, fontWeight: 700 }}>{s.count}</div>
@@ -378,37 +465,43 @@ export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} style={{ borderBottom: `1px solid ${theme.divider}` }}>
-                <td className="px-4 py-3" style={{ color: theme.text, fontWeight: 500 }}>{r.t}</td>
-                <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.n}</td>
-                <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.st}</td>
-                <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.p}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full"
-                    style={{
-                      background: r.u === "High" ? "#fee2e2" : r.u === "Medium" ? "#fef3c7" : "#f3f4f6",
-                      color: r.u === "High" ? "#dc2626" : r.u === "Medium" ? "#92400e" : "#6b7280",
-                    }}
-                  >
-                    {r.u}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.a}</td>
-                <td className="px-4 py-3"><StatusPill label={r.s} /></td>
-                <td className="px-4 py-3 text-xs" style={{ color: theme.textSubtle }}>{r.d} ago</td>
-                <td className="px-4 py-3">
-                  <button
-                    onClick={() => navigate("admin-support-detail")}
-                    className="text-xs px-3 py-1.5 rounded-lg border"
-                    style={{ borderColor: theme.cardBorder, color: theme.text }}
-                  >
-                    Open
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {loading ? (
+              <tr><td colSpan={9} className="px-5 py-4 text-center text-sm text-gray-500">Loading requests...</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={9} className="px-5 py-4 text-center text-sm text-gray-500">No support requests.</td></tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.id} style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                  <td className="px-4 py-3" style={{ color: theme.text, fontWeight: 500 }}>{r.request_type}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.first_name} {r.profiles?.last_name}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.state}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.party}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full"
+                      style={{
+                        background: r.urgency === "High" ? "#fee2e2" : r.urgency === "Medium" ? "#fef3c7" : "#f3f4f6",
+                        color: r.urgency === "High" ? "#dc2626" : r.urgency === "Medium" ? "#92400e" : "#6b7280",
+                      }}
+                    >
+                      {r.urgency}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.assigned_to ? "Assigned" : "Unassigned"}</td>
+                  <td className="px-4 py-3"><StatusPill label={r.status} /></td>
+                  <td className="px-4 py-3 text-xs" style={{ color: theme.textSubtle }}>{new Date(r.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => navigate("admin-support-detail")}
+                      className="text-xs px-3 py-1.5 rounded-lg border"
+                      style={{ borderColor: theme.cardBorder, color: theme.text }}
+                    >
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </AdminCard>
@@ -525,10 +618,28 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
   );
 }
 
-// ── Admin Events ───────────────────────────────────────────────────
 export function AdminEvents() {
   const { theme } = useTheme();
-  const rows: any[] = [];
+  const [rows, setRows] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      const { data } = await supabase.from('events').select('*, event_attendees(count)').order('created_at', { ascending: false });
+      if (data) {
+        setRows(data.map(e => [
+          e.title,
+          e.date,
+          e.type,
+          e.location,
+          e.event_attendees?.[0]?.count || 0,
+          e.status,
+          ""
+        ]));
+      }
+    };
+    fetchEvents();
+  }, []);
+
   return (
     <AdminTablePage
       title="Events"
@@ -546,9 +657,25 @@ export function AdminContent() {
   const [tab, setTab] = useState<"resources" | "announcements" | "affiliated">("resources");
   const { theme } = useTheme();
 
-  const resourceRows: any[] = [];
-  const announcementRows: any[] = [];
-  const affiliatedRows: any[] = [];
+  const [resourceRows, setResourceRows] = useState<any[]>([]);
+  const [announcementRows, setAnnouncementRows] = useState<any[]>([]);
+  const [affiliatedRows, setAffiliatedRows] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchContent = async () => {
+      if (tab === "resources") {
+        const { data } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
+        if (data) setResourceRows(data.map(r => [r.title, r.type, r.category, r.author, r.featured ? "Yes" : "No"]));
+      } else if (tab === "announcements") {
+        const { data } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+        if (data) setAnnouncementRows(data.map(a => [a.title, a.category, a.cta_text || "-", a.status, new Date(a.created_at).toLocaleDateString()]));
+      } else if (tab === "affiliated") {
+        const { data } = await supabase.from('affiliated_orgs').select('*').order('created_at', { ascending: false });
+        if (data) setAffiliatedRows(data.map(o => [o.organisation, o.category, o.poc_name, o.poc_type, o.status]));
+      }
+    };
+    fetchContent();
+  }, [tab]);
 
   return (
     <div className="max-w-7xl">
@@ -767,6 +894,26 @@ export function AdminDonations() {
 
 export function AdminPrivacy() {
   const { theme } = useTheme();
+  const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
+  const [exportRequests, setExportRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      const { data } = await supabase.from('data_requests').select('*, profiles!user_id(first_name, last_name)').order('created_at', { ascending: false });
+      if (data) {
+        setDeletionRequests(data.filter(r => r.request_type === 'Deletion' && r.status !== 'Processed'));
+        setExportRequests(data.filter(r => r.request_type === 'Export' && r.status !== 'Processed'));
+      }
+    };
+    fetchRequests();
+  }, []);
+
+  const markProcessed = async (id: string) => {
+    await supabase.from('data_requests').update({ status: 'Processed' }).eq('id', id);
+    setDeletionRequests(prev => prev.filter(r => r.id !== id));
+    setExportRequests(prev => prev.filter(r => r.id !== id));
+  };
+
   return (
     <div className="max-w-5xl">
       <div className="mb-5">
@@ -778,27 +925,35 @@ export function AdminPrivacy() {
       <div className="grid grid-cols-2 gap-5 mb-5">
         <AdminCard className="p-5">
           <h3 className="mb-3 text-sm" style={{ color: theme.text }}>Deletion requests</h3>
-          {[["A. Smith (NSW)", "1d ago"], ["P. Lin (VIC)", "3d ago"]].map(([n, t], i) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-xl mb-2" style={{ background: theme.tableHead }}>
-              <span className="text-sm" style={{ color: theme.text }}>{n}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: theme.textSubtle }}>{t}</span>
-                <button className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Review</button>
+          {deletionRequests.length === 0 ? (
+            <div className="text-sm text-gray-500">No pending deletion requests.</div>
+          ) : (
+            deletionRequests.map((r, i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-xl mb-2" style={{ background: theme.tableHead }}>
+                <span className="text-sm" style={{ color: theme.text }}>{r.profiles?.first_name} {r.profiles?.last_name}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs" style={{ color: theme.textSubtle }}>{new Date(r.created_at).toLocaleDateString()}</span>
+                  <button onClick={() => markProcessed(r.id)} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Processed</button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </AdminCard>
         <AdminCard className="p-5">
           <h3 className="mb-3 text-sm" style={{ color: theme.text }}>Data export requests</h3>
-          {[["S. Reed (NSW)", "5h ago"]].map(([n, t], i) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-xl mb-2" style={{ background: theme.tableHead }}>
-              <span className="text-sm" style={{ color: theme.text }}>{n}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: theme.textSubtle }}>{t}</span>
-                <button className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Process</button>
+          {exportRequests.length === 0 ? (
+            <div className="text-sm text-gray-500">No pending export requests.</div>
+          ) : (
+            exportRequests.map((r, i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-xl mb-2" style={{ background: theme.tableHead }}>
+                <span className="text-sm" style={{ color: theme.text }}>{r.profiles?.first_name} {r.profiles?.last_name}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs" style={{ color: theme.textSubtle }}>{new Date(r.created_at).toLocaleDateString()}</span>
+                  <button onClick={() => markProcessed(r.id)} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Process</button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </AdminCard>
       </div>
       <AdminCard className="overflow-hidden">
@@ -816,20 +971,11 @@ export function AdminPrivacy() {
             </tr>
           </thead>
           <tbody>
-            {[
-              ["L. Tran", "Withdrew introduction consent", "2d ago", "—"],
-              ["M. Abadi", "Profile viewed by admin", "1d ago", "M. Andrews"],
-              ["J. Patel", "Internal note added", "1d ago", "J. Carter"],
-              ["S. Reed", "Data export requested", "5h ago", "—"],
-            ].map((r, i) => (
-              <tr key={i} style={{ borderBottom: `1px solid ${theme.divider}` }}>
-                {r.map((c, j) => (
-                  <td key={j} className="px-5 py-3 text-xs" style={{ color: j === 0 ? theme.text : theme.textMuted }}>
-                    {c}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            <tr>
+              <td colSpan={4} className="px-5 py-6 text-center text-sm text-gray-500">
+                No audit logs recorded yet.
+              </td>
+            </tr>
           </tbody>
         </table>
       </AdminCard>
@@ -851,9 +997,23 @@ export function AdminGroups() {
   const { user } = useAuth();
 
   const loadGroups = async () => {
-    const { data } = await supabase.from('groups').select('*').order('created_at', { ascending: false });
-    if (data) setGroups(data);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.from('groups').select('*');
+      if (error) {
+        console.error("Error loading groups:", error);
+        alert("Error loading groups: " + error.message);
+      }
+      if (data) {
+        // Sort in memory just in case created_at is missing from DB schema
+        data.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+        setGroups(data);
+      }
+    } catch (e: any) {
+      console.error("Exception loading groups:", e);
+      alert("Exception loading groups: " + e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -1003,7 +1163,7 @@ export function AdminGroups() {
                     <div className="text-xs mt-0.5 truncate max-w-sm" style={{ color: theme.textMuted }}>{g.description || "No description"}</div>
                   </td>
                   <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>
-                    <span className="capitalize">{g.privacy_level}</span>
+                    <span className="capitalize">{g.visibility}</span>
                   </td>
                   <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>
                     {new Date(g.created_at).toLocaleDateString()}
