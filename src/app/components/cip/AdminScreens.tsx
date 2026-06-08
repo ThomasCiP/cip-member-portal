@@ -3,8 +3,9 @@ import { supabase } from "../../../lib/supabase";
 import {
   LayoutDashboard, Users, LifeBuoy, CalendarDays, FileText, Lock,
   Settings, Bell, Search, Plus, Edit3, Eye, TrendingUp, ChevronDown,
-  ShieldCheck, ArrowLeft, CheckCircle2, Circle, Network, X
+  ShieldCheck, ArrowLeft, CheckCircle2, Circle, Network, X, MoreHorizontal
 } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
 import { useAuth } from "./AuthContext";
@@ -322,6 +323,28 @@ export function AdminMembers() {
     fetchMembers();
   }, []);
 
+  const handleAction = async (id: string, action: "suspend" | "unsuspend" | "delete") => {
+    if (action === "delete") {
+      if (!confirm("Are you sure you want to delete this account? This cannot be easily undone.")) return;
+      await supabase.from("profiles").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+    } else if (action === "suspend") {
+      if (!confirm("Suspend this account?")) return;
+      await supabase.from("profiles").update({ suspended_at: new Date().toISOString() }).eq("id", id);
+    } else if (action === "unsuspend") {
+      await supabase.from("profiles").update({ suspended_at: null }).eq("id", id);
+    }
+    setRows(rows.map(r => {
+      if (r.id === id) {
+        return {
+          ...r,
+          suspended_at: action === "suspend" ? new Date().toISOString() : action === "unsuspend" ? null : r.suspended_at,
+          deleted_at: action === "delete" ? new Date().toISOString() : r.deleted_at
+        };
+      }
+      return r;
+    }));
+  };
+
   return (
     <div className="max-w-7xl">
       <div className="flex items-center justify-between mb-5">
@@ -381,12 +404,37 @@ export function AdminMembers() {
                       : <Circle size={14} style={{ color: theme.divider }} />}
                   </td>
                   <td className="px-5 py-3">
-                    <StatusPill label={r.onboarded ? "Active" : "Onboarding"} />
+                    <StatusPill label={r.deleted_at ? "Deleted" : r.suspended_at ? "Suspended" : r.onboarded ? "Active" : "Onboarding"} />
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: theme.textMuted }}>
-                      <Eye size={14} />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: theme.textMuted }}>
+                        <Eye size={14} />
+                      </button>
+                      <DropdownMenu.Root>
+                        <DropdownMenu.Trigger asChild>
+                          <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: theme.textMuted }}>
+                            <MoreHorizontal size={14} />
+                          </button>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.Content className="bg-white rounded-lg shadow-xl p-1 z-50 border border-gray-100 text-sm min-w-[160px]" align="end">
+                            {r.deleted_at ? (
+                              <DropdownMenu.Item className="px-3 py-2 cursor-not-allowed outline-none rounded text-gray-400" disabled>Account Deleted</DropdownMenu.Item>
+                            ) : (
+                              <>
+                                {r.suspended_at ? (
+                                  <DropdownMenu.Item className="px-3 py-2 cursor-pointer hover:bg-gray-50 outline-none rounded" onClick={() => handleAction(r.id, "unsuspend")}>Unsuspend Account</DropdownMenu.Item>
+                                ) : (
+                                  <DropdownMenu.Item className="px-3 py-2 cursor-pointer hover:bg-gray-50 outline-none rounded" onClick={() => handleAction(r.id, "suspend")}>Suspend Account</DropdownMenu.Item>
+                                )}
+                                <DropdownMenu.Item className="px-3 py-2 cursor-pointer text-red-600 hover:bg-red-50 outline-none rounded" onClick={() => handleAction(r.id, "delete")}>Delete Account</DropdownMenu.Item>
+                              </>
+                            )}
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Root>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -1045,6 +1093,28 @@ export function AdminGroups() {
     }
   };
 
+  const handleGroupAction = async (id: string, action: "suspend" | "unsuspend" | "delete") => {
+    if (action === "delete") {
+      if (!confirm("Are you sure you want to delete this group? This cannot be easily undone.")) return;
+      await supabase.from("groups").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+    } else if (action === "suspend") {
+      if (!confirm("Suspend this group? It will no longer appear in member feeds.")) return;
+      await supabase.from("groups").update({ suspended_at: new Date().toISOString() }).eq("id", id);
+    } else if (action === "unsuspend") {
+      await supabase.from("groups").update({ suspended_at: null }).eq("id", id);
+    }
+    setGroups(groups.map(g => {
+      if (g.id === id) {
+        return {
+          ...g,
+          suspended_at: action === "suspend" ? new Date().toISOString() : action === "unsuspend" ? null : g.suspended_at,
+          deleted_at: action === "delete" ? new Date().toISOString() : g.deleted_at
+        };
+      }
+      return g;
+    }));
+  };
+
   return (
     <div className="max-w-7xl">
       <div className="flex items-center justify-between mb-5">
@@ -1147,6 +1217,7 @@ export function AdminGroups() {
               <th className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>Group Name</th>
               <th className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>Privacy</th>
               <th className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>Created</th>
+              <th className="text-left px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}>Status</th>
               <th className="text-right px-5 py-3 text-xs" style={{ color: theme.textMuted, fontWeight: 500, background: theme.tableHead }}></th>
             </tr>
           </thead>
@@ -1168,10 +1239,38 @@ export function AdminGroups() {
                   <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>
                     {new Date(g.created_at).toLocaleDateString()}
                   </td>
+                  <td className="px-5 py-3">
+                    <StatusPill label={g.deleted_at ? "Deleted" : g.suspended_at ? "Suspended" : "Active"} />
+                  </td>
                   <td className="px-5 py-3 text-right">
-                    <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50" style={{ borderColor: theme.cardBorder, color: theme.textMuted }}>
-                      <Edit3 size={11} /> Edit
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50" style={{ borderColor: theme.cardBorder, color: theme.textMuted }}>
+                        <Edit3 size={11} /> Edit
+                      </button>
+                      <DropdownMenu.Root>
+                        <DropdownMenu.Trigger asChild>
+                          <button className="p-1.5 rounded-lg border hover:bg-gray-50 transition-colors" style={{ borderColor: theme.cardBorder, color: theme.textMuted }}>
+                            <MoreHorizontal size={14} />
+                          </button>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.Content className="bg-white rounded-lg shadow-xl p-1 z-50 border border-gray-100 text-sm min-w-[160px]" align="end">
+                            {g.deleted_at ? (
+                              <DropdownMenu.Item className="px-3 py-2 cursor-not-allowed outline-none rounded text-gray-400" disabled>Group Deleted</DropdownMenu.Item>
+                            ) : (
+                              <>
+                                {g.suspended_at ? (
+                                  <DropdownMenu.Item className="px-3 py-2 cursor-pointer hover:bg-gray-50 outline-none rounded" onClick={() => handleGroupAction(g.id, "unsuspend")}>Unsuspend Group</DropdownMenu.Item>
+                                ) : (
+                                  <DropdownMenu.Item className="px-3 py-2 cursor-pointer hover:bg-gray-50 outline-none rounded" onClick={() => handleGroupAction(g.id, "suspend")}>Suspend Group</DropdownMenu.Item>
+                                )}
+                                <DropdownMenu.Item className="px-3 py-2 cursor-pointer text-red-600 hover:bg-red-50 outline-none rounded" onClick={() => handleGroupAction(g.id, "delete")}>Delete Group</DropdownMenu.Item>
+                              </>
+                            )}
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Root>
+                    </div>
                   </td>
                 </tr>
               ))

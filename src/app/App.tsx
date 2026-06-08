@@ -64,15 +64,18 @@ export default function App() {
   const theme = getTheme(dark);
 
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  const [profileStatus, setProfileStatus] = useState<{ suspended_at?: string | null, deleted_at?: string | null } | null>(null);
 
   useEffect(() => {
     async function checkProfile() {
       if (user) {
-        const { data } = await supabase.from("profiles").select("onboarded").eq("id", user.id).single();
+        const { data } = await supabase.from("profiles").select("onboarded, suspended_at, deleted_at").eq("id", user.id).single();
         if (data) {
            setOnboarded(data.onboarded);
+           setProfileStatus({ suspended_at: data.suspended_at, deleted_at: data.deleted_at });
         } else {
            setOnboarded(false); // Default to false if profile doesn't have it yet
+           setProfileStatus({});
         }
       }
     }
@@ -84,7 +87,7 @@ export default function App() {
   useEffect(() => {
     if (!loading) {
       if (user && PUBLIC_SCREENS.includes(screen)) {
-        if (screen !== "deleted-account") {
+        if (screen !== "deleted-account" && screen !== "blocked") {
           setScreen("dashboard");
         }
       } else if (!user && !PUBLIC_SCREENS.includes(screen)) {
@@ -92,6 +95,15 @@ export default function App() {
       }
     }
   }, [user, loading, screen]);
+
+  useEffect(() => {
+    if (profileStatus?.deleted_at) {
+      supabase.auth.signOut();
+      setScreen("deleted-account");
+    } else if (profileStatus?.suspended_at) {
+      setScreen("blocked");
+    }
+  }, [profileStatus]);
 
   if (loading || (user && onboarded === null)) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;

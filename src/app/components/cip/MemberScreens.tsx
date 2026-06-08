@@ -1080,7 +1080,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
       return;
     }
     try {
-      const { data: groups } = await supabase.from("groups").select("*");
+      const { data: groups } = await supabase.from("groups").select("*").is("deleted_at", null).is("suspended_at", null);
       const { data: members } = await supabase.from("group_members").select("group_id").eq("user_id", user.id);
       const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       
@@ -1373,8 +1373,8 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       setLoadingGroup(false);
       
       if (user) {
-        // Only fetch other members for now
-        const { data: members } = await supabase.from('profiles').select('*').neq('id', user.id);
+        // Only fetch other members
+        const { data: members } = await supabase.from('profiles').select('*').neq('id', user.id).is("deleted_at", null).is("suspended_at", null);
         if (members) setDbMembers(members);
       }
     }
