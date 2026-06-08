@@ -669,34 +669,110 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
 export function AdminEvents() {
   const { theme } = useTheme();
   const [rows, setRows] = useState<any[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [type, setType] = useState("In person");
+  const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const fetchEvents = async () => {
+    const { data } = await supabase.from('events').select('*, event_attendees(count)').order('created_at', { ascending: false });
+    if (data) {
+      setRows(data.map(e => [
+        e.title,
+        new Date(e.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+        e.type,
+        e.location,
+        e.event_attendees?.[0]?.count || 0,
+        e.status,
+        ""
+      ]));
+    }
+  };
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      const { data } = await supabase.from('events').select('*, event_attendees(count)').order('created_at', { ascending: false });
-      if (data) {
-        setRows(data.map(e => [
-          e.title,
-          e.date,
-          e.type,
-          e.location,
-          e.event_attendees?.[0]?.count || 0,
-          e.status,
-          ""
-        ]));
-      }
-    };
     fetchEvents();
   }, []);
 
+  const handleCreate = async () => {
+    if (!title.trim() || !date) return;
+    setCreating(true);
+    const { error } = await supabase.from("events").insert({
+      title,
+      date,
+      type,
+      location,
+      description,
+      status: "Upcoming"
+    });
+    setCreating(false);
+    if (error) {
+      alert("Error creating event: " + error.message);
+    } else {
+      setShowCreate(false);
+      setTitle("");
+      setDate("");
+      setType("In person");
+      setLocation("");
+      setDescription("");
+      fetchEvents();
+    }
+  };
+
   return (
-    <AdminTablePage
-      title="Events"
-      subtitle="Manage CiP-hosted events."
-      ctaLabel="Create event"
-      columns={["Title", "Date", "Type", "Location", "Registrations", "Status", ""]}
-      rows={rows}
-      renderStatus={(row) => <StatusPill label={row[5] as string} />}
-    />
+    <div className="relative">
+      <AdminTablePage
+        title="Events"
+        subtitle="Manage CiP-hosted events."
+        ctaLabel="Create event"
+        onCtaClick={() => setShowCreate(true)}
+        columns={["Title", "Date", "Type", "Location", "Registrations", "Status", ""]}
+        rows={rows}
+        renderStatus={(row) => <StatusPill label={row[5] as string} />}
+      />
+
+      {showCreate && (
+        <div className="absolute top-0 right-0 z-50 w-full max-w-md p-6 rounded-2xl shadow-xl border" style={{ background: theme.bg, borderColor: theme.cardBorder }}>
+          <div className="flex justify-between items-center mb-5">
+            <h2 className="text-lg font-bold" style={{ color: theme.text }}>Create New Event</h2>
+            <button onClick={() => setShowCreate(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
+          </div>
+          
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Event Title</label>
+              <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Date & Time</label>
+              <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Format</label>
+              <select value={type} onChange={e => setType(e.target.value)} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }}>
+                <option value="In person">In person</option>
+                <option value="Virtual">Virtual</option>
+                <option value="Hybrid">Hybrid</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Location / Link</label>
+              <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Description</label>
+              <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+            </div>
+          </div>
+          
+          <button onClick={handleCreate} disabled={creating || !title || !date} className="w-full py-2.5 rounded-xl text-sm disabled:opacity-50" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
+            {creating ? "Creating..." : "Save Event"}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -844,11 +920,12 @@ export function AdminContent() {
 
 // ── Generic admin table page ───────────────────────────────────────
 function AdminTablePage({
-  title, subtitle, ctaLabel, columns, rows, renderStatus,
+  title, subtitle, ctaLabel, onCtaClick, columns, rows, renderStatus,
 }: {
   title: string;
   subtitle?: string;
   ctaLabel: string;
+  onCtaClick?: () => void;
   columns: string[];
   rows: (string | React.ReactNode)[][];
   renderStatus?: (row: (string | React.ReactNode)[]) => React.ReactNode;
@@ -861,12 +938,15 @@ function AdminTablePage({
           <H1>{title}</H1>
           {subtitle && <p className="text-sm mt-1" style={{ color: theme.textMuted }}>{subtitle}</p>}
         </div>
-        <button
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
-          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-        >
-          <Plus size={13} /> {ctaLabel}
-        </button>
+        {ctaLabel && (
+          <button
+            onClick={onCtaClick}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm hover:opacity-90 transition-opacity cursor-pointer"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            <Plus size={13} /> {ctaLabel}
+          </button>
+        )}
       </div>
       <AdminCard className="overflow-hidden">
         <table className="w-full text-sm">
