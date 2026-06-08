@@ -334,10 +334,11 @@ export function SignupScreen({ navigate }: { navigate: (s: Screen) => void }) {
               Become a member <ArrowRight size={15} />
             </button>
             <button
-              className="px-6 py-3 rounded-xl border text-sm"
-              style={{ borderColor: "#d1d5db", color: NAVY }}
+              onClick={() => navigate("signin")}
+              className="px-6 py-3 rounded-xl border text-sm hover:bg-gray-50 transition-colors"
+              style={{ borderColor: "#d1d5db", color: NAVY, fontWeight: 500 }}
             >
-              Learn how CiP works
+              Log in
             </button>
           </div>
           <p className="mt-5 text-xs text-gray-400">
