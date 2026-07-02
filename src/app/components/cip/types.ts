@@ -12,6 +12,7 @@ export type Screen =
   | "profile"          // own profile (editable)
   | "network"          // accepted connections directory
   | "groups"           // discover/joined groups
+  | "organisations"    // discover/joined organisations
   | "group-detail"     // single group page
   | "events"           // events list
   | "event-detail"

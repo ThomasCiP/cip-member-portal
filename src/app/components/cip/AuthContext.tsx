@@ -22,7 +22,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const fetchProfile = async (userObj: User) => {
     const { data } = await supabase.from("profiles").select("*").eq("id", userObj.id).single();
     if (data) {
-      setProfile(data);
+      // Sensitive fields live in the owner-only profile_private table; merge them in.
+      const { data: priv } = await supabase.from("profile_private").select("party, tradition").eq("user_id", userObj.id).maybeSingle();
+      setProfile({ ...data, party: priv?.party ?? null, tradition: priv?.tradition ?? null });
     } else {
       setProfile({
         id: userObj.id,

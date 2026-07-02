@@ -9,6 +9,9 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
 import { useAuth } from "./AuthContext";
+import { PARTIES, TRADITIONS } from "./MemberScreens";
+import { FEDERAL_ELECTORATES } from "./electorates";
+import { AutocompleteInput } from "./AutocompleteInput";
 
 const ADMIN_ITEMS: { key: Screen; label: string; icon: any }[] = [
   { key: "admin-overview",  label: "Overview",      icon: LayoutDashboard },
@@ -109,7 +112,7 @@ export function AdminShell({
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-8">{children}</main>
+        <main id="admin-scroll" className="flex-1 overflow-y-auto p-8">{children}</main>
       </div>
     </div>
   );
@@ -314,7 +317,7 @@ export function AdminMembers() {
 
   useEffect(() => {
     const fetchMembers = async () => {
-      const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+      const { data } = await supabase.from('profiles').select('*, profile_private(party, tradition)').order('created_at', { ascending: false });
       if (data) {
         setRows(data);
       }
@@ -397,7 +400,7 @@ export function AdminMembers() {
                   </td>
                   <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.state}</td>
                   <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.engagement}</td>
-                  <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.party}</td>
+                  <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profile_private?.party}</td>
                   <td className="px-5 py-3">
                     {r.creed_affirmed
                       ? <CheckCircle2 size={14} style={{ color: "#059669" }} />
@@ -457,7 +460,7 @@ export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
     const fetchRequests = async () => {
       const { data } = await supabase
         .from('support_requests')
-        .select('*, profiles!user_id(first_name, last_name, state, party)')
+        .select('*, profiles!user_id(first_name, last_name, state, profile_private(party))')
         .order('created_at', { ascending: false });
 
       if (data) {
@@ -523,7 +526,7 @@ export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
                   <td className="px-4 py-3" style={{ color: theme.text, fontWeight: 500 }}>{r.request_type}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.first_name} {r.profiles?.last_name}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.state}</td>
-                  <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.party}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.profile_private?.party}</td>
                   <td className="px-4 py-3">
                     <span
                       className="text-xs px-2 py-0.5 rounded-full"
@@ -1121,7 +1124,124 @@ export function AdminGroups() {
   const [newVis, setNewVis] = useState("public");
   const [newCaveatType, setNewCaveatType] = useState("electorate");
   const [newCaveatValue, setNewCaveatValue] = useState("");
+  const [newImageUrl, setNewImageUrl] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  const [showEdit, setShowEdit] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editVis, setEditVis] = useState("public");
+  const [editCaveatType, setEditCaveatType] = useState("electorate");
+  const [editCaveatValue, setEditCaveatValue] = useState("");
+  const [editImageUrl, setEditImageUrl] = useState("");
+  const [editGroupType, setEditGroupType] = useState("standard");
+  const [editWebsiteUrl, setEditWebsiteUrl] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editReligion, setEditReligion] = useState("");
+  const [editPartyAffiliation, setEditPartyAffiliation] = useState("");
+  const [editProfession, setEditProfession] = useState("");
+  const [editChristianOrgIdentifiers, setEditChristianOrgIdentifiers] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const startEdit = (g: any) => {
+    setShowCreate(false);
+    setEditName(g.name || "");
+    setEditDesc(g.description || "");
+    setEditVis(g.visibility || "public");
+    setEditCaveatType(g.caveat_type || "electorate");
+    setEditCaveatValue(g.caveat_value || "");
+    setEditImageUrl(g.image_url || "");
+    setEditGroupType(g.group_type || "standard");
+    setEditWebsiteUrl(g.website_url || "");
+    setEditLocation(g.location || "");
+    setEditReligion(g.religion || "");
+    setEditPartyAffiliation(g.party_affiliation || "");
+    setEditProfession(g.profession || "");
+    setEditChristianOrgIdentifiers(g.christian_org_identifiers || "");
+    setShowEdit(g.id);
+    document.getElementById('admin-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const uploadEditImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file || !user) return;
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+      setUploadingImage(true);
+      const { error: uploadError } = await supabase.storage.from('group_images').upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('group_images').getPublicUrl(fileName);
+      setEditImageUrl(data.publicUrl);
+    } catch (error) {
+      console.error("Error uploading image", error);
+      alert("Error uploading image");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!user || !showEdit) return;
+    // Allow empty name to be fixed rather than silently failing if it was empty in DB
+    const finalName = editName.trim() || "Unnamed Group";
+    
+    setSavingEdit(true);
+    const updatePayload: any = {
+      name: finalName,
+      description: editDesc,
+      visibility: editVis,
+      caveat_type: editVis === "restricted" ? editCaveatType : null,
+      caveat_value: editVis === "restricted" ? editCaveatValue : null,
+      image_url: editImageUrl
+    };
+    
+    if (editGroupType === "organisation") {
+      updatePayload.website_url = editWebsiteUrl;
+      updatePayload.location = editLocation;
+      updatePayload.religion = editReligion;
+      updatePayload.party_affiliation = editPartyAffiliation;
+      updatePayload.profession = editProfession;
+      updatePayload.christian_org_identifiers = editChristianOrgIdentifiers;
+    }
+
+    const { error } = await supabase.from('groups').update(updatePayload).eq("id", showEdit);
+    setSavingEdit(false);
+    
+    if (error) {
+      alert("Failed to update group: " + error.message);
+    } else {
+      setShowEdit(null);
+      loadGroups();
+    }
+  };
+
+  const uploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file || !user) return;
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+
+      setUploadingImage(true);
+      
+      const { error: uploadError } = await supabase.storage
+        .from('group_images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('group_images').getPublicUrl(fileName);
+      setNewImageUrl(data.publicUrl);
+    } catch (error) {
+      console.error("Error uploading image", error);
+      alert("Error uploading image");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
   const { user } = useAuth();
 
   const loadGroups = async () => {
@@ -1157,6 +1277,7 @@ export function AdminGroups() {
       visibility: newVis,
       caveat_type: newVis === "restricted" ? newCaveatType : null,
       caveat_value: newVis === "restricted" ? newCaveatValue : null,
+      image_url: newImageUrl,
       created_by: user.id
     });
     setCreating(false);
@@ -1168,6 +1289,7 @@ export function AdminGroups() {
       setNewVis("public");
       setNewCaveatType("electorate");
       setNewCaveatValue("");
+      setNewImageUrl("");
       setShowCreate(false);
       loadGroups();
     }
@@ -1216,6 +1338,24 @@ export function AdminGroups() {
           <button onClick={() => setShowCreate(false)} className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100"><X size={16}/></button>
           <h3 className="font-semibold mb-4" style={{ color: theme.text }}>Create New Group</h3>
           <div className="space-y-4 max-w-md">
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium block" style={{ color: theme.text }}>Group Image (Optional)</label>
+              <div className="flex items-center gap-4">
+                {newImageUrl ? (
+                  <img src={newImageUrl} alt="Group Preview" className="w-16 h-16 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold" style={{ background: NAVY }}>
+                    {newName ? newName.split(" ").map(w => w[0] || "").slice(0, 2).join("") : "Img"}
+                  </div>
+                )}
+                <div>
+                  <input type="file" accept="image/*" id="adminGroupImageUpload" className="hidden" onChange={uploadImage} disabled={uploadingImage} />
+                  <label htmlFor="adminGroupImageUpload" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                    {uploadingImage ? "Uploading..." : "Upload image"}
+                  </label>
+                </div>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Group Name</label>
               <input 
@@ -1253,7 +1393,13 @@ export function AdminGroups() {
                   <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Caveat Type</label>
                   <select 
                     value={newCaveatType} 
-                    onChange={e => setNewCaveatType(e.target.value)}
+                    onChange={e => {
+                      const type = e.target.value;
+                      setNewCaveatType(type);
+                      if (type === "party") setNewCaveatValue(PARTIES[0]);
+                      else if (type === "tradition") setNewCaveatValue(TRADITIONS[0]);
+                      else setNewCaveatValue("");
+                    }}
                     className="w-full text-sm p-2 rounded-lg outline-none"
                     style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}
                   >
@@ -1264,18 +1410,32 @@ export function AdminGroups() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Caveat Value</label>
-                  <input
-                    type="text"
-                    value={newCaveatValue}
-                    onChange={e => setNewCaveatValue(e.target.value)}
-                    placeholder={
-                      newCaveatType === "electorate" ? "e.g. Bennelong" :
-                      newCaveatType === "party" ? "e.g. Liberal Party" :
-                      "e.g. Catholic"
-                    }
-                    className="w-full text-sm p-2 rounded-lg outline-none"
-                    style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}
-                  />
+                  {newCaveatType === "party" ? (
+                    <select
+                      value={newCaveatValue || PARTIES[0]}
+                      onChange={e => setNewCaveatValue(e.target.value)}
+                      className="w-full text-sm p-2 rounded-lg outline-none"
+                      style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}
+                    >
+                      {PARTIES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  ) : newCaveatType === "tradition" ? (
+                    <select
+                      value={newCaveatValue || TRADITIONS[0]}
+                      onChange={e => setNewCaveatValue(e.target.value)}
+                      className="w-full text-sm p-2 rounded-lg outline-none"
+                      style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}
+                    >
+                      {TRADITIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  ) : (
+                    <AutocompleteInput 
+                      value={newCaveatValue} 
+                      onChange={setNewCaveatValue} 
+                      options={FEDERAL_ELECTORATES} 
+                      placeholder="e.g. Bennelong" 
+                    />
+                  )}
                 </div>
               </>
             )}
@@ -1285,6 +1445,177 @@ export function AdminGroups() {
               style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
             >
               {creating ? "Creating..." : "Save Group"}
+            </button>
+          </div>
+        </AdminCard>
+      )}
+
+      {showEdit && (
+        <AdminCard className="p-5 mb-5 border border-dashed border-gray-300 relative">
+          <button onClick={() => setShowEdit(null)} className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100"><X size={16}/></button>
+          <h3 className="font-semibold mb-4" style={{ color: theme.text }}>Edit Group</h3>
+          <div className="space-y-4 max-w-md">
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium block" style={{ color: theme.text }}>Group Image (Optional)</label>
+              <div className="flex items-center gap-4">
+                {editImageUrl ? (
+                  <img src={editImageUrl} alt="Group Preview" className="w-16 h-16 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold" style={{ background: NAVY }}>
+                    {editName ? editName.split(" ").map(w => w[0] || "").slice(0, 2).join("") : "Img"}
+                  </div>
+                )}
+                <div>
+                  <input type="file" accept="image/*" id="adminGroupImageUploadEdit" className="hidden" onChange={uploadEditImage} disabled={uploadingImage} />
+                  <label htmlFor="adminGroupImageUploadEdit" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                    {uploadingImage ? "Uploading..." : "Upload image"}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Group Name</label>
+              <input 
+                value={editName} onChange={e => setEditName(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+                style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Description</label>
+              <textarea 
+                value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3}
+                className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+                style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Visibility</label>
+              <select 
+                value={editVis} 
+                onChange={e => setEditVis(e.target.value)}
+                className="w-full text-sm p-2 rounded-lg outline-none"
+                style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}
+              >
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+                <option value="restricted">Restricted (Curated)</option>
+              </select>
+            </div>
+            {editVis === "restricted" && (
+              <div className="p-3 rounded-lg border bg-gray-50 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Caveat Type</label>
+                  <select 
+                    value={editCaveatType} 
+                    onChange={e => setEditCaveatType(e.target.value)}
+                    className="w-full text-sm p-2 rounded-lg outline-none bg-white border"
+                  >
+                    <option value="electorate">Same Federal Electorate</option>
+                    <option value="party">Same Political Party</option>
+                    <option value="tradition">Same Christian Tradition</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Caveat Value</label>
+                  {editCaveatType === "party" ? (
+                    <select
+                      value={editCaveatValue}
+                      onChange={e => setEditCaveatValue(e.target.value)}
+                      className="w-full text-sm p-2 rounded-lg outline-none bg-white border"
+                    >
+                      <option value="">Select a party...</option>
+                      {PARTIES.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  ) : editCaveatType === "tradition" ? (
+                    <select
+                      value={editCaveatValue}
+                      onChange={e => setEditCaveatValue(e.target.value)}
+                      className="w-full text-sm p-2 rounded-lg outline-none bg-white border"
+                    >
+                      <option value="">Select a tradition...</option>
+                      {TRADITIONS.map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <AutocompleteInput
+                      options={FEDERAL_ELECTORATES}
+                      value={editCaveatValue}
+                      onChange={setEditCaveatValue}
+                      placeholder="Start typing electorate..."
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {editGroupType === "organisation" && (
+              <div className="p-4 rounded-lg border bg-gray-50 space-y-4">
+                <h4 className="font-semibold text-sm" style={{ color: theme.text }}>Organisation Details</h4>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Website URL</label>
+                  <input 
+                    value={editWebsiteUrl} onChange={e => setEditWebsiteUrl(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border text-sm outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Location</label>
+                  <input 
+                    value={editLocation} onChange={e => setEditLocation(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border text-sm outline-none bg-white"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Religion Filter</label>
+                    <select
+                      value={editReligion} onChange={e => setEditReligion(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none bg-white"
+                    >
+                      <option value="">Any</option>
+                      {TRADITIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Party Filter</label>
+                    <select
+                      value={editPartyAffiliation} onChange={e => setEditPartyAffiliation(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none bg-white"
+                    >
+                      <option value="">Any</option>
+                      {PARTIES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Profession</label>
+                    <input 
+                      value={editProfession} onChange={e => setEditProfession(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: theme.text }}>Identifiers</label>
+                    <input 
+                      value={editChristianOrgIdentifiers} onChange={e => setEditChristianOrgIdentifiers(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button 
+              onClick={handleUpdate} disabled={savingEdit || (editVis === "restricted" && (!editCaveatValue || !editCaveatValue.trim()))}
+              className="w-full py-2 rounded-lg text-sm disabled:opacity-50 mt-2"
+              style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+            >
+              {savingEdit ? "Saving..." : "Update Group"}
             </button>
           </div>
         </AdminCard>
@@ -1310,8 +1641,19 @@ export function AdminGroups() {
               groups.map((g, i) => (
                 <tr key={g.id} style={{ borderBottom: i < groups.length - 1 ? `1px solid ${theme.divider}` : "none" }}>
                   <td className="px-5 py-3">
-                    <div style={{ color: theme.text, fontWeight: 500 }}>{g.name}</div>
-                    <div className="text-xs mt-0.5 truncate max-w-sm" style={{ color: theme.textMuted }}>{g.description || "No description"}</div>
+                    <div className="flex items-center gap-3">
+                      {g.image_url ? (
+                        <img src={g.image_url} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: NAVY }}>
+                          {(g.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div style={{ color: theme.text, fontWeight: 500 }}>{g.name}</div>
+                        <div className="text-xs mt-0.5 truncate max-w-sm" style={{ color: theme.textMuted }}>{g.description || "No description"}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>
                     <span className="capitalize">{g.visibility}</span>
@@ -1324,7 +1666,7 @@ export function AdminGroups() {
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50" style={{ borderColor: theme.cardBorder, color: theme.textMuted }}>
+                      <button onClick={() => startEdit(g)} className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50" style={{ borderColor: theme.cardBorder, color: theme.textMuted }}>
                         <Edit3 size={11} /> Edit
                       </button>
                       <DropdownMenu.Root>

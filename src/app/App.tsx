@@ -9,7 +9,7 @@ import {
 } from "./components/cip/PublicScreens";
 import { MemberShell } from "./components/cip/MemberShell";
 import {
-  Dashboard, ProfileScreen, NetworkScreen, GroupsScreen, GroupDetailScreen,
+  Dashboard, ProfileScreen, NetworkScreen, GroupsScreen, OrganisationsScreen, GroupDetailScreen,
   EventsScreen, EventDetail, MessagesScreen, SupportScreen,
   DonateScreen, SettingsScreen, PrivacyScreen,
 } from "./components/cip/MemberScreens";
@@ -51,7 +51,11 @@ const ADMIN_SCREENS: Screen[] = [
 
 function normalizeMember(s: Screen): Screen {
   if (s === "event-detail") return "events";
-  if (s === "group-detail") return "groups";
+  if (s === "group-detail") {
+    // If we're coming from the organisations tab, keep it there, else groups
+    const isOrg = localStorage.getItem('isOrgDetail') === 'true';
+    return isOrg ? "organisations" : "groups";
+  }
   if (s === "privacy") return "settings";
   if (s === "donate") return "dashboard";
   return s;
@@ -120,6 +124,7 @@ export default function App() {
       case "profile":      return <ProfileScreen />;
       case "network":      return <NetworkScreen navigate={setScreen} />;
       case "groups":       return <GroupsScreen navigate={setScreen} />;
+      case "organisations":return <OrganisationsScreen navigate={setScreen} />;
       case "group-detail": return <GroupDetailScreen navigate={setScreen} />;
       case "events":       return <EventsScreen navigate={setScreen} />;
       case "event-detail": return <EventDetail navigate={setScreen} />;
