@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect, useRef } from "react";
 import {
   Home, UserCircle2, Users, CalendarDays, MessageSquare, Settings,
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
-  Network, Activity, LogOut, ArrowUpRight
+  Network, Activity, LogOut, ArrowUpRight, Building2
 } from "lucide-react";
 import { Joyride, Step } from "react-joyride";
 import { supabase } from "../../../lib/supabase";
@@ -13,6 +13,7 @@ import { Screen } from "./types";
 const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "dashboard", label: "Home",     icon: Home },
   { key: "network",   label: "Network",  icon: Network },
+  { key: "organisations", label: "Orgs", icon: Building2 },
   { key: "groups",    label: "Groups",   icon: Users },
   { key: "events",    label: "Events",   icon: CalendarDays },
   { key: "messages",  label: "Messages", icon: MessageSquare },
@@ -149,7 +150,7 @@ export function JoinedGroupsCard({ navigate }: { navigate: (s: Screen) => void }
   useEffect(() => {
     if (!user) return;
     supabase.from('group_members').select('..., groups(*)').eq('user_id', user.id).then(({ data }) => {
-      if (data) setGroups(data.map((d: any) => d.groups).filter(Boolean));
+      if (data) setGroups(data.map((d: any) => d.groups).filter((g: any) => g && g.group_type !== 'organisation'));
     });
   }, [user]);
 
@@ -165,7 +166,11 @@ export function JoinedGroupsCard({ navigate }: { navigate: (s: Screen) => void }
           {groups.map((g: any) => (
             <button
               key={g.id}
-              onClick={() => navigate("group-detail")}
+              onClick={() => {
+                localStorage.setItem('activeGroupId', g.id);
+                localStorage.setItem('isOrgDetail', 'false');
+                navigate("group-detail");
+              }}
               className="w-full flex items-center gap-2.5 text-left rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-colors"
             >
               <div
@@ -226,7 +231,7 @@ export function SuggestedGroupsRail({ navigate }: { navigate: (s: Screen) => voi
   const [groups, setGroups] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.from('groups').select('*').limit(3).then(({ data, error }) => {
+    supabase.from('groups').select('*').neq('group_type', 'organisation').limit(3).then(({ data, error }) => {
       if (data && !error) setGroups(data);
     });
   }, []);
@@ -250,7 +255,11 @@ export function SuggestedGroupsRail({ navigate }: { navigate: (s: Screen) => voi
                 <div className="text-[10px]" style={{ color: theme.textMuted }}>Group</div>
               </div>
               <button
-                onClick={() => navigate("group-detail")}
+                onClick={() => {
+                  localStorage.setItem('activeGroupId', g.id);
+                  localStorage.setItem('isOrgDetail', 'false');
+                  navigate("group-detail");
+                }}
                 className="text-[10px] px-2 py-1 rounded-md"
                 style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
               >
@@ -334,6 +343,122 @@ export function DonateRail({ onDonate }: { onDonate: () => void }) {
   );
 }
 
+// ── Notifications ────────────────────────────────────────────────────────
+export function NotificationBell() {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    async function loadNotifications() {
+      const [notifRes, annRes] = await Promise.all([
+        supabase.from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase.from('announcements')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(3)
+      ]);
+
+      const mixed = [...(notifRes.data || [])];
+      
+      if (annRes.data) {
+        annRes.data.forEach(ann => {
+          mixed.push({
+            id: ann.id, // using announcement id, we won't mark this read in db
+            title: 'New Announcement',
+            message: ann.title,
+            created_at: ann.created_at,
+            read: true, // For simplicity, announcements are marked read or don't have a read dot
+            isAnnouncement: true
+          });
+        });
+      }
+
+      mixed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setNotifications(mixed.slice(0, 10));
+    }
+    loadNotifications();
+
+    // Close on click outside
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [user]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const handleMarkAsRead = async (id: string, isAnnouncement?: boolean) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    if (!isAnnouncement) {
+      await supabase.from('notifications').update({ read: true }).eq('id', id);
+    }
+  };
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button 
+        onClick={() => setOpen(!open)}
+        className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
+      >
+        <Bell size={16} style={{ color: "rgba(255,255,255,0.75)" }} />
+        {unreadCount > 0 && (
+          <span
+            className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
+            style={{ background: GOLD }}
+          />
+        )}
+      </button>
+
+      {open && (
+        <div 
+          className="absolute right-0 mt-2 w-80 rounded-xl shadow-xl z-50 overflow-hidden"
+          style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}
+        >
+          <div className="p-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+            <h3 className="text-sm" style={{ fontWeight: 600, color: theme.text }}>Notifications</h3>
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {notifications.length > 0 ? (
+              notifications.map((n) => (
+                <div 
+                  key={n.id}
+                  onClick={() => handleMarkAsRead(n.id, n.isAnnouncement)}
+                  className="p-3 cursor-pointer hover:bg-black/5 transition-colors"
+                  style={{ background: n.read ? theme.bg : theme.cardBg, borderBottom: `1px solid ${theme.divider}` }}
+                >
+                  <div className="flex gap-2">
+                    <div className="mt-0.5">
+                      {n.read ? null : <div className="w-2 h-2 rounded-full mt-1.5" style={{ background: GOLD }} />}
+                    </div>
+                    <div>
+                      <div className="text-sm" style={{ color: theme.text, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
+                      <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>{n.message}</div>
+                      <div className="text-[10px] mt-1" style={{ color: theme.textSubtle }}>{new Date(n.created_at).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-6 text-center text-sm" style={{ color: theme.textMuted }}>
+                No notifications yet.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Top header ────────────────────────────────────────────────────────
 function TopHeader({
   current, navigate, onDonate, profile
@@ -393,13 +518,7 @@ function TopHeader({
       </nav>
 
       <div className="flex items-center gap-2 ml-auto">
-        <button className="relative p-2 rounded-lg hover:bg-white/10 transition-colors">
-          <Bell size={16} style={{ color: "rgba(255,255,255,0.75)" }} />
-          <span
-            className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
-            style={{ background: GOLD }}
-          />
-        </button>
+        <NotificationBell />
         <button
           onClick={onDonate}
           className="px-3 py-1.5 rounded-lg text-sm transition-colors"

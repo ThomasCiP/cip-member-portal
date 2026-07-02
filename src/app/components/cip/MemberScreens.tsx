@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { Screen } from "./types";
@@ -52,11 +52,12 @@ function GhostButton({ children, onClick }: { children: ReactNode; onClick?: () 
   );
 }
 
-function PrimaryButton({ children, onClick, full }: { children: ReactNode; onClick?: () => void; full?: boolean }) {
+function PrimaryButton({ children, onClick, full, disabled }: { children: ReactNode; onClick?: () => void; full?: boolean; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-xs ${full ? "w-full" : ""}`}
+      disabled={disabled}
+      className={`px-3 py-1.5 rounded-lg text-xs ${full ? "w-full" : ""} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
       style={{ background: NAVY, color: "#fff", fontWeight: 500 }}
     >
       {children}
@@ -106,14 +107,56 @@ const FEED_TYPE_COLORS: Record<string, string> = {
   Donate:       "#f5e6c8",
 };
 
-const FEED_ITEMS: {
-  type: string; title: string; body: string; cta: string; date: string; image?: boolean; cta2?: string;
-}[] = [];
-
-function FeedPost({ item, navigate }: { item: typeof FEED_ITEMS[number]; navigate: (s: Screen) => void }) {
+function FeedPost({ item, navigate }: { item: any; navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+
+  if (item.isGroupPost || item.isGlobalPost) {
+    const isGlobal = !!item.isGlobalPost;
+    return (
+      <Card className="overflow-hidden mb-4 p-5">
+        <div className="flex items-center gap-2 mb-2.5">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px]"
+            style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+          >
+            {(item.authorName || "M").substring(0, 2).toUpperCase()}
+          </div>
+          <div>
+            <div className="text-sm leading-tight" style={{ color: theme.text, fontWeight: 600 }}>
+              {item.authorName}
+            </div>
+            <div className="text-xs leading-tight mt-0.5" style={{ color: theme.textSubtle }}>
+              {isGlobal ? `Community Post · ${item.date}` : `Posted in ${item.groupName} · ${item.date}`}
+            </div>
+          </div>
+        </div>
+        <p className="text-sm mt-3 leading-relaxed whitespace-pre-wrap" style={{ color: theme.textMuted }}>
+          {item.body}
+        </p>
+        <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
+          {!isGlobal && (
+            <GhostButton onClick={() => {
+              localStorage.setItem('activeGroupId', item.groupId);
+              if (item.groupType === 'organisation') {
+                localStorage.setItem('isOrgDetail', 'true');
+              } else {
+                localStorage.setItem('isOrgDetail', 'false');
+              }
+              navigate("group-detail");
+            }}>
+              View in {item.groupType === 'organisation' ? 'organisation' : 'group'}
+            </GhostButton>
+          )}
+          {item.authorId && (
+            <MessageAuthorButton targetUserId={item.authorId} navigate={navigate} />
+          )}
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden mb-4">
       {item.image && (
         <div
           className="h-44 w-full"
@@ -134,28 +177,209 @@ function FeedPost({ item, navigate }: { item: typeof FEED_ITEMS[number]; navigat
           <span className="text-xs" style={{ color: theme.textSubtle }}>·</span>
           <span className="text-xs" style={{ color: theme.textSubtle }}>{item.date}</span>
           <div className="ml-auto">
-            <Pill color={FEED_TYPE_COLORS[item.type]}>{item.type}</Pill>
+            <Pill color={FEED_TYPE_COLORS[item.type] || "#f3f4f6"}>{item.type}</Pill>
           </div>
         </div>
-        <h3 className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
-          {item.title}
-        </h3>
+        {item.title && (
+          <h3 className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
+            {item.title}
+          </h3>
+        )}
         <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
           {item.body}
         </p>
         <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
-          <PrimaryButton onClick={() => {
-            if (item.cta === "Register") navigate("event-detail");
-            else if (item.cta === "Donate") navigate("donate");
-          }}>
-            {item.cta}
-          </PrimaryButton>
+          {item.cta && (
+            <PrimaryButton onClick={() => {
+              if (item.cta === "Register") navigate("event-detail");
+              else if (item.cta === "Donate") navigate("donate");
+            }}>
+              {item.cta}
+            </PrimaryButton>
+          )}
+          {item.cta2 && <GhostButton>{item.cta2}</GhostButton>}
           <span className="text-[11px] ml-auto inline-flex items-center gap-1" style={{ color: theme.textSubtle }}>
             <Lock size={10} /> Posted by CiP · No public comments
           </span>
         </div>
       </div>
     </Card>
+  );
+}
+
+export function PostComposer({ 
+  onPost, 
+  disabledClickAction,
+  placeholder = "Share something with the community..."
+}: { 
+  onPost: (content: string) => Promise<void>; 
+  disabledClickAction?: () => void;
+  placeholder?: string;
+}) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [content, setContent] = useState("");
+  const [posting, setPosting] = useState(false);
+
+  const initials = user?.user_metadata?.first_name 
+    ? `${user.user_metadata.first_name[0]}${user.user_metadata.last_name?.[0] || ''}`.toUpperCase()
+    : "U";
+
+  return (
+    <div className="p-4 rounded-xl space-y-3" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}>
+      <div className="flex gap-3">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center text-xs shrink-0"
+          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+        >
+          {initials}
+        </div>
+        <div className="flex-1 relative">
+          {disabledClickAction && (
+            <div className="absolute inset-0 z-10 cursor-pointer" onClick={disabledClickAction} />
+          )}
+          <input
+            placeholder={placeholder}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            disabled={!!disabledClickAction || posting}
+            className="w-full px-4 py-2.5 rounded-full text-sm outline-none"
+            style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-2 pt-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
+        <GhostButton onClick={disabledClickAction}><ImageIcon size={12} className="inline mr-1" /> Image</GhostButton>
+        <GhostButton onClick={disabledClickAction}><Link2 size={12} className="inline mr-1" /> Link</GhostButton>
+        <div className="ml-auto relative">
+          {disabledClickAction && (
+            <div className="absolute inset-0 z-10 cursor-pointer" onClick={disabledClickAction} />
+          )}
+          <PrimaryButton 
+            disabled={!!disabledClickAction || posting || !content.trim()}
+            onClick={async () => {
+              if (!content.trim()) return;
+              setPosting(true);
+              await onPost(content);
+              setContent("");
+              setPosting(false);
+            }}
+          >
+            {posting ? "Posting..." : "Post"}
+          </PrimaryButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessageAuthorButton({ 
+  targetUserId, 
+  navigate,
+  label = "Message author"
+}: { 
+  targetUserId: string; 
+  navigate: (s: Screen) => void;
+  label?: string;
+}) {
+  const { theme } = useTheme();
+  const { user, profile } = useAuth();
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+
+  // Don't show button if the target is the current user
+  if (!user || targetUserId === user.id) return null;
+
+  const initiateMessage = async () => {
+    if (!user) return;
+    setConnecting(true);
+
+    // Ensure a network connection exists between the two users
+    const { data: existing } = await supabase.from('network_connections')
+      .select('id')
+      .or(`and(requester_id.eq.${user.id},receiver_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},receiver_id.eq.${user.id})`)
+      .single();
+
+    if (!existing) {
+      await supabase.from('network_connections').insert({
+        requester_id: user.id,
+        receiver_id: targetUserId,
+        status: 'accepted'
+      });
+    } else {
+      await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', existing.id);
+    }
+
+    // Set the target user for deep-linking into MessagesScreen
+    localStorage.setItem('activeMessageUserId', targetUserId);
+    setConnecting(false);
+    navigate('messages');
+  };
+
+  const handleClick = () => {
+    // Check if user profile is anonymised (no first name set, or profile not onboarded)
+    const isAnonymised = !profile?.first_name || profile?.first_name === '';
+    if (isAnonymised) {
+      setShowPrompt(true);
+    } else {
+      initiateMessage();
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={handleClick}
+        disabled={connecting}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+      >
+        <MessageSquare size={12} />
+        {connecting ? 'Connecting...' : label}
+      </button>
+
+      {/* Anonymised profile warning modal */}
+      {showPrompt && (
+        <Modal onClose={() => setShowPrompt(false)}>
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center"
+                style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}
+              >
+                <EyeOff size={18} style={{ color: '#f59e0b' }} />
+              </div>
+              <h3 className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
+                Share your profile?
+              </h3>
+            </div>
+            <p className="text-sm leading-relaxed" style={{ color: theme.textMuted }}>
+              You are currently browsing anonymously. If you send a message, your profile details 
+              (name, job title, and other profile information) will be visible to the person you are messaging.
+            </p>
+            <div className="flex items-center gap-2 mt-5">
+              <button
+                onClick={() => setShowPrompt(false)}
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm"
+                style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowPrompt(false);
+                  initiateMessage();
+                }}
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm"
+                style={{ background: NAVY, color: '#fff', fontWeight: 600 }}
+              >
+                Continue & share profile
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -168,12 +392,88 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
   const [lastName, setLastName] = useState(user?.user_metadata?.last_name || "");
   const [jobTitle, setJobTitle] = useState("");
   const [bio, setBio] = useState("");
+  const [suburbSearch, setSuburbSearch] = useState("");
+  const [suburbsData, setSuburbsData] = useState<any[]>([]);
   const [state, setState] = useState("");
   const [electorate, setElectorate] = useState("");
   const [stateElectorate, setStateElectorate] = useState("");
   const [party, setParty] = useState("No affiliation");
   const [tradition, setTradition] = useState("");
   const [showParty, setShowParty] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState("");
+  const [partyGroups, setPartyGroups] = useState<any[]>([]);
+  const [selectedPartyGroupId, setSelectedPartyGroupId] = useState<string | null>(null);
+  const [joinPartyGroup, setJoinPartyGroup] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!user) return;
+      setAutoSaveStatus("Saving...");
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        first_name: firstName,
+        last_name: lastName,
+        job_title: jobTitle,
+        bio: bio,
+        state: state,
+        federal_electorate: electorate,
+        state_electorate: stateElectorate,
+        show_party: showParty,
+      });
+      await supabase.from("profile_private").upsert({ user_id: user.id, party, tradition });
+      setAutoSaveStatus("Saved");
+      setTimeout(() => setAutoSaveStatus(""), 2000);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [firstName, lastName, jobTitle, bio, state, electorate, stateElectorate, party, tradition, showParty, user]);
+
+  useEffect(() => {
+    async function checkPartyGroup() {
+      if (party === "No affiliation" || !party) {
+        setJoinPartyGroup(false);
+        setSelectedPartyGroupId(null);
+        return;
+      }
+      const { data } = await supabase.from('groups')
+        .select('*')
+        .eq('caveat_type', 'party')
+        .eq('caveat_value', party);
+      if (data && data.length > 0) {
+        setSelectedPartyGroupId(data[0].id);
+      } else {
+        setSelectedPartyGroupId(null);
+      }
+      setJoinPartyGroup(true); // Default check it, and it will always show
+    }
+    checkPartyGroup();
+  }, [party]);
+
+  useEffect(() => {
+    async function searchSuburbs() {
+      if (suburbSearch.length < 2) {
+        setSuburbsData([]);
+        return;
+      }
+      const { data } = await supabase.from('suburbs')
+        .select('*')
+        .ilike('suburb_name', `${suburbSearch}%`)
+        .limit(10);
+      if (data) setSuburbsData(data);
+    }
+    searchSuburbs();
+  }, [suburbSearch]);
+
+  const suburbOptions = suburbsData.map(s => `${s.suburb_name}, ${s.state} ${s.postcode}`);
+
+  const handleSuburbSelect = (val: string) => {
+    setSuburbSearch(val);
+    const selected = suburbsData.find(s => `${s.suburb_name}, ${s.state} ${s.postcode}` === val);
+    if (selected) {
+      setState(selected.state);
+      setElectorate(selected.federal_electorate || "");
+      setStateElectorate(selected.state_electorate || "");
+    }
+  };
 
   const saveProfile = async () => {
     setLoading(true);
@@ -186,8 +486,6 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
       state: state,
       federal_electorate: electorate,
       state_electorate: stateElectorate,
-      party: party,
-      tradition: tradition,
       show_party: showParty,
       onboarded: true
     });
@@ -196,6 +494,49 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
       setLoading(false);
       return;
     }
+    if (user) {
+      await supabase.from("profile_private").upsert({ user_id: user.id, party, tradition });
+    }
+
+    // Helper to ensure an affinity group exists
+    const ensureGroup = async (caveatType: string, caveatValue: string) => {
+      if (!caveatValue || caveatValue === "No affiliation" || caveatValue === "Not applicable") return null;
+      
+      const { data } = await supabase.from('groups')
+        .select('id')
+        .eq('caveat_type', caveatType)
+        .eq('caveat_value', caveatValue);
+        
+      if (data && data.length > 0) return data[0].id;
+      
+      const groupName = caveatType === 'party' ? `${caveatValue} Members` 
+                      : caveatType === 'tradition' ? `${caveatValue} Tradition` 
+                      : `${caveatValue} Electorate`;
+      const desc = `Exclusive group for ${caveatValue} ${caveatType === 'party' ? 'members' : caveatType}.`;
+      
+      const { data: newGroup } = await supabase.from('groups')
+        .insert({
+          name: groupName,
+          description: desc,
+          visibility: 'restricted',
+          group_type: 'standard',
+          caveat_type: caveatType,
+          caveat_value: caveatValue,
+          created_by: user?.id
+        })
+        .select('id');
+        
+      if (newGroup && newGroup.length > 0) return newGroup[0].id;
+      return null;
+    };
+
+    if (user) {
+      if (joinPartyGroup && party && party !== "No affiliation") {
+        const pId = await ensureGroup('party', party);
+        if (pId) await supabase.from('group_members').upsert({ group_id: pId, user_id: user.id, status: 'approved' });
+      }
+    }
+
     updateProfileLocally({
       first_name: firstName,
       last_name: lastName,
@@ -255,21 +596,20 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>State</label>
-              <select value={state} onChange={e => setState(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none appearance-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }}>
-                <option value="">Select State</option>
-                {["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"].map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Federal Electorate</label>
-              <AutocompleteInput value={electorate} onChange={setElectorate} options={FEDERAL_ELECTORATES} placeholder="e.g. Bennelong" />
-            </div>
-            <div>
-              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>State Electorate</label>
-              <AutocompleteInput value={stateElectorate} onChange={setStateElectorate} options={STATE_ELECTORATES} placeholder="e.g. Ryde" />
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Suburb or Postcode</label>
+              <AutocompleteInput 
+                value={suburbSearch} 
+                onChange={handleSuburbSelect} 
+                options={suburbOptions} 
+                placeholder="e.g. Sydney, NSW 2000" 
+              />
+              {(state || electorate || stateElectorate) && (
+                <div className="mt-2 text-xs" style={{ color: theme.textMuted }}>
+                  <span className="font-semibold">State:</span> {state || 'Unknown'} · <span className="font-semibold">Federal:</span> {electorate || 'Unknown'} · <span className="font-semibold">State Electorate:</span> {stateElectorate || 'Unknown'}
+                </div>
+              )}
             </div>
           </div>
 
@@ -295,6 +635,15 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
               Show political affiliation on my public profile
             </label>
           </div>
+
+          {party && party !== "No affiliation" && (
+            <div className="flex items-start gap-3 mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <input type="checkbox" id="joinPartyGroup" checked={joinPartyGroup} onChange={e => setJoinPartyGroup(e.target.checked)} className="w-4 h-4 rounded" style={{ accentColor: NAVY }} />
+              <label htmlFor="joinPartyGroup" className="text-sm select-none font-semibold flex-1" style={{ color: theme.text }}>
+                Join the exclusive {party} group?
+              </label>
+            </div>
+          )}
         </div>
         
         <div className="flex items-center gap-4 mt-8 pt-6 border-t" style={{ borderColor: theme.divider }}>
@@ -304,6 +653,11 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
           <button onClick={skip} className="text-[14px] font-medium hover:underline" style={{ color: theme.textMuted }}>
             Skip for now
           </button>
+          {autoSaveStatus && (
+            <span className="text-xs ml-auto" style={{ color: theme.textMuted }}>
+              {autoSaveStatus}
+            </span>
+          )}
         </div>
       </Card>
     </div>
@@ -314,61 +668,113 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
   const { theme } = useTheme();
   const [feedItems, setFeedItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  const fetchFeed = useCallback(async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: memberships } = await supabase.from('group_members').select('group_id').eq('user_id', user.id);
+      const myGroupIds = memberships ? memberships.map(m => m.group_id) : [];
+
+      const { data: announcements } = await supabase.from('announcements')
+        .select('*')
+        .eq('status', 'Published')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      let groupPosts: any[] = [];
+      if (myGroupIds.length > 0) {
+        const { data: posts } = await supabase.from('group_posts')
+          .select('*, profiles(first_name, last_name, avatar_url), groups(name, id, group_type)')
+          .in('group_id', myGroupIds)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (posts) groupPosts = posts;
+      }
+
+      const formattedAnnouncements = (announcements || []).map(a => ({
+        id: a.id,
+        isAnnouncement: true,
+        type: a.target_audience || "Announcement",
+        title: a.title,
+        body: a.content,
+        cta: "Read more",
+        date: new Date(a.created_at).toLocaleDateString(),
+        image: false,
+        created_at: a.created_at
+      }));
+
+      const formattedPosts = groupPosts.map(p => ({
+        id: p.id,
+        isGroupPost: true,
+        groupId: p.groups?.id,
+        groupName: p.groups?.name || "Group",
+        groupType: p.groups?.group_type || "standard",
+        authorName: p.profiles ? `${p.profiles?.first_name || ''} ${p.profiles?.last_name || ''}`.trim() : "Member",
+        authorId: p.user_id,
+        body: p.content,
+        date: new Date(p.created_at).toLocaleDateString(),
+        created_at: p.created_at
+      }));
+
+      const { data: globalPostsData } = await supabase.from('global_posts')
+        .select('*, profiles(first_name, last_name, avatar_url)')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      const formattedGlobalPosts = (globalPostsData || []).map(p => ({
+        id: p.id,
+        isGlobalPost: true,
+        type: "Community Post",
+        authorName: p.profiles ? `${p.profiles?.first_name || ''} ${p.profiles?.last_name || ''}`.trim() : "Member",
+        authorId: p.user_id,
+        body: p.content,
+        date: new Date(p.created_at).toLocaleDateString(),
+        created_at: p.created_at
+      }));
+
+      const combined = [...formattedAnnouncements, ...formattedPosts, ...formattedGlobalPosts].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setFeedItems(combined);
+      setLoading(false);
+  }, [user]);
 
   useEffect(() => {
-    async function fetchFeed() {
-      const { data, error } = await supabase
-        .from("feed_items")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
-      if (!error && data) {
-        // Map database fields to the UI properties expected by FeedPost
-        const formattedData = data.map(d => ({
-          type: d.type,
-          title: d.title,
-          body: d.body,
-          cta: d.cta_text,
-          date: new Date(d.created_at).toLocaleDateString(),
-          image: d.image,
-        }));
-        setFeedItems(formattedData);
-      }
-      setLoading(false);
-    }
     fetchFeed();
-  }, []);
+  }, [fetchFeed]);
+
+  const handleCreateGlobalPost = async (content: string) => {
+    if (!user) return;
+    const { error } = await supabase.from('global_posts').insert({
+      user_id: user.id,
+      content
+    });
+    if (error) {
+      console.error("Failed to create post:", error);
+      return;
+    }
+    await fetchFeed();
+  };
+
   return (
     <div className="space-y-4">
       {onboarded === false && setOnboarded && (
         <GettingStartedWidget setOnboarded={setOnboarded} />
       )}
-      {/* Read-only composer */}
-      <Card className="p-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-xs shrink-0"
-            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-          >
-            SR
-          </div>
-          <div
-            className="flex-1 px-4 py-2.5 rounded-full text-sm"
-            style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.textMuted }}
-          >
-            <Lock size={11} className="inline mr-2" />
-            The Home feed is curated by CiP. Join a group to participate in discussion.
-          </div>
-        </div>
-      </Card>
+      <PostComposer onPost={handleCreateGlobalPost} placeholder="Share something with the whole community..." />
 
       {loading ? (
         <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>
           Loading feed...
         </div>
       ) : feedItems.length > 0 ? (
-        feedItems.map((item, i) => (
-          <FeedPost key={i} item={item} navigate={navigate} />
+        feedItems.map((item) => (
+          <FeedPost key={item.id} item={item} navigate={navigate} />
         ))
       ) : (
         <div className="text-center py-12 text-sm" style={{ color: theme.textMuted }}>
@@ -382,7 +788,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
 // ── Profile (read-only) ──────────────────────────────────────────────
 
 
-const PARTIES = [
+export const PARTIES = [
   "No affiliation", "Independent", "Australian Labor Party", "Liberal Party of Australia",
   "The Nationals", "Australian Greens", "One Nation", "Family First",
   "Australian Christians", "Other",
@@ -393,7 +799,7 @@ const STATES = [
   "Queensland", "South Australia", "Tasmania", "Victoria", "Western Australia",
 ];
 
-const TRADITIONS = [
+export const TRADITIONS = [
   "Anglican", "Baptist", "Catholic", "Churches of Christ",
   "Eastern Orthodox", "Lutheran", "Pentecostal / Charismatic",
   "Presbyterian / Reformed", "Salvation Army", "Seventh-day Adventist",
@@ -492,12 +898,45 @@ export function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileData>(DEFAULT_PROFILE);
   const [draft, setDraft] = useState<ProfileData>(DEFAULT_PROFILE);
   const [loading, setLoading] = useState(true);
+  const [suburbSearch, setSuburbSearch] = useState("");
+  const [suburbsData, setSuburbsData] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function searchSuburbs() {
+      if (suburbSearch.length < 2) {
+        setSuburbsData([]);
+        return;
+      }
+      const { data } = await supabase.from('suburbs')
+        .select('*')
+        .ilike('suburb_name', `${suburbSearch}%`)
+        .limit(10);
+      if (data) setSuburbsData(data);
+    }
+    searchSuburbs();
+  }, [suburbSearch]);
+
+  const suburbOptions = suburbsData.map(s => `${s.suburb_name}, ${s.state} ${s.postcode}`);
+
+  const handleSuburbSelect = (val: string) => {
+    setSuburbSearch(val);
+    const selected = suburbsData.find(s => `${s.suburb_name}, ${s.state} ${s.postcode}` === val);
+    if (selected) {
+      setDraft(prev => ({
+        ...prev,
+        state: selected.state,
+        federalElectorate: selected.federal_electorate || "",
+        stateElectorate: selected.state_electorate || ""
+      }));
+    }
+  };
 
   useEffect(() => {
     async function loadProfile() {
       if (!user) return;
       const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       if (data && !error) {
+        const { data: priv } = await supabase.from("profile_private").select("party, tradition").eq("user_id", user.id).maybeSingle();
         const loadedProfile = {
           firstName: data.first_name || user.user_metadata?.first_name || "",
           lastName: data.last_name || user.user_metadata?.last_name || "",
@@ -506,8 +945,8 @@ export function ProfileScreen() {
           state: data.state || "",
           federalElectorate: data.federal_electorate || "",
           stateElectorate: data.state_electorate || "",
-          party: data.party || "No affiliation",
-          tradition: data.tradition || "",
+          party: priv?.party || "No affiliation",
+          tradition: priv?.tradition || "",
           showParty: data.show_party || false,
           avatarUrl: data.avatar_url || "",
         };
@@ -542,16 +981,15 @@ export function ProfileScreen() {
       state: draft.state,
       federal_electorate: draft.federalElectorate,
       state_electorate: draft.stateElectorate,
-      party: draft.party,
-      tradition: draft.tradition,
       show_party: draft.showParty,
       avatar_url: draft.avatarUrl,
     });
-    
+
     if (error) {
       alert("Error saving profile: " + error.message);
       return;
     }
+    await supabase.from("profile_private").upsert({ user_id: user.id, party: draft.party, tradition: draft.tradition });
     
     updateProfileLocally({
       first_name: draft.firstName,
@@ -682,14 +1120,18 @@ export function ProfileScreen() {
             <FormField label="Job title or secondary title" hint="Shown under your name. Optional.">
               <TextInput value={draft.jobTitle} onChange={(v) => setDraft({ ...draft, jobTitle: v })} placeholder="e.g. Policy Adviser, Lay leader" />
             </FormField>
-            <FormField label="State / territory">
-              <SelectInput value={draft.state} onChange={(v) => setDraft({ ...draft, state: v })} options={STATES} />
-            </FormField>
-            <FormField label="Federal electorate" hint="Optional. Used only for electorate-based groups.">
-              <AutocompleteInput value={draft.federalElectorate} onChange={(v) => setDraft({ ...draft, federalElectorate: v })} options={FEDERAL_ELECTORATES} placeholder="e.g. Bennelong" />
-            </FormField>
-            <FormField label="State electorate" hint="Optional.">
-              <AutocompleteInput value={draft.stateElectorate} onChange={(v) => setDraft({ ...draft, stateElectorate: v })} options={STATE_ELECTORATES} placeholder="e.g. Ryde" />
+            <FormField label="Suburb or Postcode" hint="Updates your state and electorates automatically.">
+              <AutocompleteInput 
+                value={suburbSearch} 
+                onChange={handleSuburbSelect} 
+                options={suburbOptions} 
+                placeholder="e.g. Sydney, NSW 2000" 
+              />
+              {(draft.state || draft.federalElectorate || draft.stateElectorate) && (
+                <div className="mt-2 text-xs" style={{ color: theme.textMuted }}>
+                  <span className="font-semibold">State:</span> {draft.state || 'Unknown'} · <span className="font-semibold">Federal:</span> {draft.federalElectorate || 'Unknown'} · <span className="font-semibold">State Electorate:</span> {draft.stateElectorate || 'Unknown'}
+                </div>
+              )}
             </FormField>
             <FormField label="Political party affiliation" hint='Pick "No affiliation" if you prefer.'>
               <SelectInput value={draft.party} onChange={(v) => setDraft({ ...draft, party: v })} options={PARTIES} />
@@ -780,12 +1222,16 @@ function GroupCard({ g, navigate, onJoin }: { g: any; navigate: (s: Screen) => v
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
-        <div
-          className="w-12 h-12 rounded-xl shrink-0 flex items-center justify-center"
-          style={{ background: theme.pillBg, color: NAVY, fontWeight: 700 }}
-        >
-          {(g.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-        </div>
+        {g.image_url ? (
+          <img src={g.image_url} alt={g.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+        ) : (
+          <div
+            className="w-12 h-12 rounded-xl shrink-0 flex items-center justify-center"
+            style={{ background: theme.pillBg, color: NAVY, fontWeight: 700 }}
+          >
+            {(g.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -808,16 +1254,17 @@ function GroupCard({ g, navigate, onJoin }: { g: any; navigate: (s: Screen) => v
           <p className="text-xs mt-1 leading-relaxed" style={{ color: theme.textMuted }}>
             {g.desc}
           </p>
-          <div className="flex items-center justify-between mt-3">
-            <span className="text-xs" style={{ color: theme.textSubtle }}>{g.members} members</span>
+          <div className={`flex items-start sm:items-center mt-3 ${g.joined ? "justify-between" : "justify-end"}`}>
+            {g.joined && <span className="text-xs shrink-0 mt-1 sm:mt-0" style={{ color: theme.textSubtle }}>{g.members} members</span>}
             {g.joined ? (
               <GhostButton onClick={() => {
                 localStorage.setItem('activeGroupId', g.id);
                 navigate("group-detail");
               }}>Open</GhostButton>
             ) : g.allowed === false ? (
-              <div className="text-[11px] flex items-center gap-1" style={{ color: "#92400e", background: "#fff7ed", padding: "4px 8px", borderRadius: "6px" }}>
-                <Lock size={10} /> {g.restrictionMessage}
+              <div className="text-[11px] flex items-start gap-1.5 max-w-full text-left" style={{ color: "#92400e", background: "#fff7ed", padding: "6px 10px", borderRadius: "6px" }}>
+                <Lock size={12} className="shrink-0 mt-0.5" /> 
+                <span style={{ wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1.4' }}>{g.restrictionMessage}</span>
               </div>
             ) : (
               <PrimaryButton onClick={() => onJoin?.(g.id)}>Join</PrimaryButton>
@@ -848,6 +1295,34 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
   const [caveat, setCaveat] = useState<Caveat>("electorate");
   const [caveatValue, setCaveatValue] = useState("");
   const [invited, setInvited] = useState<Record<string, boolean>>({});
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const uploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file || !user) return;
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+
+      setUploadingImage(true);
+      
+      const { error: uploadError } = await supabase.storage
+        .from('group_images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('group_images').getPublicUrl(fileName);
+      setImageUrl(data.publicUrl);
+    } catch (error) {
+      console.error("Error uploading image", error);
+      alert("Error uploading image");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const toggleInvite = (id: string) => setInvited({ ...invited, [id]: !invited[id] });
   const invitedCount = Object.values(invited).filter(Boolean).length;
@@ -883,6 +1358,24 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
         <div className="px-6 py-5 max-h-[70vh] overflow-y-auto">
           {step === 1 && (
             <div className="space-y-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold block" style={{ color: theme.text }}>Group Image (Optional)</label>
+                <div className="flex items-center gap-4">
+                  {imageUrl ? (
+                    <img src={imageUrl} alt="Group Preview" className="w-16 h-16 rounded-xl object-cover" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold" style={{ background: NAVY }}>
+                      {name ? name.split(" ").map(w => w[0] || "").slice(0, 2).join("") : "Img"}
+                    </div>
+                  )}
+                  <div>
+                    <input type="file" accept="image/*" id="groupImageUpload" className="hidden" onChange={uploadImage} disabled={uploadingImage} />
+                    <label htmlFor="groupImageUpload" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                      {uploadingImage ? "Uploading..." : "Upload image"}
+                    </label>
+                  </div>
+                </div>
+              </div>
               <FormField label="Group name">
                 <TextInput value={name} onChange={setName} placeholder="e.g. Bennelong Christians in Politics" />
               </FormField>
@@ -1032,6 +1525,7 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
                     visibility: vis,
                     caveat_type: caveat,
                     caveat_value: caveatValue,
+                    image_url: imageUrl,
                     created_by: user.id
                   }).select().single();
                   
@@ -1047,7 +1541,6 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
                       role: "admin"
                     });
                     onCreate(name);
-                    window.location.reload();
                   }
                 }
               }}
@@ -1080,12 +1573,61 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
       return;
     }
     try {
-      const { data: groups } = await supabase.from("groups").select("*").is("deleted_at", null).is("suspended_at", null);
+      const { data: groups } = await supabase.from("groups").select("*").is("deleted_at", null).is("suspended_at", null).neq("group_type", "organisation");
       const { data: members } = await supabase.from("group_members").select("group_id").eq("user_id", user.id);
-      const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      
-      if (groups) setAllGroups(groups);
-      if (members) setMyMemberships(new Set(members.map(m => m.group_id)));
+      const { data: profileRow } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      const { data: priv } = await supabase.from("profile_private").select("party, tradition").eq("user_id", user.id).maybeSingle();
+      const profile = profileRow ? { ...profileRow, party: priv?.party ?? null, tradition: priv?.tradition ?? null } : profileRow;
+
+      let currentGroups = groups || [];
+      let currentMemberships = new Set(members?.map((m: any) => m.group_id) || []);
+
+      if (profile) {
+        // Auto-sync missing affinity groups for instant recognition
+        const ensureSync = async (type: string, val: string) => {
+          if (!val || val === "No affiliation" || val === "Not applicable") return;
+          let g = currentGroups.find(x => x.caveat_type === type && x.caveat_value === val);
+          if (!g) {
+            const name = type === 'party' ? `${val} Members` : type === 'tradition' ? `${val} Tradition` : `${val} Electorate`;
+            const { data: newG } = await supabase.from('groups').insert({
+              name,
+              description: `Exclusive group for ${val} ${type === 'party' ? 'members' : type}.`,
+              visibility: 'restricted',
+              group_type: 'standard',
+              caveat_type: type,
+              caveat_value: val,
+              created_by: user.id
+            }).select().single();
+            if (newG) {
+              g = newG;
+              currentGroups = [...currentGroups, g];
+            }
+          }
+          if (g && !currentMemberships.has(g.id)) {
+            await supabase.from('group_members').upsert({ group_id: g.id, user_id: user.id, status: 'approved' });
+            currentMemberships.add(g.id);
+          }
+        };
+
+        await ensureSync('party', profile.party);
+
+        // Cleanup accidentally auto-created tradition/electorate groups created by this user
+        const autoCreated = currentGroups.filter(g => 
+          g.created_by === user.id && 
+          (g.caveat_type === 'tradition' || g.caveat_type === 'electorate') &&
+          g.description.startsWith('Exclusive group for ')
+        );
+        if (autoCreated.length > 0) {
+          for (const bg of autoCreated) {
+            await supabase.from('group_members').delete().eq('group_id', bg.id);
+            await supabase.from('groups').delete().eq('id', bg.id);
+          }
+          currentGroups = currentGroups.filter(g => !autoCreated.find(a => a.id === g.id));
+        }
+      }
+
+      setAllGroups(currentGroups);
+      setMyMemberships(currentMemberships);
       if (profile) setMyProfile(profile);
     } catch (err) {
       console.error("Error fetching groups:", err);
@@ -1136,6 +1678,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
       joined: myMemberships.has(g.id),
       visibility: g.visibility,
       created_by: g.created_by,
+      image_url: g.image_url,
       allowed,
       restrictionMessage
     };
@@ -1221,7 +1764,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
       {createOpen && (
         <CreateGroupModal
           onClose={() => setCreateOpen(false)}
-          onCreate={() => setCreateOpen(false)}
+          onCreate={() => { setCreateOpen(false); fetchGroups(); }}
         />
       )}
     </div>
@@ -1357,6 +1900,14 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const [dbMembers, setDbMembers] = useState<any[]>([]);
   const [group, setGroup] = useState<any>(null);
   const [loadingGroup, setLoadingGroup] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [groupCreator, setGroupCreator] = useState("Loading...");
+  const [groupPosts, setGroupPosts] = useState<any[]>([]);
+  const [newPostContent, setNewPostContent] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [numFollowers, setNumFollowers] = useState(0);
+  const [editOpen, setEditOpen] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -1369,13 +1920,38 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       const { data } = await supabase.from('groups').select('*').eq('id', groupId).single();
       if (data) {
         setGroup(data);
+        if (data.created_by) {
+          const { data: creator } = await supabase.from('profiles').select('first_name, last_name').eq('id', data.created_by).single();
+          if (creator) {
+            setGroupCreator(`${creator.first_name || ''} ${creator.last_name || ''}`.trim() || "Anonymous Member");
+          } else {
+            setGroupCreator("Admin");
+          }
+        }
       }
+      
+      const { data: postsData } = await supabase.from('group_posts')
+        .select('*, profiles(first_name, last_name, avatar_url)')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false });
+      if (postsData) setGroupPosts(postsData);
       setLoadingGroup(false);
       
       if (user) {
-        // Only fetch other members
-        const { data: members } = await supabase.from('profiles').select('*').neq('id', user.id).is("deleted_at", null).is("suspended_at", null);
-        if (members) setDbMembers(members);
+        const { data: myProf } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single();
+        if (myProf) setIsAdmin(myProf.is_admin || user.email?.endsWith("@christiansinpolitics.com") || false);
+
+        // Only fetch actual group members
+        const { data: groupMembers } = await supabase.from('group_members').select('user_id').eq('group_id', groupId);
+        if (groupMembers && groupMembers.length > 0) {
+          setNumFollowers(groupMembers.length);
+          setIsFollowing(groupMembers.some(m => m.user_id === user.id));
+          const userIds = groupMembers.map(m => m.user_id).filter(id => id !== user.id);
+          if (userIds.length > 0) {
+            const { data: members } = await supabase.from('profiles').select('*').in('id', userIds).is("deleted_at", null).is("suspended_at", null);
+            if (members) setDbMembers(members);
+          }
+        }
       }
     }
     initGroup();
@@ -1412,39 +1988,146 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
     <div className="space-y-4">
       {/* Header */}
       <Card className="overflow-hidden">
-        <div className="h-28" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b)` }} />
-        <div className="px-5 pb-4 -mt-10">
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div className="flex items-end gap-3">
-              <div
-                className="w-20 h-20 rounded-2xl shrink-0 flex items-center justify-center"
-                style={{ background: GOLD, color: NAVY, fontWeight: 700, fontSize: 22, border: `4px solid ${theme.cardBg}` }}
-              >
-                {(group.name || "GRP").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
+        {group.group_type === 'organisation' ? (
+          <div className="bg-white">
+            <div className="px-5 py-5">
+              {/* Top-right buttons (Back, Edit, Delete) */}
+              <div className="flex justify-end gap-3 items-center mb-4">
+                {(group.created_by === user?.id || isAdmin) && (
+                  <>
+                    <button onClick={() => setEditOpen(true)} className="text-xs hover:underline" style={{ color: NAVY }}>
+                      Edit
+                    </button>
+                    <button onClick={handleDelete} className="text-xs hover:underline text-red-600">
+                      Delete
+                    </button>
+                  </>
+                )}
+                <button onClick={() => navigate("organisations")} className="text-xs hover:underline" style={{ color: NAVY }}>
+                  ← All organisations
+                </button>
               </div>
-              <div className="pb-1">
-                <h1 style={{ color: theme.text }}>{group.name}</h1>
-                <div className="flex items-center gap-3 text-xs mt-1" style={{ color: theme.textMuted }}>
-                  <span className="inline-flex items-center gap-1"><Users size={12} /> {allMembers.length} members</span>
-                  <span className="inline-flex items-center gap-1"><Globe size={12} /> <span className="capitalize">{group.visibility}</span></span>
+
+              <div className="flex flex-col sm:flex-row gap-5 items-start">
+                <div className="p-1 bg-white rounded-2xl shadow-sm shrink-0" style={{ border: `1px solid ${theme.cardBorder}` }}>
+                  {group.image_url ? (
+                    <img src={group.image_url} alt={group.name} className="w-20 h-20 sm:w-28 sm:h-28 rounded-xl object-cover" />
+                  ) : (
+                    <div
+                      className="w-20 h-20 sm:w-28 sm:h-28 rounded-xl flex items-center justify-center"
+                      style={{ background: GOLD, color: NAVY, fontWeight: 700, fontSize: 32 }}
+                    >
+                      {(group.name || "ORG").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 mt-1 sm:mt-0">
+                  <h1 className="text-xl sm:text-2xl font-bold" style={{ color: theme.text }}>{group.name}</h1>
+                  <p className="text-sm mt-1 leading-relaxed" style={{ color: theme.text }}>
+                    {group.description || "No description provided."}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm mt-3" style={{ color: theme.textMuted }}>
+                    <span className="font-medium text-gray-500">Organisation</span>
+                    <span>•</span>
+                    <span>{numFollowers} followers</span>
+                    {group.website_url && (
+                      <>
+                        <span>•</span>
+                        <a href={group.website_url.startsWith('http') ? group.website_url : `https://${group.website_url}`} target="_blank" rel="noreferrer" className="hover:underline inline-flex items-center gap-1 text-blue-600">
+                          <ExternalLink size={12} /> Website
+                        </a>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Follow & Message Buttons */}
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!user) return;
+                        if (isFollowing) {
+                          await supabase.from("group_members").delete().eq("group_id", group.id).eq("user_id", user.id);
+                          setIsFollowing(false);
+                          setNumFollowers(f => f - 1);
+                        } else {
+                          await supabase.from("group_members").insert({ group_id: group.id, user_id: user.id });
+                          setIsFollowing(true);
+                          setNumFollowers(f => f + 1);
+                        }
+                      }}
+                      className="px-5 py-1.5 rounded-full text-sm font-semibold inline-flex items-center gap-1.5 transition-transform hover:scale-[1.02]"
+                      style={{ background: isFollowing ? "transparent" : NAVY, color: isFollowing ? NAVY : "#fff", border: isFollowing ? `1px solid ${NAVY}` : "none" }}
+                    >
+                      {isFollowing ? <CheckCircle2 size={16} /> : <Plus size={16} />} 
+                      {isFollowing ? 'Following' : 'Follow'}
+                    </button>
+                    {group.created_by !== user?.id && (
+                      <button
+                        onClick={async () => {
+                          if (!user || !group.created_by) return;
+                          const { data: existing } = await supabase.from('network_connections')
+                            .select('id')
+                            .or(`and(requester_id.eq.${user.id},receiver_id.eq.${group.created_by}),and(requester_id.eq.${group.created_by},receiver_id.eq.${user.id})`)
+                            .single();
+                          if (!existing) {
+                            await supabase.from('network_connections').insert({ requester_id: user.id, receiver_id: group.created_by, status: 'accepted' });
+                          } else {
+                            await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', existing.id);
+                          }
+                          navigate('messages');
+                        }}
+                        className="px-5 py-1.5 rounded-full text-sm font-semibold inline-flex items-center gap-1.5 transition-transform hover:scale-[1.02]"
+                        style={{ background: "transparent", color: NAVY, border: `1px solid ${NAVY}` }}
+                      >
+                        <Send size={14} /> Message
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {group.created_by === user?.id && (
-                <button onClick={handleDelete} className="text-xs hover:underline text-red-600">
-                  Delete group
+          </div>
+        ) : (
+          <div className="px-5 py-5">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-4">
+                {group.image_url ? (
+                  <img src={group.image_url} alt={group.name} className="w-16 h-16 rounded-2xl object-cover shrink-0" />
+                ) : (
+                  <div
+                    className="w-16 h-16 rounded-2xl shrink-0 flex items-center justify-center"
+                    style={{ background: GOLD, color: NAVY, fontWeight: 700, fontSize: 20 }}
+                  >
+                    {(group.name || "GRP").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-xl" style={{ color: theme.text, fontWeight: 600 }}>{group.name}</h1>
+                  <div className="flex items-center gap-3 text-xs mt-1" style={{ color: theme.textMuted }}>
+                    <span className="inline-flex items-center gap-1"><Users size={12} /> {numFollowers} members</span>
+                    <span className="inline-flex items-center gap-1"><Globe size={12} /> <span className="capitalize">{group.visibility}</span></span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {(group.created_by === user?.id || isAdmin) && (
+                  <button onClick={handleDelete} className="text-xs hover:underline text-red-600">
+                    Delete group
+                  </button>
+                )}
+                <button onClick={() => navigate("groups")} className="text-xs hover:underline" style={{ color: NAVY }}>
+                  ← All groups
                 </button>
-              )}
-              <button onClick={() => navigate("groups")} className="text-xs hover:underline" style={{ color: NAVY }}>
-                ← All groups
-              </button>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Privacy status bar */}
+        {/* Privacy status bar - Only for Groups, not Organisations */}
+        {group.group_type !== 'organisation' && (
           <div
-            className="mt-4 rounded-xl p-3 flex items-center gap-3 flex-wrap"
+            className="mt-4 rounded-xl p-3 flex items-center gap-3 flex-wrap mx-5"
             style={{ background: visible ? "#ecfdf5" : "#fff7ed", border: `1px solid ${visible ? "#a7f3d0" : "#fed7aa"}` }}
           >
             <div
@@ -1469,12 +2152,13 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
               <GoldButton onClick={() => setRevealOpen(true)}>Reveal my profile to this group</GoldButton>
             )}
           </div>
+        )}
 
           {/* Tabs */}
-          <div className="mt-4 flex gap-1 overflow-x-auto" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <div className="px-5 mt-2 flex gap-1 overflow-x-auto" style={{ borderBottom: `1px solid ${theme.divider}` }}>
             {([
               ["feed", "Feed"],
-              ["members", "Members"],
+              ["members", group.group_type === 'organisation' ? "Employees" : "Members"],
               ["events", "Events"],
               ["resources", "Resources"],
               ["about", "About"],
@@ -1494,51 +2178,66 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
               </button>
             ))}
           </div>
-        </div>
       </Card>
 
       {tab === "feed" && (
         <div className="space-y-4">
           {/* Composer */}
           <Card className="p-4">
-            {visible ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-xs"
-                    style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                  >
-                    SR
-                  </div>
-                  <input
-                    placeholder="Share something with the group…"
-                    className="flex-1 px-4 py-2.5 rounded-full text-sm outline-none"
-                    style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-                  />
-                </div>
-                <div className="flex items-center gap-2 pt-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
-                  <GhostButton><ImageIcon size={12} className="inline mr-1" /> Image</GhostButton>
-                  <GhostButton><Link2 size={12} className="inline mr-1" /> Link</GhostButton>
-                  <div className="ml-auto"><PrimaryButton>Post</PrimaryButton></div>
-                </div>
-              </div>
-            ) : (
-              <div
-                className="flex items-center gap-3 px-4 py-3 rounded-lg"
-                style={{ background: theme.bg, border: `1px dashed ${theme.cardBorder}` }}
-              >
-                <Lock size={14} style={{ color: theme.textMuted }} />
-                <div className="text-xs flex-1" style={{ color: theme.textMuted }}>
-                  You're watching anonymously. Reveal your profile to post, comment or react.
-                </div>
-                <GhostButton onClick={() => setRevealOpen(true)}>Reveal</GhostButton>
-              </div>
-            )}
+            <PostComposer 
+              onPost={async (content) => {
+                if (!group || !user) return;
+                await supabase.from('group_posts').insert({
+                  group_id: group.id,
+                  user_id: user.id,
+                  content
+                });
+                const { data } = await supabase.from('group_posts')
+                  .select('*, profiles(first_name, last_name, avatar_url)')
+                  .eq('group_id', group.id)
+                  .order('created_at', { ascending: false });
+                if (data) setGroupPosts(data);
+              }}
+              placeholder="Share something with the group..."
+              disabledClickAction={!visible ? () => setRevealOpen(true) : undefined}
+            />
           </Card>
 
-          <div className="text-center text-sm py-10" style={{ color: theme.textMuted }}>
-            No posts in this group yet.
-          </div>
+          {groupPosts.length > 0 ? (
+            groupPosts.map((post: any) => {
+              const authorName = post.profiles ? `${post.profiles.first_name || ''} ${post.profiles.last_name || ''}`.trim() : "Member";
+              return (
+                <Card key={post.id} className="p-5 mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-[10px]"
+                      style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+                    >
+                      {(authorName || "M").substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="text-sm leading-tight" style={{ color: theme.text, fontWeight: 600 }}>
+                        {authorName}
+                      </div>
+                      <div className="text-xs leading-tight mt-0.5" style={{ color: theme.textSubtle }}>
+                        {new Date(post.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm mt-2 leading-relaxed whitespace-pre-wrap" style={{ color: theme.text }}>
+                    {post.content}
+                  </p>
+                  <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                    <MessageAuthorButton targetUserId={post.user_id} navigate={navigate} />
+                  </div>
+                </Card>
+              );
+            })
+          ) : (
+            <div className="text-center text-sm py-10" style={{ color: theme.textMuted }}>
+              No posts in this group yet.
+            </div>
+          )}
         </div>
       )}
 
@@ -1546,7 +2245,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
-              Visible members ({GROUP_MEMBERS.length})
+              Visible {group.group_type === 'organisation' ? 'employees' : 'members'} ({allMembers.length})
             </h3>
             <span className="text-[11px]" style={{ color: theme.textSubtle }}>
               <Lock size={10} className="inline mr-1" />
@@ -1630,24 +2329,65 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
 
       {tab === "about" && (
         <Card className="p-5">
-          <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>About this group</h3>
-          <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
+          <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>About this {group.group_type === 'organisation' ? 'organisation' : 'group'}</h3>
+          <p className="text-sm mt-2 leading-relaxed whitespace-pre-wrap" style={{ color: theme.textMuted }}>
             {group.description || "No description provided."}
           </p>
-          <h4 className="text-xs mt-5 uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>
-            Group rules
-          </h4>
-          <ol className="mt-2 space-y-1.5 text-sm list-decimal pl-5" style={{ color: theme.text }}>
-            <li>Speak with charity. Disagree without contempt.</li>
-            <li>No partisan campaigning. Reflection and discussion only.</li>
-            <li>Respect anonymous members. Never try to identify them.</li>
-            <li>Keep group conversations inside the group.</li>
-            <li>Report concerns to the moderators or CiP staff.</li>
-          </ol>
-          <h4 className="text-xs mt-5 uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>
-            Moderators
-          </h4>
-          <div className="mt-2 text-sm" style={{ color: theme.text }}>Andrew T. · Bethany W.</div>
+
+          {group.group_type === 'organisation' ? (
+             <>
+               {group.website_url && (
+                 <div className="mt-5">
+                   <h4 className="text-xs uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>Website</h4>
+                   <a href={group.website_url.startsWith('http') ? group.website_url : `https://${group.website_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-2 text-sm hover:underline" style={{ color: NAVY, fontWeight: 500 }}>
+                     <ExternalLink size={14} /> {group.website_url}
+                   </a>
+                 </div>
+               )}
+               <div className="mt-5">
+                 <h4 className="text-xs uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>Contact</h4>
+                 <div className="mt-2 text-sm" style={{ color: theme.text }}>Managed by {groupCreator}</div>
+                 {group.created_by !== user?.id && (
+                   <button
+                     onClick={async () => {
+                       if (!user || !group.created_by) return;
+                       const { data: existing } = await supabase.from('network_connections')
+                         .select('id')
+                         .or(`and(requester_id.eq.${user.id},receiver_id.eq.${group.created_by}),and(requester_id.eq.${group.created_by},receiver_id.eq.${user.id})`)
+                         .single();
+                       if (!existing) {
+                         await supabase.from('network_connections').insert({ requester_id: user.id, receiver_id: group.created_by, status: 'accepted' });
+                       } else {
+                         await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', existing.id);
+                       }
+                       navigate('messages');
+                     }}
+                     className="mt-3 px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 transition-transform hover:scale-[1.02]"
+                     style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+                   >
+                     <MessageCircle size={16} /> Message Organisation
+                   </button>
+                 )}
+               </div>
+             </>
+          ) : (
+            <>
+              <h4 className="text-xs mt-5 uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>
+                Group rules
+              </h4>
+              <ol className="mt-2 space-y-1.5 text-sm list-decimal pl-5" style={{ color: theme.text }}>
+                <li>Speak with charity. Disagree without contempt.</li>
+                <li>No partisan campaigning. Reflection and discussion only.</li>
+                <li>Respect anonymous members. Never try to identify them.</li>
+                <li>Keep group conversations inside the group.</li>
+                <li>Report concerns to the moderators or CiP staff.</li>
+              </ol>
+              <h4 className="text-xs mt-5 uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>
+                Moderators
+              </h4>
+              <div className="mt-2 text-sm" style={{ color: theme.text }}>{groupCreator}</div>
+            </>
+          )}
         </Card>
       )}
 
@@ -1665,9 +2405,26 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 receiver_id: connectUser.id,
                 status: 'pending'
               });
+
+              // Notify the receiver
+              const myProfileRes = await supabase.from('profiles').select('first_name, last_name').eq('id', user.id).single();
+              const myName = myProfileRes.data ? `${myProfileRes.data.first_name || ''} ${myProfileRes.data.last_name || ''}`.trim() : 'Someone';
+              await supabase.from('notifications').insert({
+                user_id: connectUser.id,
+                type: 'connection_invite',
+                title: 'New Connection Request',
+                message: `${myName} wants to connect with you.`,
+              });
             }
             setConnectUser(null);
           }} 
+        />
+      )}
+      {editOpen && (
+        <OrganisationFormModal
+          initialData={group}
+          onClose={() => setEditOpen(false)}
+          onSave={() => { setEditOpen(false); initGroup(); }}
         />
       )}
     </div>
@@ -1675,7 +2432,6 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
 }
 
 // ── Events ───────────────────────────────────────────────────────────
-const EVENTS: any[] = [];
 
 export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
@@ -1838,6 +2594,16 @@ export function MessagesScreen() {
          });
       }
       setConnections(acc);
+
+      // Deep-link: auto-select a conversation if navigated from "Message author"
+      const targetUserId = localStorage.getItem('activeMessageUserId');
+      if (targetUserId) {
+        localStorage.removeItem('activeMessageUserId');
+        const targetConnection = acc.find(c => c.peerId === targetUserId);
+        if (targetConnection) {
+          setActive(targetConnection);
+        }
+      }
     }
     setLoading(false);
   };
@@ -2010,10 +2776,10 @@ export function MessagesScreen() {
                       This is the beginning of your conversation with {active.name}.
                     </div>
                   )}
-                  {messages.map((m, i) => {
+                  {messages.map((m) => {
                     const mine = m.from === "me";
                     return (
-                      <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"} gap-2`}>
+                      <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"} gap-2`}>
                         <div className="max-w-[60%]">
                           <div
                             className="rounded-2xl px-4 py-2.5"
@@ -2123,10 +2889,66 @@ export function DonateScreen() {
 }
 
 // ── Settings ─────────────────────────────────────────────────────────
+
+const NOTIFICATION_PREF_KEYS = [
+  { key: "announcements", label: "CiP announcements and events" },
+  { key: "group_activity", label: "Group activity in groups I've joined" },
+  { key: "connection_requests", label: "New connection requests" },
+  { key: "direct_messages", label: "Direct messages" },
+  { key: "donation_reminders", label: "Donation reminders" },
+] as const;
+
+const DEFAULT_NOTIFICATION_PREFS: Record<string, boolean> = {
+  announcements: true,
+  group_activity: true,
+  connection_requests: true,
+  direct_messages: true,
+  donation_reminders: false,
+};
+
 export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme, dark, toggle } = useTheme();
   const { user } = useAuth();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(DEFAULT_NOTIFICATION_PREFS);
+  const [notifLoading, setNotifLoading] = useState(true);
+  const [notifSaved, setNotifSaved] = useState(false);
+
+  // Load notification preferences from profiles table
+  useEffect(() => {
+    async function loadPrefs() {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("notification_preferences")
+        .eq("id", user.id)
+        .single();
+      if (data?.notification_preferences) {
+        setNotifPrefs({ ...DEFAULT_NOTIFICATION_PREFS, ...data.notification_preferences });
+      }
+      setNotifLoading(false);
+    }
+    loadPrefs();
+  }, [user]);
+
+  // Save a single preference toggle
+  const togglePref = async (key: string) => {
+    if (!user) return;
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] };
+    setNotifPrefs(updated);
+    setNotifSaved(false);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ notification_preferences: updated })
+      .eq("id", user.id);
+
+    if (!error) {
+      setNotifSaved(true);
+      setTimeout(() => setNotifSaved(false), 2000);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card className="p-5">
@@ -2156,20 +2978,38 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Notifications</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Notifications</h3>
+          {notifSaved && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+              style={{ background: "#d1fae5", color: "#065f46", fontWeight: 500 }}
+            >
+              <CheckCircle2 size={10} /> Saved
+            </span>
+          )}
+        </div>
         <div className="space-y-3 mt-3">
-          {[
-            "CiP announcements and events",
-            "Group activity in groups I've joined",
-            "New connection requests",
-            "Direct messages",
-            "Donation reminders",
-          ].map((label, i) => (
-            <div key={i} className="flex items-center justify-between text-sm" style={{ color: theme.text }}>
-              <span>{label}</span>
-              <input type="checkbox" defaultChecked={i < 4} />
-            </div>
-          ))}
+          {notifLoading ? (
+            <div className="text-xs py-2" style={{ color: theme.textSubtle }}>Loading preferences…</div>
+          ) : (
+            NOTIFICATION_PREF_KEYS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between text-sm" style={{ color: theme.text }}>
+                <span>{label}</span>
+                <button
+                  onClick={() => togglePref(key)}
+                  className="w-9 h-5 rounded-full relative transition-colors"
+                  style={{ background: notifPrefs[key] ? NAVY : "#d1d5db" }}
+                  aria-label={`Toggle ${label}`}
+                >
+                  <div
+                    className="w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all"
+                    style={{ left: notifPrefs[key] ? 18 : 2 }}
+                  />
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </Card>
 
@@ -2319,7 +3159,6 @@ export function PrivacyScreen() {
 }
 
 // ── Network ──────────────────────────────────────────────────────────
-const NETWORK: any[] = [];
 
 export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
@@ -2473,29 +3312,14 @@ const SUPPORT_PATHWAYS = [
     cta: "Request a chat",
   },
   {
-    id: "pastoral",
-    icon: Heart,
-    title: "Pastoral support",
-    desc: "Standing for office, working in policy or serving in public life can be lonely. We can connect you with a pastor or chaplain for a confidential conversation.",
-    cta: "Request pastoral care",
-  },
-  {
     id: "mentor",
     icon: UserPlus,
     title: "Be matched with a mentor",
     desc: "We'll pair you with a more experienced member who can mentor you for a season as you grow in faith and public life.",
     cta: "Request a mentor",
   },
-  {
-    id: "policy",
-    icon: FileText,
-    title: "Policy / discernment help",
-    desc: "Wrestling with a policy area through a Christian lens? We can connect you with a thoughtful peer or a relevant resource.",
-    cta: "Ask CiP",
-  },
 ];
 
-const SUPPORT_REQUESTS: any[] = [];
 
 const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   "Submitted":                 { bg: "#dbeafe", fg: "#1d4ed8" },
@@ -2524,6 +3348,12 @@ function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_
       status: "Submitted"
     });
     setLoading(false);
+    
+    // Trigger email notification to hello@christiansinpolitics.com
+    const subject = encodeURIComponent(`CiP Request: ${pathway.title}`);
+    const body = encodeURIComponent(`A new request has been submitted by ${user.email}:\n\nType: ${pathway.title}\nUrgency: ${urgency}\n\nContext:\n${contextText || pathway.desc}\n\nPlease reply to this email to contact the member.`);
+    window.location.href = `mailto:hello@christiansinpolitics.com?subject=${subject}&body=${body}`;
+
     onClose(true);
   };
 
@@ -2724,6 +3554,396 @@ export function SupportScreen() {
           }} 
         />
       )}
+    </div>
+  );
+}
+
+
+// ============================================================================
+// ORGANISATIONS
+// ============================================================================
+
+function OrganisationFormModal({ onClose, onSave, initialData }: { onClose: () => void; onSave: (name: string) => void; initialData?: any; }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [name, setName] = useState(initialData?.name || "");
+  const [desc, setDesc] = useState(initialData?.description || "");
+  const [websiteUrl, setWebsiteUrl] = useState(initialData?.website_url || "");
+  const [imageUrl, setImageUrl] = useState(initialData?.image_url || "");
+  const [location, setLocation] = useState(initialData?.location || "");
+  const [religion, setReligion] = useState(initialData?.religion || "");
+  const [partyAffiliation, setPartyAffiliation] = useState(initialData?.party_affiliation || "");
+  const [profession, setProfession] = useState(initialData?.profession || "");
+  const [christianOrgIdentifiers, setChristianOrgIdentifiers] = useState(initialData?.christian_org_identifiers || "");
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const uploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file || !user) return;
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+      setUploadingImage(true);
+      const { error: uploadError } = await supabase.storage.from('group_images').upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('group_images').getPublicUrl(fileName);
+      setImageUrl(data.publicUrl);
+    } catch (error) {
+      console.error("Error uploading image", error);
+      alert("Error uploading image");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const canNext = name.trim().length > 1;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl shadow-2xl" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }} onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <h3 style={{ color: theme.text, fontWeight: 600 }}>{initialData ? "Edit organisation" : "Create an organisation"}</h3>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
+            <X size={16} style={{ color: theme.textMuted }} />
+          </button>
+        </div>
+        <div className="px-6 py-5 max-h-[70vh] overflow-y-auto space-y-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold block" style={{ color: theme.text }}>Organisation Logo</label>
+            <div className="flex items-center gap-4">
+              {imageUrl ? (
+                <img src={imageUrl} alt="Org Preview" className="w-16 h-16 rounded-xl object-cover" />
+              ) : (
+                <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold" style={{ background: NAVY }}>
+                  {name ? name.split(" ").map(w => w[0] || "").slice(0, 2).join("") : "Logo"}
+                </div>
+              )}
+              <div>
+                <input type="file" accept="image/*" id="orgImageUpload" className="hidden" onChange={uploadImage} disabled={uploadingImage} />
+                <label htmlFor="orgImageUpload" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                  {uploadingImage ? "Uploading..." : "Upload logo"}
+                </label>
+              </div>
+            </div>
+          </div>
+          <FormField label="Organisation name">
+            <TextInput value={name} onChange={setName} placeholder="e.g. Christians in Politics Australia" />
+          </FormField>
+          <FormField label="Website URL">
+            <TextInput value={websiteUrl} onChange={setWebsiteUrl} placeholder="https://example.com" />
+          </FormField>
+          <FormField label="Short description" hint="What does this organisation do?">
+            <textarea
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              rows={3}
+              placeholder="We equip Christians to participate faithfully..."
+              className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+              style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+            />
+          </FormField>
+
+          <div className="pt-4 mt-2 border-t border-gray-100">
+            <h4 className="text-sm font-semibold mb-3" style={{ color: theme.text }}>Search Identifiers</h4>
+            <p className="text-xs mb-4" style={{ color: theme.textMuted }}>Adding these identifiers helps members find your organisation when searching by specific criteria.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Location">
+                <TextInput value={location} onChange={setLocation} placeholder="e.g. NSW, VIC, National" />
+              </FormField>
+              <FormField label="Religion / Denomination">
+                <select
+                  value={religion}
+                  onChange={(e) => setReligion(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-sm border outline-none appearance-none bg-white"
+                  style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+                >
+                  <option value="">Any / Unspecified</option>
+                  {TRADITIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </FormField>
+              <FormField label="Party Affiliation">
+                <select
+                  value={partyAffiliation}
+                  onChange={(e) => setPartyAffiliation(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-sm border outline-none appearance-none bg-white"
+                  style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+                >
+                  <option value="">Any / Unspecified</option>
+                  {PARTIES.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </FormField>
+              <FormField label="Profession">
+                <TextInput value={profession} onChange={setProfession} placeholder="e.g. Law, Medicine, Ministry" />
+              </FormField>
+            </div>
+            <div className="mt-4">
+              <FormField label="Other Christian Identifiers">
+                <TextInput value={christianOrgIdentifiers} onChange={setChristianOrgIdentifiers} placeholder="e.g. Youth, Discipleship, Public Theology" />
+              </FormField>
+            </div>
+          </div>
+        </div>
+        <div className="px-6 py-4 flex items-center justify-end gap-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>
+            Cancel
+          </button>
+          <button
+            disabled={!canNext}
+            onClick={async () => {
+              if (user) {
+                const payload = {
+                  name,
+                  description: desc,
+                  visibility: 'public', // Orgs are public
+                  group_type: 'organisation',
+                  website_url: websiteUrl,
+                  image_url: imageUrl,
+                  location,
+                  religion,
+                  party_affiliation: partyAffiliation,
+                  profession,
+                  christian_org_identifiers: christianOrgIdentifiers,
+                };
+                let res;
+                if (initialData) {
+                  res = await supabase.from("groups").update(payload).eq("id", initialData.id).select().single();
+                } else {
+                  res = await supabase.from("groups").insert({ ...payload, created_by: user.id }).select().single();
+                }
+                const { data, error } = res;
+                if (error) {
+                  alert(`Error ${initialData ? "updating" : "creating"} organisation: ` + error.message);
+                  return;
+                }
+                if (data) {
+                  if (!initialData) {
+                    await supabase.from("group_members").insert({
+                      group_id: data.id,
+                      user_id: user.id,
+                      role: "admin"
+                    });
+                  }
+                  onSave(name);
+                }
+              }
+            }}
+            className="px-4 py-2 rounded-lg text-sm"
+            style={{ background: !canNext ? theme.cardBorder : GOLD, color: !canNext ? theme.textMuted : NAVY, fontWeight: 600 }}
+          >
+            {initialData ? "Save changes" : "Create organisation"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  const { user, profile } = useAuth();
+  const [tab, setTab] = useState<"joined" | "discover" | "yours">("discover");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [allOrgs, setAllOrgs] = useState<any[]>([]);
+  const [myMemberships, setMyMemberships] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [filterLocation, setFilterLocation] = useState("");
+  const [filterReligion, setFilterReligion] = useState("");
+  const [filterParty, setFilterParty] = useState("");
+  const [filterProfession, setFilterProfession] = useState("");
+  const [filterIdentifier, setFilterIdentifier] = useState("");
+
+  const fetchOrgs = async () => {
+    if (!user) { setLoading(false); return; }
+    try {
+      const { data: orgs } = await supabase.from("groups").select("*").is("deleted_at", null).is("suspended_at", null).eq("group_type", "organisation");
+      const { data: members } = await supabase.from("group_members").select("group_id").eq("user_id", user.id);
+      if (orgs) setAllOrgs(orgs);
+      if (members) setMyMemberships(new Set(members.map(m => m.group_id)));
+    } catch (err) {
+      console.error("Error fetching orgs:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchOrgs(); }, [user]);
+
+  const handleJoin = async (orgId: string) => {
+    if (!user) return;
+    const { error } = await supabase.from("group_members").insert({ group_id: orgId, user_id: user.id });
+    if (!error) fetchOrgs(); else alert("Error joining organisation: " + error.message);
+  };
+
+  // Check if any manual filters are active
+  const hasActiveFilters = !!(filterLocation || filterReligion || filterParty || filterProfession || filterIdentifier);
+
+  // User profile preferences for relevance scoring
+  const userState = profile?.state || "";
+  const userTradition = profile?.tradition || "";
+  const userParty = profile?.party || "";
+
+  // Compute relevance score: how well an org matches the user's profile
+  const computeRelevance = (o: any) => {
+    let score = 0;
+    if (userState && o.location?.toLowerCase().includes(userState.toLowerCase())) score += 3;
+    if (userTradition && o.religion?.toLowerCase().includes(userTradition.toLowerCase())) score += 2;
+    if (userParty && userParty !== "No affiliation" && o.party_affiliation?.toLowerCase().includes(userParty.toLowerCase())) score += 2;
+    // Boost orgs with descriptions mentioning "christian" as a baseline relevance
+    if (o.description?.toLowerCase().includes("christian") || o.name?.toLowerCase().includes("christian")) score += 1;
+    return score;
+  };
+
+  const mapped = allOrgs.map(o => ({
+    id: o.id, name: o.name, desc: o.description, joined: myMemberships.has(o.id),
+    created_by: o.created_by, image_url: o.image_url, website_url: o.website_url,
+    location: o.location, religion: o.religion, party: o.party_affiliation, profession: o.profession, identifiers: o.christian_org_identifiers,
+    allowed: true, // Orgs are public
+    relevance: computeRelevance(o),
+  }));
+
+  const list = (() => {
+    if (tab === "joined") return mapped.filter(o => o.joined);
+    if (tab === "yours") return mapped.filter(o => o.created_by === user?.id);
+
+    // Discover tab
+    if (hasActiveFilters) {
+      // When user has set explicit filters, apply them strictly
+      const filtered = mapped.filter(o => {
+        if (filterLocation && !o.location?.toLowerCase().includes(filterLocation.toLowerCase())) return false;
+        if (filterReligion && !o.religion?.toLowerCase().includes(filterReligion.toLowerCase())) return false;
+        if (filterParty && !o.party?.toLowerCase().includes(filterParty.toLowerCase())) return false;
+        if (filterProfession && !o.profession?.toLowerCase().includes(filterProfession.toLowerCase())) return false;
+        if (filterIdentifier && !o.identifiers?.toLowerCase().includes(filterIdentifier.toLowerCase())) return false;
+        return true;
+      });
+
+      // RULE: Always show at least one org — if filters produce nothing, show all orgs
+      if (filtered.length > 0) return filtered.sort((a, b) => b.relevance - a.relevance);
+      return mapped.sort((a, b) => b.relevance - a.relevance);
+    }
+
+    // No filters active — show all orgs sorted by relevance to user's profile
+    return mapped.sort((a, b) => b.relevance - a.relevance);
+  })();
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 style={{ color: theme.text }}>Organisations</h1>
+            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+              Discover and follow organisations, ministries, and political bodies active within the CiP network.
+            </p>
+          </div>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5 shrink-0"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            <Plus size={14} /> Create organisation
+          </button>
+        </div>
+        <div className="mt-4 flex gap-1 p-1 rounded-lg w-fit" style={{ background: theme.bg }}>
+          {( [["discover", "Discover"], ["joined", "Following"], ["yours", "Created by you"]] as const ).map(([t, l]) => (
+            <button
+              key={t} onClick={() => setTab(t)} className="px-4 py-1.5 rounded-md text-xs"
+              style={{
+                background: tab === t ? theme.cardBg : "transparent",
+                color: tab === t ? theme.text : theme.textMuted,
+                fontWeight: tab === t ? 600 : 400,
+                border: tab === t ? `1px solid ${theme.cardBorder}` : "1px solid transparent",
+              }}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+        {tab === "discover" && (
+          <div className="mt-4 pt-4 flex flex-wrap items-center gap-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
+            <span className="text-xs font-semibold mr-1" style={{ color: theme.text }}>Filters:</span>
+            <input type="text" value={filterLocation} onChange={e => setFilterLocation(e.target.value)} placeholder="Location" className="px-3 py-1.5 rounded-lg text-xs outline-none w-28 sm:w-auto" style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }} />
+            <select
+              value={filterReligion}
+              onChange={(e) => setFilterReligion(e.target.value)}
+              className="px-3 py-1.5 rounded-lg text-xs outline-none w-28 sm:w-auto appearance-none"
+              style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+            >
+              <option value="">Religion...</option>
+              {TRADITIONS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select
+              value={filterParty}
+              onChange={(e) => setFilterParty(e.target.value)}
+              className="px-3 py-1.5 rounded-lg text-xs outline-none w-32 sm:w-auto appearance-none"
+              style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+            >
+              <option value="">Party Affiliation...</option>
+              {PARTIES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <input type="text" value={filterProfession} onChange={e => setFilterProfession(e.target.value)} placeholder="Profession" className="px-3 py-1.5 rounded-lg text-xs outline-none w-28 sm:w-auto" style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }} />
+            <input type="text" value={filterIdentifier} onChange={e => setFilterIdentifier(e.target.value)} placeholder="Other Tags" className="px-3 py-1.5 rounded-lg text-xs outline-none w-28 sm:w-auto" style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }} />
+            {(filterLocation || filterReligion || filterParty || filterProfession || filterIdentifier) && (
+              <button onClick={() => { setFilterLocation(""); setFilterReligion(""); setFilterParty(""); setFilterProfession(""); setFilterIdentifier(""); }} className="text-xs hover:underline text-red-500 ml-1">Clear filters</button>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {loading ? (
+        <Card className="p-10 text-center text-sm text-gray-500">Loading organisations...</Card>
+      ) : list.length > 0 ? (
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+          {list.map(o => (
+            <Card key={o.id} className="p-5 flex flex-col cursor-pointer hover:shadow-md transition-shadow" onClick={() => { localStorage.setItem("activeGroupId", o.id); localStorage.setItem("isOrgDetail", "true"); navigate("group-detail"); }}>
+              <div className="flex items-start gap-3">
+                {o.image_url ? (
+                  <img src={o.image_url} alt={o.name} className="w-12 h-12 rounded-lg object-cover shrink-0" style={{ border: `1px solid ${theme.cardBorder}` }} />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg shrink-0 flex items-center justify-center text-sm" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
+                    {o.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-base truncate" style={{ color: theme.text, fontWeight: 600 }}>{o.name}</div>
+                  {o.website_url && (
+                    <a href={o.website_url.startsWith('http') ? o.website_url : `https://${o.website_url}`} target="_blank" rel="noreferrer" className="text-xs hover:underline flex items-center gap-1 mt-0.5" style={{ color: NAVY }} onClick={(e) => e.stopPropagation()}>
+                      <ExternalLink size={10} /> Website
+                    </a>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm mt-3 line-clamp-2" style={{ color: theme.textMuted, flex: 1 }}>{o.desc}</p>
+              <div className="mt-4 pt-4 flex items-center justify-between" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                <span className="text-xs" style={{ color: theme.textSubtle }}>Organisation</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={(e) => { e.stopPropagation(); localStorage.setItem("activeGroupId", o.id); localStorage.setItem("isOrgDetail", "true"); navigate("group-detail"); }} className="px-3 py-1.5 rounded-lg text-xs hover:underline" style={{ color: NAVY, fontWeight: 600 }}>
+                    View Profile
+                  </button>
+                  {!o.joined && o.allowed && (
+                    <button onClick={(e) => { e.stopPropagation(); handleJoin(o.id); }} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
+                      Follow
+                    </button>
+                  )}
+                  {o.joined && (
+                    <Pill color="#d1fae5" fg="#065f46">Following</Pill>
+                  )}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="p-10 text-center text-sm" style={{ color: theme.textMuted }}>
+          {tab === "joined" ? "You aren't following any organisations yet." 
+           : tab === "yours" ? "You haven't created any organisations yet." 
+           : "No organisations available at this time."}
+        </Card>
+      )}
+
+      {createOpen && <OrganisationFormModal onClose={() => setCreateOpen(false)} onSave={(name) => { setCreateOpen(false); alert(`Organisation "${name}" created!`); fetchOrgs(); }} />}
     </div>
   );
 }

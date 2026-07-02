@@ -298,7 +298,7 @@ function PublicFrame({
               <button onClick={() => onOpenModal("conduct")} className="hover:underline">Member Conduct Agreement</button>
             </>
           )}
-          <button className="hover:underline">Contact CiP</button>
+          <a href="mailto:hello@christiansinpolitics.com" className="hover:underline">Contact CiP</a>
         </div>
       </footer>
     </div>
@@ -534,6 +534,13 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
           Your faith and political information are private. Members are not searchable by other members.
         </p>
 
+        <div className="mt-4 p-4 rounded-xl" style={{ background: "rgba(11,37,69,0.04)", border: "1px solid rgba(11,37,69,0.1)" }}>
+          <h3 className="text-sm font-semibold mb-1.5" style={{ color: "#0B2545" }}>Your Privacy Comes First</h3>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            By default, your account is set to be <strong>fully anonymous</strong>. Your personal details remain completely hidden from others until you explicitly decide to share them publicly across the platform or privately within specific groups.
+          </p>
+        </div>
+
         <form
           className="mt-6 space-y-4"
           onSubmit={handleSubmit}
@@ -644,7 +651,7 @@ We believe in one Lord, Jesus Christ, the only Son of God, eternally begotten of
 
 For us and for our salvation he came down from heaven, was incarnate of the Holy Spirit and the Virgin Mary and became truly human. For our sake he was crucified under Pontius Pilate; he suffered death and was buried. On the third day he rose again in accordance with the Scriptures; he ascended into heaven and is seated at the right hand of the Father. He will come again in glory to judge the living and the dead, and his kingdom will have no end.
 
-We believe in the Holy Spirit, the Lord, the giver of life, who proceeds from the Father, who with the Father and the Son is worshiped and glorified, who has spoken through the prophets.
+We believe in the Holy Spirit, the Lord, the giver of life, who proceeds from the Father (and the Son), who with the Father and the Son is worshiped and glorified, who has spoken through the prophets.
 
 We believe in one holy catholic and apostolic Church. We acknowledge one baptism for the forgiveness of sins. We look for the resurrection of the dead, and the life of the world to come. Amen.`;
 
@@ -694,6 +701,7 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
       email,
       password,
       options: {
+        emailRedirectTo: window.location.origin,
         data: {
           first_name: firstName,
           last_name: lastName,
@@ -885,12 +893,9 @@ export function BlockedScreen({ navigate }: { navigate: (s: Screen) => void }) {
           >
             Return to website
           </button>
-          <button
-            className="px-5 py-2.5 rounded-xl text-sm"
-            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-          >
+          <a href="mailto:hello@christiansinpolitics.com" className="px-5 py-2.5 rounded-xl text-sm" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
             Contact CiP
-          </button>
+          </a>
         </div>
       </div>
       <LegalModal type={modal} onClose={() => setModal(null)} />
