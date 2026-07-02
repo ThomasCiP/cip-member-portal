@@ -107,11 +107,67 @@ const FEED_TYPE_COLORS: Record<string, string> = {
   Donate:       "#f5e6c8",
 };
 
-function FeedPost({ item, navigate }: { item: any; navigate: (s: Screen) => void }) {
+// Renders a post body with inline edit + delete controls for the author.
+function PostContent({ table, postId, body, isMine, onChanged, textColor }: {
+  table: "global_posts" | "group_posts"; postId: string; body: string; isMine: boolean; onChanged?: () => void; textColor: string;
+}) {
   const { theme } = useTheme();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(body);
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (!draft.trim()) return;
+    setBusy(true);
+    const { error } = await supabase.from(table).update({ content: draft.trim() }).eq("id", postId);
+    setBusy(false);
+    if (error) { alert("Could not update post: " + error.message); return; }
+    setEditing(false);
+    onChanged?.();
+  };
+  const remove = async () => {
+    if (!confirm("Delete this post? This cannot be undone.")) return;
+    setBusy(true);
+    const { error } = await supabase.from(table).delete().eq("id", postId);
+    setBusy(false);
+    if (error) { alert("Could not delete post: " + error.message); return; }
+    onChanged?.();
+  };
+
+  if (editing) {
+    return (
+      <div className="mt-2 space-y-2">
+        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4}
+          className="w-full px-3 py-2 rounded-lg text-sm border outline-none resize-y"
+          style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
+        <div className="flex gap-2">
+          <PrimaryButton onClick={save} disabled={busy || !draft.trim()}>{busy ? "Saving…" : "Save"}</PrimaryButton>
+          <GhostButton onClick={() => { setEditing(false); setDraft(body); }}>Cancel</GhostButton>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="text-sm mt-2 leading-relaxed whitespace-pre-wrap" style={{ color: textColor }}>{body}</p>
+      {isMine && (
+        <div className="flex gap-2 mt-2">
+          <GhostButton onClick={() => { setDraft(body); setEditing(true); }}>Edit</GhostButton>
+          <GhostButton onClick={remove}>Delete</GhostButton>
+        </div>
+      )}
+    </>
+  );
+}
+
+function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Screen) => void; onChanged?: () => void }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
 
   if (item.isGroupPost || item.isGlobalPost) {
     const isGlobal = !!item.isGlobalPost;
+    const isMine = !!item.authorId && item.authorId === user?.id;
     return (
       <Card className="overflow-hidden mb-4 p-5">
         <div className="flex items-center gap-2 mb-2.5">
@@ -130,9 +186,14 @@ function FeedPost({ item, navigate }: { item: any; navigate: (s: Screen) => void
             </div>
           </div>
         </div>
-        <p className="text-sm mt-3 leading-relaxed whitespace-pre-wrap" style={{ color: theme.textMuted }}>
-          {item.body}
-        </p>
+        <PostContent
+          table={isGlobal ? "global_posts" : "group_posts"}
+          postId={item.id}
+          body={item.body}
+          isMine={isMine}
+          onChanged={onChanged}
+          textColor={theme.textMuted}
+        />
         <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
           {!isGlobal && (
             <GhostButton onClick={() => {
@@ -147,7 +208,7 @@ function FeedPost({ item, navigate }: { item: any; navigate: (s: Screen) => void
               View in {item.groupType === 'organisation' ? 'organisation' : 'group'}
             </GhostButton>
           )}
-          {item.authorId && (
+          {item.authorId && !isMine && (
             <MessageAuthorButton targetUserId={item.authorId} navigate={navigate} />
           )}
         </div>
@@ -774,7 +835,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         </div>
       ) : feedItems.length > 0 ? (
         feedItems.map((item) => (
-          <FeedPost key={item.id} item={item} navigate={navigate} />
+          <FeedPost key={item.id} item={item} navigate={navigate} onChanged={fetchFeed} />
         ))
       ) : (
         <div className="text-center py-12 text-sm" style={{ color: theme.textMuted }}>
@@ -1910,6 +1971,15 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const [editOpen, setEditOpen] = useState(false);
   const { user } = useAuth();
 
+  const refreshGroupPosts = async () => {
+    if (!group) return;
+    const { data } = await supabase.from('group_posts')
+      .select('*, profiles(first_name, last_name, avatar_url)')
+      .eq('group_id', group.id)
+      .order('created_at', { ascending: false });
+    if (data) setGroupPosts(data);
+  };
+
   useEffect(() => {
     async function initGroup() {
       const groupId = localStorage.getItem('activeGroupId');
@@ -2192,11 +2262,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                   user_id: user.id,
                   content
                 });
-                const { data } = await supabase.from('group_posts')
-                  .select('*, profiles(first_name, last_name, avatar_url)')
-                  .eq('group_id', group.id)
-                  .order('created_at', { ascending: false });
-                if (data) setGroupPosts(data);
+                await refreshGroupPosts();
               }}
               placeholder="Share something with the group..."
               disabledClickAction={!visible ? () => setRevealOpen(true) : undefined}
@@ -2224,12 +2290,19 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                       </div>
                     </div>
                   </div>
-                  <p className="text-sm mt-2 leading-relaxed whitespace-pre-wrap" style={{ color: theme.text }}>
-                    {post.content}
-                  </p>
-                  <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
-                    <MessageAuthorButton targetUserId={post.user_id} navigate={navigate} />
-                  </div>
+                  <PostContent
+                    table="group_posts"
+                    postId={post.id}
+                    body={post.content}
+                    isMine={post.user_id === user?.id}
+                    onChanged={refreshGroupPosts}
+                    textColor={theme.text}
+                  />
+                  {post.user_id !== user?.id && (
+                    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                      <MessageAuthorButton targetUserId={post.user_id} navigate={navigate} />
+                    </div>
+                  )}
                 </Card>
               );
             })
