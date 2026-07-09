@@ -985,17 +985,22 @@ export function AdminEvents() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
-  const [showCreate, setShowCreate] = useState(false);
+  const [rawEvents, setRawEvents] = useState<Record<string, any>>({});
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [type, setType] = useState("In person");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const fetchEvents = async () => {
     const { data } = await supabase.from('events').select('*, event_attendees(count)').order('created_at', { ascending: false });
     if (data) {
+      const map: Record<string, any> = {};
+      data.forEach(e => { map[e.id] = e; });
+      setRawEvents(map);
       setRows(data.map(e => [
         e.title,
         new Date(e.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
@@ -1003,7 +1008,7 @@ export function AdminEvents() {
         e.location,
         e.event_attendees?.[0]?.count || 0,
         e.status,
-        ""
+        e.id, // last cell carries the id (dropped from display) so Edit can identify the row
       ]));
     }
   };
@@ -1012,28 +1017,42 @@ export function AdminEvents() {
     fetchEvents();
   }, []);
 
-  const handleCreate = async () => {
+  const resetForm = () => {
+    setEditingId(null);
+    setTitle("");
+    setDate("");
+    setType("In person");
+    setLocation("");
+    setDescription("");
+  };
+
+  const openCreate = () => { resetForm(); setShowForm(true); };
+
+  const openEdit = (id: string) => {
+    const e = rawEvents[id];
+    if (!e) return;
+    setEditingId(id);
+    setTitle(e.title || "");
+    setDate(e.date || "");
+    setType(e.type || "In person");
+    setLocation(e.location || "");
+    setDescription(e.description || "");
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
     if (!title.trim() || !date) return;
-    setCreating(true);
-    const { error } = await supabase.from("events").insert({
-      title,
-      date,
-      type,
-      location,
-      description,
-      status: "Upcoming",
-      created_by: user?.id,
-    });
-    setCreating(false);
+    setSaving(true);
+    const payload = { title, date, type, location, description };
+    const { error } = editingId
+      ? await supabase.from("events").update(payload).eq("id", editingId)
+      : await supabase.from("events").insert({ ...payload, status: "Upcoming", created_by: user?.id });
+    setSaving(false);
     if (error) {
-      alert("Error creating event: " + error.message);
+      alert("Error saving event: " + error.message);
     } else {
-      setShowCreate(false);
-      setTitle("");
-      setDate("");
-      setType("In person");
-      setLocation("");
-      setDescription("");
+      setShowForm(false);
+      resetForm();
       fetchEvents();
     }
   };
@@ -1044,19 +1063,20 @@ export function AdminEvents() {
         title="Events"
         subtitle="Manage CiP-hosted events."
         ctaLabel="Create event"
-        onCtaClick={() => setShowCreate(true)}
+        onCtaClick={openCreate}
         columns={["Title", "Date", "Type", "Location", "Registrations", "Status", ""]}
         rows={rows}
         renderStatus={(row) => <StatusPill label={row[5] as string} />}
+        onEdit={(row) => openEdit(row[6] as string)}
       />
 
-      {showCreate && (
+      {showForm && (
         <div className="absolute top-0 right-0 z-50 w-full max-w-md p-6 rounded-2xl shadow-xl border" style={{ background: theme.bg, borderColor: theme.cardBorder }}>
           <div className="flex justify-between items-center mb-5">
-            <h2 className="text-lg font-bold" style={{ color: theme.text }}>Create New Event</h2>
-            <button onClick={() => setShowCreate(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
+            <h2 className="text-lg font-bold" style={{ color: theme.text }}>{editingId ? "Edit Event" : "Create New Event"}</h2>
+            <button onClick={() => { setShowForm(false); resetForm(); }} className="p-1 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
           </div>
-          
+
           <div className="space-y-4 mb-6">
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Event Title</label>
@@ -1084,8 +1104,8 @@ export function AdminEvents() {
             </div>
           </div>
           
-          <button onClick={handleCreate} disabled={creating || !title || !date} className="w-full py-2.5 rounded-xl text-sm disabled:opacity-50" style={{ background: GOLD, color: "#fff", fontWeight: 600 }}>
-            {creating ? "Creating..." : "Save Event"}
+          <button onClick={handleSave} disabled={saving || !title || !date} className="w-full py-2.5 rounded-xl text-sm disabled:opacity-50" style={{ background: GOLD, color: "#fff", fontWeight: 600 }}>
+            {saving ? "Saving..." : editingId ? "Update Event" : "Save Event"}
           </button>
         </div>
       )}
@@ -1237,7 +1257,7 @@ export function AdminContent() {
 
 // ── Generic admin table page ───────────────────────────────────────
 function AdminTablePage({
-  title, subtitle, ctaLabel, onCtaClick, columns, rows, renderStatus,
+  title, subtitle, ctaLabel, onCtaClick, columns, rows, renderStatus, onEdit,
 }: {
   title: string;
   subtitle?: string;
@@ -1246,6 +1266,7 @@ function AdminTablePage({
   columns: string[];
   rows: (string | React.ReactNode)[][];
   renderStatus?: (row: (string | React.ReactNode)[]) => React.ReactNode;
+  onEdit?: (row: (string | React.ReactNode)[]) => void;
 }) {
   const { theme } = useTheme();
   return (
@@ -1290,7 +1311,8 @@ function AdminTablePage({
                 ))}
                 <td className="px-5 py-3 text-right">
                   <button
-                    className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border"
+                    onClick={onEdit ? () => onEdit(r) : undefined}
+                    className={`inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border ${onEdit ? "cursor-pointer hover:opacity-80" : ""}`}
                     style={{ borderColor: theme.cardBorder, color: theme.textMuted }}
                   >
                     <Edit3 size={11} /> Edit
