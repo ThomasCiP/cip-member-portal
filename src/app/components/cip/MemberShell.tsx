@@ -108,7 +108,7 @@ export function ProfileSummaryCard({ navigate, profile }: { navigate: (s: Screen
       className="rounded-2xl overflow-hidden"
       style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
     >
-      <div className="h-16" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b)` }} />
+      <div className="h-16" style={{ background: `linear-gradient(135deg, ${NAVY}, #1d4ed8)` }} />
       <div className="px-4 pb-4 -mt-8">
         {profile?.avatar_url ? (
           <img src={profile.avatar_url} alt={fullName} className="w-16 h-16 rounded-full object-cover" style={{ border: `3px solid ${theme.cardBg}` }} />
