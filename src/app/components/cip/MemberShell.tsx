@@ -1,8 +1,8 @@
 import { ReactNode, useState, useEffect, useRef } from "react";
 import {
-  Home, UserCircle2, Users, CalendarDays, MessageSquare, Settings,
+  Home, UserCircle2, CalendarDays, MessageSquare, Settings,
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
-  Network, Activity, LogOut, ArrowUpRight, Building2, Plus
+  Network, Activity, LogOut, ArrowUpRight, Plus
 } from "lucide-react";
 import { Joyride, Step } from "react-joyride";
 import { supabase } from "../../../lib/supabase";
@@ -14,8 +14,6 @@ import { SUPPORT_PATHWAYS, NewSupportRequestModal } from "./MemberScreens";
 const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "dashboard", label: "Home",     icon: Home },
   { key: "network",   label: "Network",  icon: Network },
-  { key: "organisations", label: "Orgs", icon: Building2 },
-  { key: "groups",    label: "Groups",   icon: Users },
   { key: "events",    label: "Events",   icon: CalendarDays },
   { key: "messages",  label: "Messages", icon: MessageSquare },
   { key: "support",   label: "Get Involved",  icon: ArrowUpRight },
@@ -634,8 +632,7 @@ export function MemberShell({
   const tourSteps: Step[] = [
     { target: ".tour-profile", content: "This is your profile card. Keep your details up to date to help others connect with you.", placement: "right", disableBeacon: true },
     { target: ".tour-nav-home", content: "Your Home feed is where you'll see updates from your groups.", placement: "right" },
-    { target: ".tour-nav-network", content: "Find and connect with other Christians in politics.", placement: "right" },
-    { target: ".tour-nav-groups", content: "Join groups to engage in discussions and find your local branch.", placement: "right" },
+    { target: ".tour-nav-network", content: "Find and connect with people, organisations, and groups — all under Network.", placement: "right" },
     { target: ".tour-nav-events", content: "Stay updated on upcoming briefings, forums, and prayer meetings.", placement: "right" },
     { target: ".tour-nav-support", content: "Need help? The support tab connects you to our team and local branches.", placement: "right" }
   ];

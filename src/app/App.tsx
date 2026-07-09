@@ -10,7 +10,7 @@ import {
 } from "./components/cip/PublicScreens";
 import { MemberShell } from "./components/cip/MemberShell";
 import {
-  Dashboard, ProfileScreen, MemberProfileScreen, NetworkScreen, GroupsScreen, OrganisationsScreen, GroupDetailScreen,
+  Dashboard, ProfileScreen, MemberProfileScreen, NetworkHub, GroupDetailScreen,
   EventsScreen, EventDetail, MessagesScreen, SupportScreen,
   DonateScreen, SettingsScreen, PrivacyScreen,
 } from "./components/cip/MemberScreens";
@@ -53,14 +53,11 @@ const ADMIN_SCREENS: Screen[] = [
 
 function normalizeMember(s: Screen): Screen {
   if (s === "event-detail") return "events";
-  if (s === "group-detail") {
-    // If we're coming from the organisations tab, keep it there, else groups
-    const isOrg = localStorage.getItem('isOrgDetail') === 'true';
-    return isOrg ? "organisations" : "groups";
-  }
+  // Groups, Orgs and their detail pages now live inside the Network hub, so they
+  // all highlight the single "Network" top-nav item.
+  if (s === "group-detail" || s === "groups" || s === "organisations" || s === "member-profile") return "network";
   if (s === "privacy") return "settings";
   if (s === "donate") return "dashboard";
-  if (s === "member-profile") return "network";
   return s;
 }
 
@@ -201,9 +198,9 @@ export default function App() {
       case "dashboard":    return <Dashboard navigate={navigate} onboarded={onboarded ?? true} setOnboarded={setOnboarded} />;
       case "profile":      return <ProfileScreen />;
       case "member-profile": return <MemberProfileScreen navigate={navigate} />;
-      case "network":      return <NetworkScreen navigate={navigate} />;
-      case "groups":       return <GroupsScreen navigate={navigate} />;
-      case "organisations":return <OrganisationsScreen navigate={navigate} />;
+      case "network":      return <NetworkHub navigate={navigate} />;
+      case "groups":       return <NetworkHub navigate={navigate} initialTab="groups" />;
+      case "organisations":return <NetworkHub navigate={navigate} initialTab="orgs" />;
       case "group-detail": return <GroupDetailScreen navigate={navigate} />;
       case "events":       return <EventsScreen navigate={navigate} />;
       case "event-detail": return <EventDetail navigate={navigate} />;

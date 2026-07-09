@@ -4102,6 +4102,44 @@ function Initials({ name }: { name: string }) {
   );
 }
 
+// Top-level "Network" container: hosts People / Orgs / Groups as sub-tabs.
+// Each child screen keeps its own header + controls beneath the hub tab bar.
+export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => void; initialTab?: 'people' | 'orgs' | 'groups' }) {
+  const { theme } = useTheme();
+  const [tab, setTab] = useState<'people' | 'orgs' | 'groups'>(initialTab ?? 'people');
+
+  const HubTab = ({ id, label }: { id: 'people' | 'orgs' | 'groups'; label: string }) => (
+    <button
+      onClick={() => setTab(id)}
+      className="px-4 py-2.5 text-sm whitespace-nowrap"
+      style={{
+        color: tab === id ? NAVY : theme.textMuted,
+        fontWeight: tab === id ? 600 : 400,
+        borderBottom: tab === id ? `2px solid ${GOLD}` : "2px solid transparent",
+        marginBottom: -1,
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5 pb-0">
+        <div className="flex gap-1 overflow-x-auto" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <HubTab id="people" label="People" />
+          <HubTab id="orgs" label="Orgs" />
+          <HubTab id="groups" label="Groups" />
+        </div>
+      </Card>
+
+      {tab === 'people' && <NetworkScreen navigate={navigate} />}
+      {tab === 'orgs' && <OrganisationsScreen navigate={navigate} />}
+      {tab === 'groups' && <GroupsScreen navigate={navigate} />}
+    </div>
+  );
+}
+
 export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -4235,7 +4273,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
   return (
     <div className="space-y-4">
       <Card className="p-5 pb-0">
-        <h1 style={{ color: theme.text }}>Network</h1>
+        <h1 style={{ color: theme.text }}>People</h1>
         <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
           Find and connect with other Christians in politics, and manage your connections.
         </p>
