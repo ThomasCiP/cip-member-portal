@@ -824,7 +824,7 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
       {item.image && (
         <div
           className="h-44 w-full"
-          style={{ background: `linear-gradient(135deg, ${NAVY}, #4038b5 60%, ${GOLD})` }}
+          style={{ background: "#f1f5f9" }}
         />
       )}
       <div className="p-5">
@@ -1795,7 +1795,7 @@ export function ProfileScreen() {
     <div className="space-y-4">
       {/* Header */}
       <Card className="overflow-hidden">
-        <div className="h-32" style={{ background: `linear-gradient(135deg, ${NAVY}, #4038b5 60%, ${GOLD})` }} />
+        <div className="h-32" style={{ background: "#f1f5f9" }} />
         <div className="px-6 pb-5 -mt-12">
           {profile.avatarUrl ? (
             <img src={profile.avatarUrl} alt="Avatar" className="w-24 h-24 rounded-full object-cover" style={{ border: `4px solid ${theme.cardBg}` }} />
@@ -3175,7 +3175,7 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
         ← All events
       </button>
       <Card className="overflow-hidden">
-        <div className="h-44" style={{ background: `linear-gradient(135deg, ${NAVY}, #4038b5 60%, ${GOLD})` }} />
+        <div className="h-44" style={{ background: "#f1f5f9" }} />
         <div className="p-6">
           <Pill color="#dbeafe">{event.type || 'In-person'}</Pill>
           <h1 className="mt-3" style={{ color: theme.text }}>{event.title}</h1>
@@ -4022,7 +4022,7 @@ export function MemberProfileScreen({ navigate }: { navigate: (s: Screen) => voi
     <div>
       {BackBar}
       <Card className="overflow-hidden">
-        <div className="h-20" style={{ background: `linear-gradient(135deg, ${NAVY}, #4038b5)` }} />
+        <div className="h-20" style={{ background: "#f1f5f9" }} />
         <div className="px-6 pb-6 -mt-10">
           {member.avatar_url ? (
             <img src={member.avatar_url} alt={name} className="w-20 h-20 rounded-full object-cover" style={{ border: `3px solid ${theme.cardBg}` }} />
@@ -5035,11 +5035,6 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="text-base truncate" style={{ color: theme.text, fontWeight: 600 }}>{o.name}</div>
-                  {o.website_url && (
-                    <a href={o.website_url.startsWith('http') ? o.website_url : `https://${o.website_url}`} target="_blank" rel="noreferrer" className="text-xs hover:underline flex items-center gap-1 mt-0.5" style={{ color: NAVY }} onClick={(e) => e.stopPropagation()}>
-                      <ExternalLink size={10} /> Website
-                    </a>
-                  )}
                 </div>
               </div>
               <p className="text-sm mt-3 line-clamp-2" style={{ color: theme.textMuted, flex: 1 }}>{o.desc}</p>
