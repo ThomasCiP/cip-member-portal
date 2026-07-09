@@ -1,9 +1,9 @@
 import { createContext, useContext } from "react";
 
 // ── Palette ──────────────────────────────────────────────────────────
-export const NAVY      = "#4a7fb5";
-export const NAVY_DEEP = "#3a6494";
-export const NAVY_SOFT = "#6a97c7";
+export const NAVY      = "#5cc4c6";
+export const NAVY_DEEP = "#3fa9ab";
+export const NAVY_SOFT = "#8ad6d7";
 export const GOLD      = "#c9a227";
 export const GOLD_SOFT = "#e6c870";
 export const WARM      = "#faf7f1";
