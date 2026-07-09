@@ -4754,6 +4754,13 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
 // ── Support ──────────────────────────────────────────────────────────
 export const SUPPORT_PATHWAYS = [
   {
+    id: "party",
+    icon: Flag,
+    title: "Pick a political party",
+    desc: "We'll help you explore the major parties, understand where each stands, and discern which one best fits your convictions and calling.",
+    cta: "Request guidance",
+  },
+  {
     id: "branch",
     icon: MapPin,
     title: "Connect to a local branch",
@@ -4773,13 +4780,6 @@ export const SUPPORT_PATHWAYS = [
     title: "Explore pre-selection",
     desc: "If you're considering pre-selection at state or federal level, our team can talk you through what's involved and connect you with someone who's done it.",
     cta: "Request a chat",
-  },
-  {
-    id: "party",
-    icon: Flag,
-    title: "Pick a political party",
-    desc: "We'll help you explore the major parties, understand where each stands, and discern which one best fits your convictions and calling.",
-    cta: "Request guidance",
   },
 ];
 
