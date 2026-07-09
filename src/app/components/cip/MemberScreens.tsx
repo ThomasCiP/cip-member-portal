@@ -12,7 +12,7 @@ import {
   FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
   Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
   Plus, LifeBuoy, ArrowRight, ArrowLeft, Search, Filter, Activity, ArrowUpRight,
-  PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2
+  PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2, Ticket, Mail
 } from "lucide-react";
 
 // ── Peer profile lookups ───────────────────────────────────────────────
@@ -3178,9 +3178,17 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [type, setType] = useState("In person");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [ticketed, setTicketed] = useState(false);
+  const [capacity, setCapacity] = useState("");
+  const [ticketPrice, setTicketPrice] = useState("");
+  const [registrationUrl, setRegistrationUrl] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [groupId, setGroupId] = useState("");
   const [ownedGroups, setOwnedGroups] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
@@ -3195,7 +3203,25 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
       .then(({ data }) => { if (data) setOwnedGroups(data); });
   }, [user]);
 
-  const canSave = title.trim().length > 1 && !!date && !saving;
+  const uploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file || !user) return;
+      const ext = file.name.split('.').pop();
+      const fileName = `event-${user.id}-${Math.random()}.${ext}`;
+      setUploading(true);
+      const { error: upErr } = await supabase.storage.from('group_images').upload(fileName, file);
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from('group_images').getPublicUrl(fileName);
+      setImageUrl(data.publicUrl);
+    } catch (err: any) {
+      alert('Error uploading image: ' + (err?.message || err));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const canSave = title.trim().length > 1 && !!date && !saving && !uploading;
 
   const save = async () => {
     if (!user) return;
@@ -3203,9 +3229,16 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
     const { error } = await supabase.from('events').insert({
       title: title.trim(),
       date,
+      end_date: endDate || null,
       type,
       location: location.trim(),
       description: description.trim() || null,
+      image_url: imageUrl || null,
+      ticketed,
+      capacity: ticketed && capacity ? parseInt(capacity, 10) : null,
+      ticket_price: ticketed && ticketPrice ? parseFloat(ticketPrice) : null,
+      registration_url: registrationUrl.trim() || null,
+      contact_email: contactEmail.trim() || null,
       status: 'Upcoming',
       created_by: user.id,
       group_id: groupId || null,
@@ -3215,6 +3248,9 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
     onSave();
   };
 
+  const inputCls = "w-full px-3 py-2 rounded-lg outline-none text-sm";
+  const inputStyle = { border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text } as const;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
       <div className="w-full max-w-lg rounded-2xl shadow-2xl" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }} onClick={(e) => e.stopPropagation()}>
@@ -3223,18 +3259,39 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
           <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100"><X size={16} style={{ color: theme.textMuted }} /></button>
         </div>
         <div className="px-6 py-5 max-h-[70vh] overflow-y-auto space-y-4">
+          {/* Banner image */}
+          <FormField label="Event image" hint="Optional — a banner shown on the event page">
+            <div className="flex items-center gap-4">
+              {imageUrl ? (
+                <img src={imageUrl} alt="Event" className="w-20 h-14 rounded-lg object-cover" />
+              ) : (
+                <div className="w-20 h-14 rounded-lg flex items-center justify-center" style={{ background: theme.pillBg, color: NAVY }}>
+                  <ImageIcon size={18} />
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input type="file" accept="image/*" id="eventImageUpload" className="hidden" onChange={uploadImage} disabled={uploading} />
+                <label htmlFor="eventImageUpload" className="cursor-pointer px-3 py-2 text-sm rounded-lg border inline-block" style={{ borderColor: theme.cardBorder, color: theme.text }}>
+                  {uploading ? "Uploading…" : imageUrl ? "Replace image" : "Upload image"}
+                </label>
+                {imageUrl && !uploading && (
+                  <button onClick={() => setImageUrl("")} className="text-xs" style={{ color: theme.textMuted }}>Remove</button>
+                )}
+              </div>
+            </div>
+          </FormField>
+
           <FormField label="Event title">
             <TextInput value={title} onChange={setTitle} placeholder="e.g. Prayer breakfast" />
           </FormField>
-          <FormField label="Date & time">
-            <input
-              type="datetime-local"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg outline-none text-sm"
-              style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
-            />
-          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Starts">
+              <input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} style={inputStyle} />
+            </FormField>
+            <FormField label="Ends" hint="Optional">
+              <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} style={inputStyle} />
+            </FormField>
+          </div>
           <FormField label="Format">
             <SelectInput value={type} onChange={setType} options={["In person", "Virtual", "Hybrid"]} />
           </FormField>
@@ -3247,10 +3304,44 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               placeholder="What's the event about?"
-              className="w-full px-3 py-2 rounded-lg outline-none text-sm"
-              style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+              className={inputCls}
+              style={inputStyle}
             />
           </FormField>
+
+          {/* Ticketing */}
+          <div className="pt-2 border-t" style={{ borderColor: theme.divider }}>
+            <label className="flex items-center justify-between text-sm mt-3" style={{ color: theme.text }}>
+              <span style={{ fontWeight: 600 }}>Ticketed event</span>
+              <button
+                type="button"
+                onClick={() => setTicketed(v => !v)}
+                className="w-9 h-5 rounded-full relative transition-colors"
+                style={{ background: ticketed ? NAVY : "#d1d5db" }}
+                aria-label="Toggle ticketed"
+              >
+                <div className="w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all" style={{ left: ticketed ? 18 : 2 }} />
+              </button>
+            </label>
+            {ticketed && (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <FormField label="Number of tickets" hint="Capacity">
+                  <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="e.g. 100" className={inputCls} style={inputStyle} />
+                </FormField>
+                <FormField label="Price per ticket" hint="Leave blank if free">
+                  <input type="number" min={0} step="0.01" value={ticketPrice} onChange={(e) => setTicketPrice(e.target.value)} placeholder="e.g. 25" className={inputCls} style={inputStyle} />
+                </FormField>
+              </div>
+            )}
+          </div>
+
+          <FormField label="Registration / ticket link" hint="Optional — where attendees register or buy tickets">
+            <TextInput value={registrationUrl} onChange={setRegistrationUrl} placeholder="https://…" />
+          </FormField>
+          <FormField label="Contact email" hint="Optional">
+            <TextInput value={contactEmail} onChange={setContactEmail} placeholder="organiser@example.com" />
+          </FormField>
+
           {ownedGroups.length > 0 && (
             <FormField label="Associate with" hint="Optional — link this event to a group or organisation you manage">
               <div className="relative">
@@ -3258,7 +3349,7 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
                   value={groupId}
                   onChange={(e) => setGroupId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg outline-none text-sm appearance-none"
-                  style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+                  style={inputStyle}
                 >
                   <option value="">None (standalone event)</option>
                   {ownedGroups.map(g => (
@@ -3410,13 +3501,25 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
         ← All events
       </button>
       <Card className="overflow-hidden">
-        <div className="h-44" style={{ background: "#f1f5f9" }} />
+        {event.image_url ? (
+          <img src={event.image_url} alt={event.title} className="w-full h-56 object-cover" />
+        ) : (
+          <div className="h-44" style={{ background: "#f1f5f9" }} />
+        )}
         <div className="p-6">
-          <Pill color="#dbeafe">{event.type || 'In-person'}</Pill>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Pill color="#dbeafe">{event.type || 'In-person'}</Pill>
+            {event.ticketed && (
+              <Pill color="#fef3c7" fg="#92400e"><Ticket size={11} /> {event.ticket_price ? `$${event.ticket_price}` : 'Free'}</Pill>
+            )}
+          </div>
           <h1 className="mt-3" style={{ color: theme.text }}>{event.title}</h1>
           <div className="flex flex-wrap items-center gap-4 mt-3 text-sm" style={{ color: theme.textMuted }}>
-            <span className="inline-flex items-center gap-1.5"><Clock size={14} /> {event.date}</span>
+            <span className="inline-flex items-center gap-1.5"><Clock size={14} /> {event.date}{event.end_date ? ` – ${event.end_date}` : ''}</span>
             <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> {event.location}</span>
+            {event.ticketed && event.capacity != null && (
+              <span className="inline-flex items-center gap-1.5"><Ticket size={14} /> {event.capacity} tickets</span>
+            )}
           </div>
           {event.groups && (
             <button
@@ -3435,8 +3538,19 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
           <p className="text-sm mt-4 leading-relaxed" style={{ color: theme.text }}>
             {event.description || "No description provided."}
           </p>
+          {event.contact_email && (
+            <div className="mt-3 text-sm inline-flex items-center gap-1.5" style={{ color: theme.textMuted }}>
+              <Mail size={14} /> <a href={`mailto:${event.contact_email}`} className="hover:underline" style={{ color: NAVY }}>{event.contact_email}</a>
+            </div>
+          )}
           <div className="flex items-center gap-2 mt-5">
-            <GoldButton>Register</GoldButton>
+            {event.registration_url ? (
+              <GoldButton onClick={() => window.open(event.registration_url.startsWith('http') ? event.registration_url : `https://${event.registration_url}`, '_blank')}>
+                {event.ticketed ? 'Get tickets' : 'Register'}
+              </GoldButton>
+            ) : (
+              <GoldButton>Register</GoldButton>
+            )}
             <GhostButton>Add to calendar</GhostButton>
           </div>
         </div>

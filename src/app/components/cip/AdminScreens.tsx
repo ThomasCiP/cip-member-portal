@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, LifeBuoy, CalendarDays, FileText, Lock,
   Settings, Bell, Search, Plus, Edit3, Eye, TrendingUp, ChevronDown,
   ShieldCheck, ArrowLeft, CheckCircle2, Circle, Network, X, MoreHorizontal,
-  Inbox, Flag
+  Inbox, Flag, Image as ImageIcon
 } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
@@ -990,9 +990,17 @@ export function AdminEvents() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [type, setType] = useState("In person");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [ticketed, setTicketed] = useState(false);
+  const [capacity, setCapacity] = useState("");
+  const [ticketPrice, setTicketPrice] = useState("");
+  const [registrationUrl, setRegistrationUrl] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [saving, setSaving] = useState(false);
 
   const fetchEvents = async () => {
@@ -1017,13 +1025,38 @@ export function AdminEvents() {
     fetchEvents();
   }, []);
 
+  const uploadImage = async (ev: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = ev.target.files?.[0];
+      if (!file || !user) return;
+      const ext = file.name.split('.').pop();
+      const fileName = `event-${user.id}-${Math.random()}.${ext}`;
+      setUploading(true);
+      const { error: upErr } = await supabase.storage.from('group_images').upload(fileName, file);
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from('group_images').getPublicUrl(fileName);
+      setImageUrl(data.publicUrl);
+    } catch (err: any) {
+      alert('Error uploading image: ' + (err?.message || err));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const resetForm = () => {
     setEditingId(null);
     setTitle("");
     setDate("");
+    setEndDate("");
     setType("In person");
     setLocation("");
     setDescription("");
+    setImageUrl("");
+    setTicketed(false);
+    setCapacity("");
+    setTicketPrice("");
+    setRegistrationUrl("");
+    setContactEmail("");
   };
 
   const openCreate = () => { resetForm(); setShowForm(true); };
@@ -1034,16 +1067,36 @@ export function AdminEvents() {
     setEditingId(id);
     setTitle(e.title || "");
     setDate(e.date || "");
+    setEndDate(e.end_date || "");
     setType(e.type || "In person");
     setLocation(e.location || "");
     setDescription(e.description || "");
+    setImageUrl(e.image_url || "");
+    setTicketed(!!e.ticketed);
+    setCapacity(e.capacity != null ? String(e.capacity) : "");
+    setTicketPrice(e.ticket_price != null ? String(e.ticket_price) : "");
+    setRegistrationUrl(e.registration_url || "");
+    setContactEmail(e.contact_email || "");
     setShowForm(true);
   };
 
   const handleSave = async () => {
     if (!title.trim() || !date) return;
     setSaving(true);
-    const payload = { title, date, type, location, description };
+    const payload = {
+      title,
+      date,
+      end_date: endDate || null,
+      type,
+      location,
+      description,
+      image_url: imageUrl || null,
+      ticketed,
+      capacity: ticketed && capacity ? parseInt(capacity, 10) : null,
+      ticket_price: ticketed && ticketPrice ? parseFloat(ticketPrice) : null,
+      registration_url: registrationUrl.trim() || null,
+      contact_email: contactEmail.trim() || null,
+    };
     const { error } = editingId
       ? await supabase.from("events").update(payload).eq("id", editingId)
       : await supabase.from("events").insert({ ...payload, status: "Upcoming", created_by: user?.id });
@@ -1077,14 +1130,39 @@ export function AdminEvents() {
             <button onClick={() => { setShowForm(false); resetForm(); }} className="p-1 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
           </div>
 
-          <div className="space-y-4 mb-6">
+          <div className="space-y-4 mb-6 max-h-[70vh] overflow-y-auto pr-1">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Event Image</label>
+              <div className="flex items-center gap-3">
+                {imageUrl ? (
+                  <img src={imageUrl} alt="Event" className="w-20 h-14 rounded-lg object-cover" />
+                ) : (
+                  <div className="w-20 h-14 rounded-lg flex items-center justify-center" style={{ background: theme.tableHead, color: theme.textMuted }}>
+                    <ImageIcon size={18} />
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input type="file" accept="image/*" id="adminEventImage" className="hidden" onChange={uploadImage} disabled={uploading} />
+                  <label htmlFor="adminEventImage" className="cursor-pointer px-3 py-1.5 text-xs rounded-lg border inline-block" style={{ borderColor: theme.cardBorder, color: theme.text }}>
+                    {uploading ? "Uploading…" : imageUrl ? "Replace" : "Upload image"}
+                  </label>
+                  {imageUrl && !uploading && <button onClick={() => setImageUrl("")} className="text-xs" style={{ color: theme.textMuted }}>Remove</button>}
+                </div>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Event Title</label>
               <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Date & Time</label>
-              <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Starts</label>
+                <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Ends <span style={{ color: theme.textMuted }}>(optional)</span></label>
+                <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Format</label>
@@ -1101,6 +1179,33 @@ export function AdminEvents() {
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Description</label>
               <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+            </div>
+
+            <div className="pt-3 border-t" style={{ borderColor: theme.divider }}>
+              <label className="flex items-center justify-between text-sm" style={{ color: theme.text }}>
+                <span className="font-medium">Ticketed event</span>
+                <input type="checkbox" checked={ticketed} onChange={e => setTicketed(e.target.checked)} />
+              </label>
+              {ticketed && (
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Number of tickets</label>
+                    <input type="number" min={1} value={capacity} onChange={e => setCapacity(e.target.value)} placeholder="e.g. 100" className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Price <span style={{ color: theme.textMuted }}>(blank = free)</span></label>
+                    <input type="number" min={0} step="0.01" value={ticketPrice} onChange={e => setTicketPrice(e.target.value)} placeholder="e.g. 25" className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Registration / ticket link <span style={{ color: theme.textMuted }}>(optional)</span></label>
+              <input type="text" value={registrationUrl} onChange={e => setRegistrationUrl(e.target.value)} placeholder="https://…" className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: theme.text }}>Contact email <span style={{ color: theme.textMuted }}>(optional)</span></label>
+              <input type="text" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="organiser@example.com" className="w-full text-sm p-2 rounded-lg border outline-none" style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }} />
             </div>
           </div>
           
