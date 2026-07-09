@@ -113,6 +113,24 @@ function Card({ children, className = "", onClick }: { children: ReactNode; clas
   );
 }
 
+// Renders a member's uploaded profile photo when available, otherwise initials on
+// a coloured circle. Used everywhere a person appears so an uploaded avatar shows
+// consistently across the platform.
+function Avatar({ src, name, size, bg = NAVY, className = "" }: { src?: string | null; name?: string; size: number; bg?: string; className?: string }) {
+  if (src) {
+    return <img src={src} alt={name || "Member"} className={`rounded-full object-cover shrink-0 ${className}`} style={{ width: size, height: size }} />;
+  }
+  const initials = (name || "").split(" ").map(w => w[0] || "").slice(0, 2).join("").toUpperCase() || "M";
+  return (
+    <div
+      className={`rounded-full shrink-0 flex items-center justify-center ${className}`}
+      style={{ width: size, height: size, background: bg, color: "#fff", fontWeight: 600, fontSize: Math.max(10, Math.round(size * 0.34)) }}
+    >
+      {initials}
+    </div>
+  );
+}
+
 function Pill({ children, color, fg }: { children: ReactNode; color?: string; fg?: string }) {
   const { theme } = useTheme();
   return (
@@ -436,9 +454,7 @@ function CommentItem({ c, canModerate, navigate, onReport, onChanged }: {
 
   return (
     <div className="flex gap-2">
-      <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px]" style={{ background: GOLD, color: "#fff", fontWeight: 600 }}>
-        {(authorName || "M").substring(0, 2).toUpperCase()}
-      </div>
+      <Avatar src={c.profiles?.avatar_url} name={authorName} size={28} bg={GOLD} />
       <div className="flex-1 min-w-0">
         <div className="rounded-2xl px-3 py-2" style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}>
           <div className="text-xs" style={{ color: theme.text, fontWeight: 600 }}>
@@ -701,10 +717,11 @@ function PostMenu({ isMine, canModerate, onEdit, onDelete, onRemove, onReport, p
 
 // ── Unified member post (feed + group), LinkedIn-style ─────────────────
 export function MemberPost({
-  postType, postId, authorId, authorName, subtitle, body, imageUrl, commentPolicy,
+  postType, postId, authorId, authorName, authorAvatar, subtitle, body, imageUrl, commentPolicy,
   groupId, canModerate, navigate, onChanged, footer,
 }: {
   postType: "global" | "group"; postId: string; authorId?: string; authorName: string;
+  authorAvatar?: string | null;
   subtitle: string; body: string; imageUrl?: string | null; commentPolicy?: string;
   groupId?: string | null; canModerate?: boolean; navigate: (s: Screen) => void;
   onChanged?: () => void; footer?: ReactNode;
@@ -762,9 +779,7 @@ export function MemberPost({
   return (
     <Card className="overflow-hidden mb-4 p-5">
       <div className="flex items-start gap-2 mb-2.5">
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] shrink-0" style={{ background: GOLD, color: "#fff", fontWeight: 600 }}>
-          {(authorName || "M").substring(0, 2).toUpperCase()}
-        </div>
+        <Avatar src={authorAvatar} name={authorName} size={32} bg={GOLD} />
         <div className="min-w-0 flex-1">
           <div className="text-sm leading-tight" style={{ color: dark ? theme.text : "#1a1a1a", fontWeight: 600 }}>
             <MemberNameLink userId={authorId} name={authorName} navigate={navigate} />
@@ -838,6 +853,7 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
         postId={item.id}
         authorId={item.authorId}
         authorName={item.authorName}
+        authorAvatar={item.authorAvatar}
         subtitle={isGlobal ? `Community Post · ${item.date}` : `Posted in ${item.groupName} · ${item.date}`}
         body={item.body}
         imageUrl={item.image_url}
@@ -930,7 +946,7 @@ export function PostComposer({
   placeholder?: string;
 }) {
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [content, setContent] = useState("");
   const [posting, setPosting] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -939,9 +955,7 @@ export function PostComposer({
   const [policyOpen, setPolicyOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const initials = user?.user_metadata?.first_name
-    ? `${user.user_metadata.first_name[0]}${user.user_metadata.last_name?.[0] || ''}`.toUpperCase()
-    : "U";
+  const composerName = `${profile?.first_name || user?.user_metadata?.first_name || ''} ${profile?.last_name || user?.user_metadata?.last_name || ''}`.trim();
 
   const disabled = !!disabledClickAction;
 
@@ -962,12 +976,7 @@ export function PostComposer({
   return (
     <div className="p-4 rounded-xl space-y-3" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}>
       <div className="flex gap-3">
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center text-xs shrink-0"
-          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-        >
-          {initials}
-        </div>
+        <Avatar src={profile?.avatar_url} name={composerName || "U"} size={36} bg={NAVY} />
         <div className="flex-1 relative">
           {disabled && (
             <div className="absolute inset-0 z-10 cursor-pointer" onClick={disabledClickAction} />
@@ -1480,6 +1489,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         const a = authorMap.get(uid);
         return a ? (`${a.first_name || ''} ${a.last_name || ''}`.trim() || "Member") : "Member";
       };
+      const authorAvatar = (uid: string) => authorMap.get(uid)?.avatar_url || null;
 
       const formattedAnnouncements = (announcements || []).map(a => ({
         id: a.id,
@@ -1500,6 +1510,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         groupName: p.groups?.name || "Group",
         groupType: p.groups?.group_type || "standard",
         authorName: authorName(p.user_id),
+        authorAvatar: authorAvatar(p.user_id),
         authorId: p.user_id,
         body: p.content,
         image_url: p.image_url,
@@ -1513,6 +1524,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         isGlobalPost: true,
         type: "Community Post",
         authorName: authorName(p.user_id),
+        authorAvatar: authorAvatar(p.user_id),
         authorId: p.user_id,
         body: p.content,
         image_url: p.image_url,
@@ -2718,6 +2730,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
     ...dbMembers.map(m => ({
       id: m.id,
       name: `${m.first_name || 'Member'} ${m.last_name || ''}`.trim(),
+      avatar: m.avatar_url || null,
       state: m.state || '',
       bio: m.bio || 'New member',
       connected: connectedIds.has(m.id),
@@ -2939,6 +2952,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                   postId={post.id}
                   authorId={post.user_id}
                   authorName={authorName}
+                  authorAvatar={post.profiles?.avatar_url || null}
                   subtitle={new Date(post.created_at).toLocaleDateString()}
                   body={post.content}
                   imageUrl={post.image_url}
@@ -2974,12 +2988,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 style={{ border: `1px solid ${theme.cardBorder}`, background: theme.bg }}
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-xs"
-                    style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                  >
-                    {(m.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                  </div>
+                  <Avatar src={m.avatar} name={m.name} size={40} bg={NAVY} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
                       <MemberNameLink userId={m.id} name={m.name} navigate={navigate} />
@@ -3481,6 +3490,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
            id: c.id,
            peerId: peer.id,
            name: `${peer.first_name || 'Unknown'} ${peer.last_name || ''}`.trim(),
+           avatar: peer.avatar_url || null,
            title: peer.job_title || 'Member',
            group: "CiP Network",
            unread: 0,
@@ -3520,6 +3530,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
         id: `dm-${targetUserId}`,
         peerId: targetUserId,
         name: peer ? `${peer.first_name || 'Member'} ${peer.last_name || ''}`.trim() : 'Member',
+        avatar: peer?.avatar_url || null,
         title: peer?.job_title || 'Member',
         group: 'CiP Network',
         unread: 0, last: '', time: '',
@@ -3662,12 +3673,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                         borderBottom: `1px solid ${theme.divider}`,
                       }}
                     >
-                      <div
-                        className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
-                        style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                      >
-                        {(c.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                      </div>
+                      <Avatar src={c.avatar} name={c.name} size={48} bg={NAVY} />
                       <div className="flex-1 min-w-0 flex flex-col justify-center h-12">
                         <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
                           <MemberNameLink userId={c.peerId} name={c.name} navigate={navigate} />
@@ -3691,12 +3697,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                   className="px-6 py-4 flex items-center gap-3 shrink-0 relative"
                   style={{ borderBottom: `1px solid ${theme.divider}` }}
                 >
-                  <div
-                    className="w-11 h-11 rounded-full shrink-0 flex items-center justify-center text-sm"
-                    style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                  >
-                    {(active.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                  </div>
+                  <Avatar src={active.avatar} name={active.name} size={44} bg={NAVY} />
                   <div className="flex-1 min-w-0">
                     <div className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
                       <MemberNameLink userId={active.peerId} name={active.name} navigate={navigate} />
@@ -4408,16 +4409,10 @@ export function MemberProfileScreen({ navigate }: { navigate: (s: Screen) => voi
 
 // ── Network ──────────────────────────────────────────────────────────
 
-// Avatar initials bubble reused across Network cards.
-function Initials({ name }: { name: string }) {
-  return (
-    <div
-      className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
-      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-    >
-      {(name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-    </div>
-  );
+// Avatar bubble reused across Network cards — shows the uploaded photo when
+// present, otherwise initials.
+function Initials({ name, src }: { name: string; src?: string | null }) {
+  return <Avatar src={src} name={name} size={48} bg={NAVY} />;
 }
 
 // Top-level "Network" container: hosts People / Orgs / Groups as sub-tabs.
@@ -4504,6 +4499,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
           peerId,
           requesterId: c.requester_id,
           name: `${peer?.first_name || 'Member'} ${peer?.last_name || ''}`.trim(),
+          avatar: peer?.avatar_url || null,
           title: peer?.job_title || 'Member',
           state: peer?.state || '',
           since: new Date(c.created_at).toLocaleDateString(),
@@ -4627,7 +4623,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 return (
                   <Card key={m.id} className="p-5">
                     <div className="flex items-start gap-3">
-                      <Initials name={name} />
+                      <Initials name={name} src={m.avatar_url} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
                           <MemberNameLink userId={m.id} name={name} navigate={navigate} />
@@ -4677,7 +4673,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
               <div className="space-y-3">
                 {incoming.map((n) => (
                   <div key={n.id} className="flex items-center gap-3 flex-wrap">
-                    <Initials name={n.name} />
+                    <Initials name={n.name} src={n.avatar} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
                         <MemberNameLink userId={n.peerId} name={n.name} navigate={navigate} />
@@ -4718,7 +4714,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
               {filteredConnections.map((n) => (
                 <Card key={n.id} className="p-5">
                   <div className="flex items-start gap-3">
-                    <Initials name={n.name} />
+                    <Initials name={n.name} src={n.avatar} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
                         <MemberNameLink userId={n.peerId} name={n.name} navigate={navigate} />
