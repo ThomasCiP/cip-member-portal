@@ -617,13 +617,13 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
         <h1 style={{ color: NAVY, fontWeight: 700 }}>Create your account</h1>
         <p className="text-gray-500 mt-1.5 text-sm">
-          Your faith and political information are private. Members are not searchable by other members.
+          Connect with other Christians in politics — and control exactly what you share.
         </p>
 
         <div className="mt-4 p-4 rounded-xl" style={{ background: "rgba(11,37,69,0.04)", border: "1px solid rgba(11,37,69,0.1)" }}>
-          <h3 className="text-sm font-semibold mb-1.5" style={{ color: "#0B2545" }}>Your Privacy Comes First</h3>
+          <h3 className="text-sm font-semibold mb-1.5" style={{ color: "#0B2545" }}>You're in Control</h3>
           <p className="text-sm text-gray-600 leading-relaxed">
-            By default, your account is set to be <strong>fully anonymous</strong>. Your personal details remain completely hidden from others until you explicitly decide to share them publicly across the platform or privately within specific groups.
+            By default you're <strong>discoverable</strong> so members can find and connect with you. In your Privacy settings you decide what to share — from your whole profile down to individual details — or opt out of the directory entirely at any time.
           </p>
         </div>
 

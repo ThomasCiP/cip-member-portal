@@ -128,7 +128,7 @@ export function ProfileSummaryCard({ navigate, profile }: { navigate: (s: Screen
           className="mt-3 pt-3 text-xs flex items-center gap-1.5"
           style={{ borderTop: `1px solid ${theme.divider}`, color: theme.textMuted }}
         >
-          <Lock size={11} /> Privacy-first profile
+          <Lock size={11} /> You control what you share
         </div>
         <button
           onClick={() => navigate("profile")}
@@ -344,7 +344,7 @@ export function DonateRail({ onDonate }: { onDonate: () => void }) {
 }
 
 // ── Notifications ────────────────────────────────────────────────────────
-export function NotificationBell() {
+export function NotificationBell({ navigate }: { navigate?: (s: Screen) => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -397,10 +397,16 @@ export function NotificationBell() {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const handleMarkAsRead = async (id: string, isAnnouncement?: boolean) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    if (!isAnnouncement) {
-      await supabase.from('notifications').update({ read: true }).eq('id', id);
+  const handleNotificationClick = async (n: any) => {
+    setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
+    if (!n.isAnnouncement) {
+      await supabase.from('notifications').update({ read: true }).eq('id', n.id);
+    }
+    // Connection requests are actioned in Network → My network (Accept/Decline live there).
+    if (n.type === 'connection_invite' && navigate) {
+      localStorage.setItem('activeNetworkTab', 'network');
+      setOpen(false);
+      navigate('network');
     }
   };
   return (
@@ -431,7 +437,7 @@ export function NotificationBell() {
               notifications.map((n) => (
                 <div 
                   key={n.id}
-                  onClick={() => handleMarkAsRead(n.id, n.isAnnouncement)}
+                  onClick={() => handleNotificationClick(n)}
                   className="p-3 cursor-pointer hover:bg-black/5 transition-colors"
                   style={{ background: n.read ? theme.bg : theme.cardBg, borderBottom: `1px solid ${theme.divider}` }}
                 >
@@ -518,7 +524,7 @@ function TopHeader({
       </nav>
 
       <div className="flex items-center gap-2 ml-auto">
-        <NotificationBell />
+        <NotificationBell navigate={navigate} />
         <button
           onClick={onDonate}
           className="px-3 py-1.5 rounded-lg text-sm transition-colors"

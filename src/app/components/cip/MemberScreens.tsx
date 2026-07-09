@@ -1789,7 +1789,7 @@ export function ProfileScreen() {
                 )}
               </div>
               <div className="flex items-center gap-1.5 mt-3 text-xs" style={{ color: theme.textSubtle }}>
-                <Lock size={11} /> Privacy-first profile · Visible only to CiP and where you reveal in groups
+                <Lock size={11} /> You control what you share · Manage this in Privacy settings
               </div>
             </div>
             {!editing && <GhostButton onClick={startEdit}>Edit profile</GhostButton>}
@@ -3677,229 +3677,481 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
 }
 
 // ── Privacy ──────────────────────────────────────────────────────────
-const VISIBILITY_ROWS = [
-  { name: "NSW Politics & Prayer", status: "Anonymous" },
-  { name: "Sydney Civic Faith Circle", status: "Visible" },
-  { name: "Young CiP", status: "Anonymous" },
-  { name: "Christian Women in Public Policy", status: "Pending approval" },
-];
+// Per-field profile visibility, persisted to profiles.privacy_preferences (jsonb),
+// mirroring the notification_preferences pattern. The `party` toggle is stored on
+// the separate profiles.show_party column. The member_directory view masks each
+// field based on these values, so hiding a field removes it for other members.
+const PRIVACY_FIELD_KEYS = [
+  { key: "show_last_name",  label: "Last name" },
+  { key: "show_photo",      label: "Profile photo" },
+  { key: "show_job_title",  label: "Job title" },
+  { key: "show_bio",        label: "Short bio" },
+  { key: "show_state",      label: "Location / state" },
+  { key: "show_electorate", label: "Electorate" },
+] as const;
 
-const VISIBILITY_COLORS: Record<string, { bg: string; fg: string; icon: any }> = {
-  Anonymous:          { bg: "#f3f4f6", fg: "#374151", icon: EyeOff },
-  Visible:            { bg: "#d1fae5", fg: "#065f46", icon: Eye },
-  "Pending approval": { bg: "#fef3c7", fg: "#92400e", icon: Circle },
-  "Left group":       { bg: "#fee2e2", fg: "#991b1b", icon: X },
+const PRIVACY_BEHAVIOUR_KEYS = [
+  { key: "allow_connection_requests", label: "Allow new connection requests" },
+  { key: "allow_messages",            label: "Allow direct messages from connections" },
+] as const;
+
+const DEFAULT_PRIVACY_PREFS: Record<string, boolean> = {
+  discoverable: true,
+  show_last_name: true,
+  show_photo: true,
+  show_job_title: true,
+  show_bio: true,
+  show_state: true,
+  show_electorate: true,
+  allow_connection_requests: true,
+  allow_messages: true,
 };
 
-export function PrivacyScreen() {
+function PrivacyToggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-9 h-5 rounded-full relative transition-colors shrink-0"
+      style={{ background: on ? NAVY : "#d1d5db" }}
+      aria-label={`Toggle ${label}`}
+    >
+      <div className="w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all" style={{ left: on ? 18 : 2 }} />
+    </button>
+  );
+}
+
+export function PrivacyScreen(_props: { navigate?: (s: Screen) => void } = {}) {
   const { theme } = useTheme();
+  const { user, updateProfileLocally } = useAuth();
+  const [prefs, setPrefs] = useState<Record<string, boolean>>(DEFAULT_PRIVACY_PREFS);
+  const [showParty, setShowParty] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("privacy_preferences, show_party")
+        .eq("id", user.id)
+        .single();
+      if (data?.privacy_preferences) setPrefs({ ...DEFAULT_PRIVACY_PREFS, ...data.privacy_preferences });
+      setShowParty(!!data?.show_party);
+      setLoading(false);
+    }
+    load();
+  }, [user]);
+
+  const flashSaved = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+
+  const togglePref = async (key: string) => {
+    if (!user) return;
+    const updated = { ...prefs, [key]: !prefs[key] };
+    setPrefs(updated);
+    const { error } = await supabase.from("profiles").update({ privacy_preferences: updated }).eq("id", user.id);
+    if (!error) { updateProfileLocally({ privacy_preferences: updated }); flashSaved(); }
+  };
+
+  const toggleParty = async () => {
+    if (!user) return;
+    const next = !showParty;
+    setShowParty(next);
+    const { error } = await supabase.from("profiles").update({ show_party: next }).eq("id", user.id);
+    if (!error) { updateProfileLocally({ show_party: next }); flashSaved(); }
+  };
+
+  const savedPill = saved && (
+    <span
+      className="text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+      style={{ background: "#d1fae5", color: "#065f46", fontWeight: 500 }}
+    >
+      <CheckCircle2 size={10} /> Saved
+    </span>
+  );
+
   return (
     <div className="space-y-4">
       <Card className="p-5">
         <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: theme.pillBg }}
-          >
+          <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: theme.pillBg }}>
             <ShieldCheck size={18} style={{ color: NAVY }} />
           </div>
           <div>
-            <h1 style={{ color: theme.text }}>Privacy</h1>
+            <h1 style={{ color: theme.text }}>Privacy & data sharing</h1>
             <p className="text-sm mt-0.5" style={{ color: theme.textMuted }}>
-              Always make it obvious who can see what. You decide what to reveal, and where.
+              You decide what you share — from your whole profile down to individual details.
             </p>
           </div>
         </div>
       </Card>
 
-      <Card className="p-5">
-        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Group visibility</h3>
-        <p className="text-xs mt-1 leading-relaxed" style={{ color: theme.textMuted }}>
-          Your visibility is set per group. Being visible in one group does not make you visible in others.
-        </p>
-
-        <div className="mt-4 divide-y" style={{ borderColor: theme.divider }}>
-          {VISIBILITY_ROWS.map((r) => {
-            const v = VISIBILITY_COLORS[r.status];
-            const Icon = v.icon;
-            return (
-              <div key={r.name} className="flex items-center gap-3 py-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
-                <div
-                  className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-xs"
-                  style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
-                >
-                  {(r.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 500 }}>{r.name}</div>
-                  <div className="inline-flex items-center gap-1 text-[11px] mt-0.5 px-1.5 py-0.5 rounded-md" style={{ background: v.bg, color: v.fg, fontWeight: 500 }}>
-                    <Icon size={10} /> {r.status}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <GhostButton>Change visibility</GhostButton>
-                  <GhostButton>Hide profile</GhostButton>
-                  <GhostButton>Leave group</GhostButton>
-                </div>
+      {loading ? (
+        <Card className="p-5"><div className="text-xs" style={{ color: theme.textSubtle }}>Loading your privacy settings…</div></Card>
+      ) : (
+        <>
+          {/* Master discoverability */}
+          <Card className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Discoverable</h3>
+                {savedPill}
               </div>
-            );
-          })}
-        </div>
-      </Card>
+              <PrivacyToggle on={!!prefs.discoverable} onClick={() => togglePref("discoverable")} label="Discoverable" />
+            </div>
+            <p className="text-xs mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
+              {prefs.discoverable
+                ? "Other members can find you in the Network directory and search, and send you connection requests."
+                : "You're hidden from the Network directory and search. Existing connections and your posts still show your first name."}
+            </p>
+          </Card>
 
-      <Card className="p-5">
-        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Connections & messages</h3>
-        <p className="text-xs mt-1 leading-relaxed" style={{ color: theme.textMuted }}>
-          You can only be messaged by members you've connected with through a shared group.
-          Connections persist even if you later hide your profile from a group.
-        </p>
-        <div className="space-y-3 mt-4 text-sm" style={{ color: theme.text }}>
-          <div className="flex items-center justify-between">
-            <span>Allow new connection requests</span>
-            <input type="checkbox" defaultChecked />
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Show me to other visible group members</span>
-            <input type="checkbox" defaultChecked />
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Allow CiP staff to introduce me to other members</span>
-            <input type="checkbox" defaultChecked />
-          </div>
-        </div>
-      </Card>
+          {/* Per-field sharing */}
+          <Card className="p-5" style={{ opacity: prefs.discoverable ? 1 : 0.6 }}>
+            <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>What others can see</h3>
+            <p className="text-xs mt-1 leading-relaxed" style={{ color: theme.textMuted }}>
+              Your first name is always shown. Turn off anything you'd rather keep private.
+            </p>
+            <div className="space-y-3 mt-4">
+              {PRIVACY_FIELD_KEYS.map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between text-sm" style={{ color: theme.text }}>
+                  <span>{label}</span>
+                  <PrivacyToggle on={!!prefs[key]} onClick={() => togglePref(key)} label={label} />
+                </div>
+              ))}
+              <div className="flex items-center justify-between text-sm" style={{ color: theme.text }}>
+                <span>Political party</span>
+                <PrivacyToggle on={showParty} onClick={toggleParty} label="Political party" />
+              </div>
+            </div>
+          </Card>
 
-      <Card className="p-5">
-        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Data</h3>
-        <div className="flex gap-2 mt-3 flex-wrap">
-          <GhostButton>Download my data</GhostButton>
-          <GhostButton>Delete my account</GhostButton>
-        </div>
-      </Card>
+          {/* Behavioural controls */}
+          <Card className="p-5">
+            <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>How others can reach you</h3>
+            <div className="space-y-3 mt-4">
+              {PRIVACY_BEHAVIOUR_KEYS.map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between text-sm" style={{ color: theme.text }}>
+                  <span>{label}</span>
+                  <PrivacyToggle on={!!prefs[key]} onClick={() => togglePref(key)} label={label} />
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Data</h3>
+            <div className="flex gap-2 mt-3 flex-wrap">
+              <GhostButton>Download my data</GhostButton>
+              <GhostButton>Delete my account</GhostButton>
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
 
 // ── Network ──────────────────────────────────────────────────────────
 
+// Avatar initials bubble reused across Network cards.
+function Initials({ name }: { name: string }) {
+  return (
+    <div
+      className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
+      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+    >
+      {(name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
+    </div>
+  );
+}
+
 export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
-  const [search, setSearch] = useState("");
-  const [connections, setConnections] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"discover" | "network">(() => {
+    const t = localStorage.getItem('activeNetworkTab');
+    if (t) localStorage.removeItem('activeNetworkTab');
+    return t === 'network' ? 'network' : 'discover';
+  });
 
-  useEffect(() => {
-    async function loadNetwork() {
-      if (!user) return;
-      const { data } = await supabase
-        .from('network_connections')
-        .select('id, status, created_at, requester_id, receiver_id')
-        .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+  // My-network state
+  const [connections, setConnections] = useState<any[]>([]);   // accepted
+  const [incoming, setIncoming] = useState<any[]>([]);         // pending, I'm the receiver
+  const [outgoingIds, setOutgoingIds] = useState<Set<string>>(new Set()); // pending, I'm the requester
+  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
+  const [netSearch, setNetSearch] = useState("");
+  const [loadingNet, setLoadingNet] = useState(true);
 
-      if (data) {
-        const dir = await fetchAuthorMap(data.map((c: any) => (c.requester_id === user.id ? c.receiver_id : c.requester_id)));
-        const parsed = data.map((c: any) => {
-           const peerId = c.requester_id === user.id ? c.receiver_id : c.requester_id;
-           const peer = dir.get(peerId);
-           return {
-             id: c.id,
-             name: `${peer?.first_name || 'Unknown'} ${peer?.last_name || ''}`.trim(),
-             title: peer?.job_title || 'Member',
-             state: peer?.state || 'Unknown',
-             status: c.status,
-             since: new Date(c.created_at).toLocaleDateString(),
-           };
-        });
-        setConnections(parsed);
+  // Discover state
+  const [discQuery, setDiscQuery] = useState("");
+  const [discResults, setDiscResults] = useState<any[]>([]);
+  const [loadingDisc, setLoadingDisc] = useState(false);
+
+  const loadNetwork = useCallback(async () => {
+    if (!user) return;
+    setLoadingNet(true);
+    const { data } = await supabase
+      .from('network_connections')
+      .select('id, status, created_at, requester_id, receiver_id')
+      .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+
+    if (data) {
+      const peerIds = data.map((c: any) => (c.requester_id === user.id ? c.receiver_id : c.requester_id));
+      const dir = await fetchAuthorMap(peerIds);
+      const accepted: any[] = [];
+      const incomingReqs: any[] = [];
+      const outgoing = new Set<string>();
+      const connected = new Set<string>();
+
+      for (const c of data) {
+        const peerId = c.requester_id === user.id ? c.receiver_id : c.requester_id;
+        const peer = dir.get(peerId);
+        const card = {
+          id: c.id,
+          peerId,
+          requesterId: c.requester_id,
+          name: `${peer?.first_name || 'Member'} ${peer?.last_name || ''}`.trim(),
+          title: peer?.job_title || 'Member',
+          state: peer?.state || '',
+          since: new Date(c.created_at).toLocaleDateString(),
+        };
+        if (c.status === 'accepted') { accepted.push(card); connected.add(peerId); }
+        else if (c.status === 'pending' && c.receiver_id === user.id) incomingReqs.push(card);
+        else if (c.status === 'pending' && c.requester_id === user.id) outgoing.add(peerId);
       }
-      setLoading(false);
+      setConnections(accepted);
+      setIncoming(incomingReqs);
+      setOutgoingIds(outgoing);
+      setConnectedIds(connected);
     }
-    loadNetwork();
+    setLoadingNet(false);
   }, [user]);
 
-  const filtered = connections.filter(
-    (n) =>
-      n.name.toLowerCase().includes(search.toLowerCase()) ||
-      n.title.toLowerCase().includes(search.toLowerCase()),
+  useEffect(() => { loadNetwork(); }, [loadNetwork]);
+
+  // Discover search against the member directory (discoverable members only).
+  const runDiscover = useCallback(async (q: string) => {
+    if (!user) return;
+    setLoadingDisc(true);
+    let query = supabase
+      .from('member_directory')
+      .select('id, first_name, last_name, avatar_url, job_title, state, bio, allow_connection_requests')
+      .eq('discoverable', true)
+      .neq('id', user.id)
+      .limit(30);
+    const term = q.trim();
+    if (term) query = query.or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,job_title.ilike.%${term}%`);
+    const { data } = await query;
+    setDiscResults(data || []);
+    setLoadingDisc(false);
+  }, [user]);
+
+  // Load a default page when entering Discover; debounce subsequent searches.
+  useEffect(() => {
+    if (tab !== 'discover') return;
+    const id = setTimeout(() => runDiscover(discQuery), 250);
+    return () => clearTimeout(id);
+  }, [tab, discQuery, runDiscover]);
+
+  const handleConnect = async (targetId: string) => {
+    if (!user) return;
+    const status = await sendConnectionRequest(user.id, targetId);
+    if (status === 'pending') setOutgoingIds(prev => new Set(prev).add(targetId));
+  };
+
+  const handleAccept = async (conn: any) => {
+    if (!user) return;
+    const myName = await fetchOwnName(user.id);
+    const ok = await acceptConnection(conn.id, conn.requesterId, myName);
+    if (ok) loadNetwork();
+  };
+
+  const handleDecline = async (conn: any) => {
+    const ok = await declineConnection(conn.id);
+    if (ok) loadNetwork();
+  };
+
+  const openMessage = (peerId: string) => {
+    localStorage.setItem('activeMessageUserId', peerId);
+    navigate('messages');
+  };
+
+  const filteredConnections = connections.filter(
+    (n) => n.name.toLowerCase().includes(netSearch.toLowerCase()) || n.title.toLowerCase().includes(netSearch.toLowerCase())
+  );
+
+  const TabButton = ({ id, label, count }: { id: "discover" | "network"; label: string; count?: number }) => (
+    <button
+      onClick={() => setTab(id)}
+      className="px-4 py-2.5 text-sm whitespace-nowrap"
+      style={{
+        color: tab === id ? NAVY : theme.textMuted,
+        fontWeight: tab === id ? 600 : 400,
+        borderBottom: tab === id ? `2px solid ${GOLD}` : "2px solid transparent",
+        marginBottom: -1,
+      }}
+    >
+      {label}{typeof count === 'number' && count > 0 ? ` (${count})` : ''}
+    </button>
   );
 
   return (
     <div className="space-y-4">
-      <Card className="p-5">
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <div>
-            <h1 style={{ color: theme.text }}>Your network</h1>
-            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
-              {connections.length} connections. You can message, invite to a new group, or remove a connection at any time.
-            </p>
-          </div>
-          <button
-            onClick={() => navigate("groups")}
-            className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5"
-            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-          >
-            <UserPlus size={13} /> Find more in groups
-          </button>
-        </div>
-        <div className="mt-4 flex items-center gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-[220px]">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: theme.textMuted }} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name or title"
-              className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
-              style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
-            />
-          </div>
+      <Card className="p-5 pb-0">
+        <h1 style={{ color: theme.text }}>Network</h1>
+        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+          Find and connect with other Christians in politics, and manage your connections.
+        </p>
+        <div className="mt-4 flex gap-1 overflow-x-auto" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <TabButton id="discover" label="Discover" />
+          <TabButton id="network" label="My network" count={incoming.length} />
         </div>
       </Card>
 
-      {filtered.length > 0 ? (
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-          {filtered.map((n) => (
-            <Card key={n.id} className="p-5">
-              <div className="flex items-start gap-3">
-                <div
-                  className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-sm"
-                  style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                >
-                  {(n.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{n.name}</div>
-                  <div className="text-xs truncate" style={{ color: theme.textMuted }}>{n.title}</div>
-                  <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{n.state}</div>
-                </div>
-              </div>
-              <div className="text-[11px] mt-3" style={{ color: theme.textSubtle }}>
-                <span style={{ color: theme.textMuted, fontWeight: 500 }}>{n.status === 'pending' ? 'Pending connection' : 'Connected'}</span> · {n.since}
-              </div>
-              <div className="flex items-center gap-2 mt-4">
-                <button
-                  onClick={() => navigate("messages")}
-                  className="flex-1 px-3 py-1.5 rounded-lg text-xs inline-flex items-center justify-center gap-1.5"
-                  style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-                >
-                  <Send size={11} /> Message
-                </button>
-                <button
-                  className="px-3 py-1.5 rounded-lg text-xs"
-                  style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-                >
-                  View
-                </button>
+      {tab === 'discover' && (
+        <>
+          <Card className="p-4">
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: theme.textMuted }} />
+              <input
+                value={discQuery}
+                onChange={(e) => setDiscQuery(e.target.value)}
+                placeholder="Search members by name or job title"
+                className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
+              />
+            </div>
+          </Card>
+
+          {loadingDisc ? (
+            <Card className="p-10 text-center"><div className="text-sm" style={{ color: theme.textMuted }}>Searching…</div></Card>
+          ) : discResults.length > 0 ? (
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+              {discResults.map((m) => {
+                const name = `${m.first_name || 'Member'} ${m.last_name || ''}`.trim();
+                const isConnected = connectedIds.has(m.id);
+                const isPending = outgoingIds.has(m.id);
+                return (
+                  <Card key={m.id} className="p-5">
+                    <div className="flex items-start gap-3">
+                      <Initials name={name} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{name}</div>
+                        <div className="text-xs truncate" style={{ color: theme.textMuted }}>{m.job_title || 'Member'}</div>
+                        {m.state && <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{m.state}</div>}
+                      </div>
+                    </div>
+                    {m.bio && <p className="text-xs mt-3 leading-snug" style={{ color: theme.textMuted }}>{m.bio}</p>}
+                    <div className="mt-4">
+                      {isConnected ? (
+                        <button onClick={() => openMessage(m.id)} className="w-full px-3 py-1.5 rounded-lg text-xs inline-flex items-center justify-center gap-1.5" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
+                          <Send size={11} /> Message
+                        </button>
+                      ) : isPending ? (
+                        <Pill color="#fef3c7" fg="#92400e">Request sent</Pill>
+                      ) : m.allow_connection_requests === false ? (
+                        <div className="text-[11px]" style={{ color: theme.textSubtle }}>Not accepting requests</div>
+                      ) : (
+                        <button onClick={() => handleConnect(m.id)} className="w-full px-3 py-1.5 rounded-lg text-xs inline-flex items-center justify-center gap-1.5" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
+                          <UserPlus size={11} /> Connect
+                        </button>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="p-10 text-center">
+              <div className="text-sm" style={{ color: theme.textMuted }}>
+                {discQuery ? "No members match your search." : "No members to show yet."}
               </div>
             </Card>
-          ))}
-        </div>
-      ) : (
-        <Card className="p-10 text-center">
-          <div className="text-sm" style={{ color: theme.textMuted }}>
-            No connections match your search.
-          </div>
-        </Card>
+          )}
+        </>
+      )}
+
+      {tab === 'network' && (
+        <>
+          {/* Incoming requests */}
+          {incoming.length > 0 && (
+            <Card className="p-5">
+              <h3 className="text-sm mb-3" style={{ color: theme.text, fontWeight: 600 }}>
+                Connection requests ({incoming.length})
+              </h3>
+              <div className="space-y-3">
+                {incoming.map((n) => (
+                  <div key={n.id} className="flex items-center gap-3 flex-wrap">
+                    <Initials name={n.name} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{n.name}</div>
+                      <div className="text-xs truncate" style={{ color: theme.textMuted }}>{n.title}{n.state ? ` · ${n.state}` : ''}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleAccept(n)} className="px-3 py-1.5 rounded-lg text-xs inline-flex items-center gap-1.5" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
+                        <CheckCircle2 size={12} /> Accept
+                      </button>
+                      <button onClick={() => handleDecline(n)} className="px-3 py-1.5 rounded-lg text-xs" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          <Card className="p-4">
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: theme.textMuted }} />
+              <input
+                value={netSearch}
+                onChange={(e) => setNetSearch(e.target.value)}
+                placeholder="Search your connections"
+                className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
+              />
+            </div>
+          </Card>
+
+          {loadingNet ? (
+            <Card className="p-10 text-center"><div className="text-sm" style={{ color: theme.textMuted }}>Loading…</div></Card>
+          ) : filteredConnections.length > 0 ? (
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+              {filteredConnections.map((n) => (
+                <Card key={n.id} className="p-5">
+                  <div className="flex items-start gap-3">
+                    <Initials name={n.name} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{n.name}</div>
+                      <div className="text-xs truncate" style={{ color: theme.textMuted }}>{n.title}</div>
+                      {n.state && <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{n.state}</div>}
+                    </div>
+                  </div>
+                  <div className="text-[11px] mt-3" style={{ color: theme.textSubtle }}>
+                    <span style={{ color: theme.textMuted, fontWeight: 500 }}>Connected</span> · {n.since}
+                  </div>
+                  <div className="mt-4">
+                    <button
+                      onClick={() => openMessage(n.peerId)}
+                      className="w-full px-3 py-1.5 rounded-lg text-xs inline-flex items-center justify-center gap-1.5"
+                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                    >
+                      <Send size={11} /> Message
+                    </button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-10 text-center">
+              <div className="text-sm" style={{ color: theme.textMuted }}>
+                {netSearch ? "No connections match your search." : "You have no connections yet. Head to Discover to find members."}
+              </div>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );
