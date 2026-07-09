@@ -2,13 +2,14 @@ import { ReactNode, useState, useEffect, useRef } from "react";
 import {
   Home, UserCircle2, Users, CalendarDays, MessageSquare, Settings,
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
-  Network, Activity, LogOut, ArrowUpRight, Building2
+  Network, Activity, LogOut, ArrowUpRight, Building2, Plus
 } from "lucide-react";
 import { Joyride, Step } from "react-joyride";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
+import { SUPPORT_PATHWAYS, NewSupportRequestModal } from "./MemberScreens";
 
 const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "dashboard", label: "Home",     icon: Home },
@@ -226,50 +227,46 @@ export function UpcomingEventsRail({ navigate }: { navigate: (s: Screen) => void
   );
 }
 
-export function SuggestedGroupsRail({ navigate }: { navigate: (s: Screen) => void }) {
+// Mirrors the "Get Involved" tab: quick shortcuts to the core support
+// pathways. Clicking one opens the same request form used on that page.
+export function GetStartedRail({ navigate }: { navigate?: (s: Screen) => void }) {
   const { theme } = useTheme();
-  const [groups, setGroups] = useState<any[]>([]);
-
-  useEffect(() => {
-    supabase.from('groups').select('*').neq('group_type', 'organisation').limit(3).then(({ data, error }) => {
-      if (data && !error) setGroups(data);
-    });
-  }, []);
+  const [activePathway, setActivePathway] = useState<any>(null);
 
   return (
-    <RailCard title="Suggested groups">
-      {groups.length === 0 ? (
-        <div className="text-sm py-4 text-center" style={{ color: theme.textMuted }}>No group suggestions available yet.</div>
-      ) : (
-        <div className="space-y-3">
-          {groups.map((g: any) => (
-            <div key={g.id} className="flex items-center gap-2.5">
-              <div
-                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-xs"
-                style={{ background: theme.pillBg, color: NAVY, fontWeight: 600 }}
-              >
-                {g.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-xs truncate" style={{ color: theme.text, fontWeight: 500 }}>{g.name}</div>
-                <div className="text-[10px]" style={{ color: theme.textMuted }}>Group</div>
-              </div>
+    <>
+      <RailCard
+        title="Get started"
+        action={navigate && <button onClick={() => navigate("support")} className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>See all</button>}
+      >
+        <div className="space-y-1">
+          {SUPPORT_PATHWAYS.map((p) => {
+            const Icon = p.icon;
+            return (
               <button
-                onClick={() => {
-                  localStorage.setItem('activeGroupId', g.id);
-                  localStorage.setItem('isOrgDetail', 'false');
-                  navigate("group-detail");
-                }}
-                className="text-[10px] px-2 py-1 rounded-md"
-                style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                key={p.id}
+                onClick={() => setActivePathway(p)}
+                className="w-full flex items-center gap-2.5 text-left rounded-lg px-2 py-2 hover:bg-black/5 transition-colors"
               >
-                View
+                <div
+                  className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center"
+                  style={{ background: theme.pillBg, color: NAVY }}
+                >
+                  <Icon size={15} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs" style={{ color: theme.text, fontWeight: 500 }}>{p.title}</div>
+                </div>
+                <ArrowUpRight size={13} style={{ color: theme.textMuted }} />
               </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
+      </RailCard>
+      {activePathway && (
+        <NewSupportRequestModal pathway={activePathway} onClose={() => setActivePathway(null)} />
       )}
-    </RailCard>
+    </>
   );
 }
 
@@ -277,43 +274,53 @@ export function SupportStatusRail({ navigate }: { navigate?: (s: Screen) => void
   const { theme } = useTheme();
   const { user } = useAuth();
   const [requests, setRequests] = useState<any[]>([]);
+  const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
+  const loadRequests = () => {
     if (!user) return;
     supabase.from('support_requests').select('*').eq('user_id', user.id).then(({ data, error }) => {
       if (data && !error) setRequests(data);
     });
-  }, [user]);
+  };
 
-  if (requests.length === 0) {
-    return (
-      <RailCard
-        title="Your support requests"
-        action={navigate && <button onClick={() => navigate("support")} className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>Manage</button>}
-      >
-        <div className="text-sm py-4 text-center" style={{ color: theme.textMuted }}>No active support requests.</div>
-      </RailCard>
-    );
-  }
+  useEffect(() => { loadRequests(); }, [user]);
 
   return (
-    <RailCard
-      title="Your support requests"
-      action={
-        navigate && (
-          <button onClick={() => navigate("support")} className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>
-            Manage
-          </button>
-        )
-      }
-    >
-      {requests.map((req: any) => (
-        <div key={req.id} className="mb-3 last:mb-0">
-          <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{req.title || "Support Request"}</div>
-          <div className="text-xs mt-1" style={{ color: theme.textMuted }}>Status: {req.status}</div>
-        </div>
-      ))}
-    </RailCard>
+    <>
+      <RailCard
+        title="Your support requests"
+        action={
+          navigate && (
+            <button onClick={() => navigate("support")} className="text-xs" style={{ color: GOLD, fontWeight: 600 }}>
+              Manage
+            </button>
+          )
+        }
+      >
+        {requests.length === 0 ? (
+          <div className="text-sm py-3 text-center" style={{ color: theme.textMuted }}>No active support requests.</div>
+        ) : (
+          <div className="mb-3">
+            {requests.map((req: any) => (
+              <div key={req.id} className="mb-3 last:mb-0">
+                <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{req.request_type || req.title || "Support Request"}</div>
+                <div className="text-xs mt-1" style={{ color: theme.textMuted }}>Status: {req.status}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <button
+          onClick={() => setCreating(true)}
+          className="w-full py-2 rounded-lg text-xs inline-flex items-center justify-center gap-1.5 transition-colors"
+          style={{ border: `1px dashed ${theme.cardBorder}`, color: theme.text }}
+        >
+          <Plus size={13} /> Create a request
+        </button>
+      </RailCard>
+      {creating && (
+        <NewSupportRequestModal pathway={null} onClose={(refresh) => { setCreating(false); if (refresh) loadRequests(); }} />
+      )}
+    </>
   );
 }
 
@@ -651,8 +658,8 @@ export function MemberShell({
 
   const defaultRight = (
     <div className="space-y-4">
+      <GetStartedRail navigate={navigate} />
       <UpcomingEventsRail navigate={navigate} />
-      <SuggestedGroupsRail navigate={navigate} />
       <SupportStatusRail navigate={navigate} />
     </div>
   );

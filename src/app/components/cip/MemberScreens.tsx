@@ -4400,7 +4400,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
 }
 
 // ── Support ──────────────────────────────────────────────────────────
-const SUPPORT_PATHWAYS = [
+export const SUPPORT_PATHWAYS = [
   {
     id: "branch",
     icon: MapPin,
@@ -4440,29 +4440,35 @@ const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   "Closed":                    { bg: "#f3f4f6", fg: "#6b7280" },
 };
 
-function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_PATHWAYS[number]; onClose: (refresh?: boolean) => void }) {
+export function NewSupportRequestModal({ pathway, onClose }: { pathway?: typeof SUPPORT_PATHWAYS[number] | null; onClose: (refresh?: boolean) => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
-  const Icon = pathway.icon;
+  const Icon = pathway?.icon || LifeBuoy;
+  // When opened without a fixed pathway (e.g. "Create a request"), let the
+  // member choose what kind of request they're making.
+  const [requestType, setRequestType] = useState(SUPPORT_PATHWAYS[0].title);
   const [contextText, setContextText] = useState("");
   const [urgency, setUrgency] = useState("Within a month");
   const [loading, setLoading] = useState(false);
+
+  const effectiveType = pathway ? pathway.title : requestType;
+  const effectiveDesc = pathway?.desc || "";
 
   const submitRequest = async () => {
     if (!user) return;
     setLoading(true);
     await supabase.from("support_requests").insert({
       user_id: user.id,
-      request_type: pathway.title,
-      description: contextText || pathway.desc,
+      request_type: effectiveType,
+      description: contextText || effectiveDesc || effectiveType,
       urgency: urgency,
       status: "Submitted"
     });
     setLoading(false);
-    
+
     // Trigger email notification to hello@christiansinpolitics.com
-    const subject = encodeURIComponent(`CiP Request: ${pathway.title}`);
-    const body = encodeURIComponent(`A new request has been submitted by ${user.email}:\n\nType: ${pathway.title}\nUrgency: ${urgency}\n\nContext:\n${contextText || pathway.desc}\n\nPlease reply to this email to contact the member.`);
+    const subject = encodeURIComponent(`CiP Request: ${effectiveType}`);
+    const body = encodeURIComponent(`A new request has been submitted by ${user.email}:\n\nType: ${effectiveType}\nUrgency: ${urgency}\n\nContext:\n${contextText || effectiveDesc}\n\nPlease reply to this email to contact the member.`);
     window.location.href = `mailto:hello@christiansinpolitics.com?subject=${subject}&body=${body}`;
 
     onClose(true);
@@ -4487,7 +4493,7 @@ function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_
             <Icon size={16} />
           </div>
           <div className="flex-1">
-            <h3 style={{ color: theme.text, fontWeight: 600 }}>{pathway.title}</h3>
+            <h3 style={{ color: theme.text, fontWeight: 600 }}>{pathway?.title || "Create a request"}</h3>
             <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>
               CiP staff will receive this request and reply within a few days.
             </div>
@@ -4497,7 +4503,17 @@ function NewSupportRequestModal({ pathway, onClose }: { pathway: typeof SUPPORT_
           </button>
         </div>
         <div className="px-6 py-5 space-y-4">
-          <p className="text-sm leading-relaxed" style={{ color: theme.textMuted }}>{pathway.desc}</p>
+          {pathway ? (
+            <p className="text-sm leading-relaxed" style={{ color: theme.textMuted }}>{pathway.desc}</p>
+          ) : (
+            <FormField label="What do you need help with?">
+              <SelectInput
+                value={requestType}
+                onChange={setRequestType}
+                options={[...SUPPORT_PATHWAYS.map((p) => p.title), "Something else"]}
+              />
+            </FormField>
+          )}
           <FormField label="What would help most?" hint="Optional — share a bit of context so we can route this well.">
             <textarea
               rows={4}
