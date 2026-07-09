@@ -196,8 +196,8 @@ export function UpcomingEventsRail({ navigate }: { navigate: (s: Screen) => void
   const [events, setEvents] = useState<any[]>([]);
 
   useEffect(() => {
-    // Graceful fail if events table doesn't exist yet
-    supabase.from('events').select('*').limit(3).then(({ data, error }) => {
+    // Graceful fail if events table doesn't exist yet. Only public events here.
+    supabase.from('events').select('*').eq('visibility', 'public').limit(3).then(({ data, error }) => {
       if (data && !error) setEvents(data);
     });
   }, []);

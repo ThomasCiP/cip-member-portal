@@ -1099,7 +1099,7 @@ export function AdminEvents() {
     };
     const { error } = editingId
       ? await supabase.from("events").update(payload).eq("id", editingId)
-      : await supabase.from("events").insert({ ...payload, status: "Upcoming", created_by: user?.id });
+      : await supabase.from("events").insert({ ...payload, status: "Upcoming", visibility: "public", created_by: user?.id });
     setSaving(false);
     if (error) {
       alert("Error saving event: " + error.message);

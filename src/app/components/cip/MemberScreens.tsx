@@ -3190,6 +3190,7 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
   const [registrationUrl, setRegistrationUrl] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [groupId, setGroupId] = useState("");
+  const [visibility, setVisibility] = useState<'group' | 'public'>('group');
   const [ownedGroups, setOwnedGroups] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -3239,6 +3240,7 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
       ticket_price: ticketed && ticketPrice ? parseFloat(ticketPrice) : null,
       registration_url: registrationUrl.trim() || null,
       contact_email: contactEmail.trim() || null,
+      visibility: groupId ? visibility : 'public',
       status: 'Upcoming',
       created_by: user.id,
       group_id: groupId || null,
@@ -3360,6 +3362,33 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
               </div>
             </FormField>
           )}
+
+          {groupId && (
+            <FormField label="Who can see this event?">
+              <div className="space-y-2">
+                {([
+                  ['group', 'Only this group', "Private — shown on the group's page, not the main events feed."],
+                  ['public', 'Across the platform', 'Public — shown in the main events feed for all members.'],
+                ] as const).map(([val, label, hint]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setVisibility(val)}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left"
+                    style={{ border: `1px solid ${visibility === val ? NAVY : theme.cardBorder}`, background: visibility === val ? theme.pillBg : theme.bg }}
+                  >
+                    <div className="w-4 h-4 rounded-full border mt-0.5 shrink-0 flex items-center justify-center" style={{ borderColor: visibility === val ? NAVY : theme.cardBorder }}>
+                      {visibility === val && <div className="w-2 h-2 rounded-full" style={{ background: NAVY }} />}
+                    </div>
+                    <div>
+                      <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{label}</div>
+                      <div className="text-[11px]" style={{ color: theme.textSubtle }}>{hint}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </FormField>
+          )}
         </div>
         <div className="px-6 py-4 flex items-center justify-end gap-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>Cancel</button>
@@ -3384,9 +3413,12 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [createOpen, setCreateOpen] = useState(false);
 
   const loadEvents = async () => {
+    // Main events feed: only platform-wide (public) events. Private group
+    // events appear only on their group's page.
     const { data } = await supabase
       .from("events")
       .select("*, groups(id, name, group_type)")
+      .eq("visibility", "public")
       .order("created_at", { ascending: false });
     if (data) setEvents(data);
     setLoading(false);
