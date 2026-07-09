@@ -3,7 +3,8 @@ import { supabase } from "../../../lib/supabase";
 import {
   LayoutDashboard, Users, LifeBuoy, CalendarDays, FileText, Lock,
   Settings, Bell, Search, Plus, Edit3, Eye, TrendingUp, ChevronDown,
-  ShieldCheck, ArrowLeft, CheckCircle2, Circle, Network, X, MoreHorizontal
+  ShieldCheck, ArrowLeft, CheckCircle2, Circle, Network, X, MoreHorizontal,
+  Inbox, Flag
 } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
@@ -18,6 +19,8 @@ const ADMIN_ITEMS: { key: Screen; label: string; icon: any }[] = [
   { key: "admin-members",   label: "Members",        icon: Users },
   { key: "admin-groups",    label: "Groups",         icon: Network },
   { key: "admin-support",   label: "Requests",       icon: LifeBuoy },
+  { key: "admin-complaints",label: "Complaints",     icon: Flag },
+  { key: "admin-enquiries", label: "Enquiries",      icon: Inbox },
   { key: "admin-events",    label: "Events",         icon: CalendarDays },
   { key: "admin-content",   label: "Content",        icon: FileText },
   { key: "admin-privacy",   label: "Data & Privacy", icon: Lock },
@@ -200,7 +203,7 @@ export function AdminOverview() {
         setRecentSignups(profiles.slice(0, 5));
       }
 
-      const { data: requests } = await supabase.from('support_requests').select('*, profiles!inner(first_name, last_name)').order('created_at', { ascending: false });
+      const { data: requests } = await supabase.from('support_requests').select('*, profiles!user_id(first_name, last_name)').order('created_at', { ascending: false });
       if (requests) {
         const openReqs = requests.filter(r => r.status !== 'Closed');
         setOpenSupportCount(openReqs.length);
@@ -327,14 +330,19 @@ export function AdminMembers() {
   }, []);
 
   const handleAction = async (id: string, action: "suspend" | "unsuspend" | "delete") => {
+    let error: any = null;
     if (action === "delete") {
       if (!confirm("Are you sure you want to delete this account? This cannot be easily undone.")) return;
-      await supabase.from("profiles").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      ({ error } = await supabase.from("profiles").update({ deleted_at: new Date().toISOString() }).eq("id", id));
     } else if (action === "suspend") {
       if (!confirm("Suspend this account?")) return;
-      await supabase.from("profiles").update({ suspended_at: new Date().toISOString() }).eq("id", id);
+      ({ error } = await supabase.from("profiles").update({ suspended_at: new Date().toISOString() }).eq("id", id));
     } else if (action === "unsuspend") {
-      await supabase.from("profiles").update({ suspended_at: null }).eq("id", id);
+      ({ error } = await supabase.from("profiles").update({ suspended_at: null }).eq("id", id));
+    }
+    if (error) {
+      alert("Action failed: " + error.message);
+      return;
     }
     setRows(rows.map(r => {
       if (r.id === id) {
@@ -543,7 +551,7 @@ export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
                   <td className="px-4 py-3 text-xs" style={{ color: theme.textSubtle }}>{new Date(r.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => navigate("admin-support-detail")}
+                      onClick={() => { localStorage.setItem("activeSupportRequestId", r.id); navigate("admin-support-detail"); }}
                       className="text-xs px-3 py-1.5 rounded-lg border"
                       style={{ borderColor: theme.cardBorder, color: theme.text }}
                     >
@@ -560,55 +568,86 @@ export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
   );
 }
 
+const SUPPORT_STATUSES = ["Submitted", "In review", "Awaiting member", "Matched", "Closed"];
+
 export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const [req, setReq] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const id = localStorage.getItem("activeSupportRequestId");
+    if (!id) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("support_requests")
+        .select("*, profiles!user_id(first_name, last_name, state, creed_affirmed, profile_private(party, tradition))")
+        .eq("id", id)
+        .maybeSingle();
+      setReq(data);
+      setLoading(false);
+    })();
+  }, []);
+
+  const updateStatus = async (status: string) => {
+    if (!req) return;
+    setSaving(true);
+    const { error } = await supabase.from("support_requests").update({ status }).eq("id", req.id);
+    setSaving(false);
+    if (error) { alert("Could not update status: " + error.message); return; }
+    setReq({ ...req, status });
+  };
+
+  const back = (
+    <button
+      onClick={() => navigate("admin-support")}
+      className="flex items-center gap-1.5 text-sm mb-5"
+      style={{ color: theme.textMuted }}
+    >
+      ← Back to queue
+    </button>
+  );
+
+  if (loading) {
+    return <div className="max-w-5xl">{back}<p className="text-sm" style={{ color: theme.textMuted }}>Loading…</p></div>;
+  }
+  if (!req) {
+    return <div className="max-w-5xl">{back}<AdminCard className="p-8 text-center"><p className="text-sm" style={{ color: theme.textMuted }}>Request not found. Open one from the queue.</p></AdminCard></div>;
+  }
+
+  const p = req.profiles || {};
+  const memberName = `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Member";
+
   return (
     <div className="max-w-5xl">
-      <button
-        onClick={() => navigate("admin-support")}
-        className="flex items-center gap-1.5 text-sm mb-5"
-        style={{ color: theme.textMuted }}
-      >
-        ← Back to queue
-      </button>
+      {back}
       <div className="grid grid-cols-3 gap-5">
         <div className="col-span-2 space-y-4">
           <AdminCard className="p-5">
-            <StatusPill label="In review" />
-            <h2 className="mt-2" style={{ color: theme.text }}>Connect to local branch (Sydney)</h2>
-            <div className="text-xs mt-1" style={{ color: theme.textMuted }}>Submitted 2 hours ago by Sarah Reed (NSW)</div>
+            <StatusPill label={req.status} />
+            <h2 className="mt-2" style={{ color: theme.text }}>{req.request_type}</h2>
+            <div className="text-xs mt-1" style={{ color: theme.textMuted }}>
+              Submitted {new Date(req.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })} by {memberName}{p.state ? ` (${p.state})` : ""}
+            </div>
             <div className="grid grid-cols-2 gap-4 mt-5 text-sm">
               {[
-                ["Request type", "Connect me to a local branch"],
-                ["Pathway interest", "Joining a party"],
-                ["Party guidance attached", "Yes"],
-                ["Consent to contact", "Granted"],
+                ["Request type", req.request_type],
+                ["Urgency", req.urgency],
+                ["Status", req.status],
+                ["Assigned", req.assigned_to ? "Assigned" : "Unassigned"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <div className="text-xs mb-0.5" style={{ color: theme.textSubtle }}>{label}</div>
-                  <div style={{ color: theme.text }}>{value}</div>
+                  <div style={{ color: theme.text }}>{value || "—"}</div>
                 </div>
               ))}
             </div>
             <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
               <div className="text-xs mb-1.5" style={{ color: theme.textSubtle }}>Member's description</div>
               <div className="text-sm leading-relaxed" style={{ color: theme.textMuted }}>
-                "I'd love to attend a Sydney branch meeting but don't know anyone. Could someone introduce me to a local branch contact?"
+                {req.description || "No description provided."}
               </div>
-            </div>
-          </AdminCard>
-
-          <AdminCard className="p-5">
-            <h3 className="mb-3" style={{ color: theme.text }}>Admin notes</h3>
-            <textarea
-              rows={4}
-              placeholder="Internal notes (not visible to member)…"
-              className="w-full px-3 py-2 rounded-xl border outline-none text-sm"
-              style={{ borderColor: theme.inputBorder, background: theme.tableHead, color: theme.text }}
-            />
-            <div className="flex gap-2 mt-3">
-              <button className="px-3 py-2 rounded-xl text-xs" style={{ background: NAVY, color: "#fff" }}>Save note</button>
-              <button className="px-3 py-2 rounded-xl text-xs border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Record introduction made</button>
             </div>
           </AdminCard>
         </div>
@@ -618,12 +657,11 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
             <h3 className="mb-3 text-sm" style={{ color: theme.text }}>Member summary</h3>
             <div className="space-y-2 text-sm">
               {[
-                ["Name", "Sarah Reed"],
-                ["State", "NSW"],
-                ["Tradition", "Anglican"],
-                ["Engagement", "Interested in joining a party"],
-                ["Creed affirmed", "Yes"],
-                ["Consent", "Granted"],
+                ["Name", memberName],
+                ["State", p.state || "—"],
+                ["Tradition", p.profile_private?.tradition || "—"],
+                ["Party", p.profile_private?.party || "—"],
+                ["Creed affirmed", p.creed_affirmed ? "Yes" : "No"],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between">
                   <span style={{ color: theme.textMuted }}>{label}</span>
@@ -634,34 +672,16 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
           </AdminCard>
 
           <AdminCard className="p-5">
-            <h3 className="mb-3 text-sm" style={{ color: theme.text }}>Actions</h3>
-            <div className="space-y-2">
-              <select
-                className="w-full px-3 py-2 rounded-xl border text-sm outline-none"
-                style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
-              >
-                <option>Assign to admin…</option>
-                <option>Mick Andrews</option>
-                <option>Jess Carter</option>
-              </select>
-              <select
-                className="w-full px-3 py-2 rounded-xl border text-sm outline-none"
-                style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
-              >
-                <option>Update status…</option>
-                <option>Submitted</option>
-                <option>In review</option>
-                <option>Awaiting member response</option>
-                <option>Matched / introduced</option>
-                <option>Closed</option>
-              </select>
-              <button className="w-full px-3 py-2 rounded-xl text-xs" style={{ background: NAVY, color: "#fff" }}>
-                Send message to member
-              </button>
-              <button className="w-full px-3 py-2 rounded-xl text-xs border" style={{ borderColor: "#fca5a5", color: "#dc2626" }}>
-                Close request
-              </button>
-            </div>
+            <h3 className="mb-3 text-sm" style={{ color: theme.text }}>Update status</h3>
+            <select
+              value={req.status}
+              disabled={saving}
+              onChange={(e) => updateStatus(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border text-sm outline-none"
+              style={{ borderColor: theme.inputBorder, background: theme.inputBg, color: theme.text }}
+            >
+              {SUPPORT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </AdminCard>
         </div>
       </div>
@@ -669,8 +689,288 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
   );
 }
 
+// ── Complaints (reported posts & comments) ──────────────────────────
+const REPORT_STATUS_STYLE: Record<string, { bg: string; text: string }> = {
+  open:      { bg: "#fee2e2", text: "#dc2626" },
+  reviewing: { bg: "#fef3c7", text: "#92400e" },
+  actioned:  { bg: "#d1fae5", text: "#065f46" },
+  dismissed: { bg: "#f3f4f6", text: "#6b7280" },
+};
+
+export function AdminComplaints() {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("open");
+
+  const load = async () => {
+    setLoading(true);
+    const { data: reports } = await supabase.from("content_reports").select("*").order("created_at", { ascending: false });
+    const list = reports || [];
+
+    // Batch-load the reported content across the three source tables.
+    const commentIds    = list.filter((r) => r.target_type === "comment").map((r) => r.target_id);
+    const globalPostIds = list.filter((r) => r.target_type === "post" && r.post_type === "global").map((r) => r.target_id);
+    const groupPostIds  = list.filter((r) => r.target_type === "post" && r.post_type === "group").map((r) => r.target_id);
+
+    const [comments, gPosts, grPosts] = await Promise.all([
+      commentIds.length    ? supabase.from("post_comments").select("id, content, user_id, removed_at").in("id", commentIds) : Promise.resolve({ data: [] as any[] }),
+      globalPostIds.length ? supabase.from("global_posts").select("id, content, user_id, removed_at").in("id", globalPostIds) : Promise.resolve({ data: [] as any[] }),
+      groupPostIds.length  ? supabase.from("group_posts").select("id, content, user_id, removed_at").in("id", groupPostIds) : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const targetMap = new Map<string, any>();
+    [...(comments.data || []), ...(gPosts.data || []), ...(grPosts.data || [])].forEach((t: any) => targetMap.set(t.id, t));
+
+    // Resolve reporter + content-author names via the safe directory view.
+    const nameIds = new Set<string>();
+    list.forEach((r) => r.reporter_id && nameIds.add(r.reporter_id));
+    targetMap.forEach((t) => t.user_id && nameIds.add(t.user_id));
+    const { data: dir } = nameIds.size
+      ? await supabase.from("member_directory").select("id, first_name, last_name").in("id", Array.from(nameIds))
+      : { data: [] as any[] };
+    const nameMap = new Map<string, string>();
+    (dir || []).forEach((d: any) => nameMap.set(d.id, `${d.first_name || ""} ${d.last_name || ""}`.trim() || "Member"));
+
+    setRows(list.map((r) => {
+      const t = targetMap.get(r.target_id);
+      return {
+        ...r,
+        reporterName: r.reporter_id ? (nameMap.get(r.reporter_id) || "Member") : "AI monitor",
+        targetContent: t ? t.content : "(content unavailable — it may have been deleted)",
+        targetAuthor: t?.user_id ? (nameMap.get(t.user_id) || "Member") : "Unknown",
+        targetRemoved: !!t?.removed_at,
+      };
+    }));
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const setStatus = async (r: any, status: string) => {
+    await supabase.from("content_reports").update({ status, reviewed_by: user?.id, reviewed_at: new Date().toISOString() }).eq("id", r.id);
+    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, status } : x)));
+  };
+
+  const removeContent = async (r: any) => {
+    if (!confirm("Remove this content from the platform? It will no longer be visible to members.")) return;
+    const table = r.target_type === "comment" ? "post_comments" : (r.post_type === "global" ? "global_posts" : "group_posts");
+    const { error } = await supabase.from(table).update({ removed_at: new Date().toISOString(), removed_by: user?.id }).eq("id", r.target_id);
+    if (error) { alert("Could not remove content: " + error.message); return; }
+    await supabase.from("content_reports").update({ status: "actioned", reviewed_by: user?.id, reviewed_at: new Date().toISOString() }).eq("id", r.id);
+    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, status: "actioned", targetRemoved: true } : x)));
+  };
+
+  const filtered = filter === "all" ? rows : rows.filter((r) => r.status === filter);
+  const countBy = (s: string) => rows.filter((r) => r.status === s).length;
+
+  return (
+    <div className="max-w-5xl">
+      <div className="mb-5">
+        <H1>Complaints</H1>
+        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+          Reported posts and comments — from members and the AI conduct monitor — awaiting review.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-5">
+        {([["open", "Open"], ["reviewing", "Reviewing"], ["actioned", "Actioned"], ["dismissed", "Dismissed"], ["all", "All"]] as const).map(([val, lbl]) => (
+          <button key={val} onClick={() => setFilter(val)}
+            className="px-3 py-1.5 rounded-lg text-xs"
+            style={{ background: filter === val ? NAVY : theme.cardBg, color: filter === val ? "#fff" : theme.textMuted, border: `1px solid ${theme.cardBorder}`, fontWeight: filter === val ? 600 : 400 }}>
+            {lbl}{val !== "all" ? ` (${countBy(val)})` : ""}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <AdminCard className="p-8 text-center"><p className="text-sm" style={{ color: theme.textMuted }}>Loading complaints…</p></AdminCard>
+      ) : filtered.length === 0 ? (
+        <AdminCard className="p-8 text-center"><p className="text-sm" style={{ color: theme.textMuted }}>No complaints in this view.</p></AdminCard>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((r) => {
+            const st = REPORT_STATUS_STYLE[r.status] || REPORT_STATUS_STYLE.open;
+            return (
+              <AdminCard key={r.id} className="p-5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: st.bg, color: st.text, fontWeight: 600 }}>{r.status}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: theme.pillBg, color: NAVY }}>{r.target_type}</span>
+                  {r.ai_flagged && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#ede9fe", color: "#6d28d9", fontWeight: 600 }}>AI flagged</span>}
+                  <span className="text-xs" style={{ color: theme.textMuted }}>{r.reason || "No reason given"}</span>
+                </div>
+                <div className="text-[11px] mt-1" style={{ color: theme.textSubtle }}>
+                  Reported by {r.reporterName} · {new Date(r.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                </div>
+
+                <div className="mt-3 rounded-xl p-3" style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}>
+                  <div className="text-xs mb-1" style={{ color: theme.textSubtle }}>
+                    {r.target_type === "comment" ? "Comment" : "Post"} by {r.targetAuthor}{r.targetRemoved ? " · removed" : ""}
+                  </div>
+                  <div className="text-sm whitespace-pre-wrap" style={{ color: theme.text }}>{r.targetContent}</div>
+                </div>
+
+                {r.details && (
+                  <div className="text-xs mt-2" style={{ color: theme.textMuted }}>
+                    <span style={{ fontWeight: 600 }}>Reporter note:</span> {r.details}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {!r.targetRemoved && (
+                    <button onClick={() => removeContent(r)} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "#b42318", color: "#fff", fontWeight: 600 }}>
+                      Remove content
+                    </button>
+                  )}
+                  {r.status !== "reviewing" && r.status !== "actioned" && (
+                    <button onClick={() => setStatus(r, "reviewing")} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Start review</button>
+                  )}
+                  {r.status !== "actioned" && (
+                    <button onClick={() => setStatus(r, "actioned")} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Mark actioned</button>
+                  )}
+                  {r.status !== "dismissed" && (
+                    <button onClick={() => setStatus(r, "dismissed")} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Dismiss</button>
+                  )}
+                </div>
+              </AdminCard>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Enquiries (public-website contact / subscribe submissions) ──────────
+const ENQUIRY_SOURCE_LABELS: Record<string, string> = {
+  home_contact: "Website contact form",
+  contact_page: "Contact page",
+  subscribe: "Newsletter signup",
+};
+const ENQUIRY_STATUSES = ["New", "In progress", "Resolved"];
+
+export function AdminEnquiries() {
+  const { theme } = useTheme();
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all");
+
+  const fetchRows = async () => {
+    const { data } = await supabase.from("contact_requests").select("*").order("created_at", { ascending: false });
+    if (data) setRows(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchRows(); }, []);
+
+  const updateStatus = async (id: string, status: string) => {
+    const { error } = await supabase.from("contact_requests").update({ status }).eq("id", id);
+    if (error) { alert("Could not update status: " + error.message); return; }
+    setRows(prev => prev.map(r => (r.id === id ? { ...r, status } : r)));
+  };
+
+  const statusColor = (s: string) =>
+    s === "Resolved" ? { bg: "#d1fae5", text: "#065f46" }
+    : s === "In progress" ? { bg: "#fef3c7", text: "#92400e" }
+    : { bg: "#dbeafe", text: "#1d4ed8" };
+
+  const visible = filter === "all" ? rows : rows.filter(r => r.status === filter);
+  const newCount = rows.filter(r => r.status === "New").length;
+
+  return (
+    <div className="max-w-5xl">
+      <div className="mb-5">
+        <H1>Enquiries</H1>
+        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+          Contact and subscribe submissions from the public website.{newCount > 0 ? ` ${newCount} new.` : ""}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {["all", ...ENQUIRY_STATUSES].map(s => (
+          <button
+            key={s}
+            onClick={() => setFilter(s)}
+            className="px-3 py-1 rounded-full text-xs border"
+            style={{
+              borderColor: theme.divider,
+              color: filter === s ? "#fff" : theme.textMuted,
+              background: filter === s ? NAVY : "transparent",
+            }}
+          >
+            {s === "all" ? "All" : s}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm" style={{ color: theme.textMuted }}>Loading…</p>
+      ) : visible.length === 0 ? (
+        <AdminCard className="p-8 text-center">
+          <p className="text-sm" style={{ color: theme.textMuted }}>No enquiries yet.</p>
+        </AdminCard>
+      ) : (
+        <div className="space-y-3">
+          {visible.map(r => {
+            const meta = r.metadata && typeof r.metadata === "object" ? r.metadata : {};
+            const metaEntries = Object.entries(meta).filter(([, v]) => v);
+            const sc = statusColor(r.status);
+            return (
+              <AdminCard key={r.id} className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold" style={{ color: theme.text }}>{r.name || "Anonymous"}</span>
+                      <span
+                        className="inline-block px-2 py-0.5 rounded-full text-xs"
+                        style={{ background: sc.bg, color: sc.text, fontWeight: 500 }}
+                      >
+                        {r.status}
+                      </span>
+                    </div>
+                    <div className="text-xs mt-1" style={{ color: theme.textMuted }}>
+                      {ENQUIRY_SOURCE_LABELS[r.source] || r.source}
+                      {r.request_type ? ` · ${r.request_type}` : ""}
+                      {" · "}
+                      {new Date(r.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                    </div>
+                  </div>
+                  <select
+                    value={r.status}
+                    onChange={(e) => updateStatus(r.id, e.target.value)}
+                    className="text-xs px-2 py-1.5 rounded-lg border shrink-0"
+                    style={{ background: theme.bg, borderColor: theme.cardBorder, color: theme.text }}
+                  >
+                    {ENQUIRY_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                <div className="mt-3 grid gap-1.5 text-sm" style={{ color: theme.text }}>
+                  {r.email && <div><span style={{ color: theme.textMuted }}>Email: </span><a href={`mailto:${r.email}`} className="underline">{r.email}</a></div>}
+                  {r.phone && <div><span style={{ color: theme.textMuted }}>Phone: </span>{r.phone}</div>}
+                  {r.organisation && <div><span style={{ color: theme.textMuted }}>Organisation: </span>{r.organisation}</div>}
+                  {r.location && <div><span style={{ color: theme.textMuted }}>Location: </span>{r.location}</div>}
+                  {metaEntries.map(([k, v]) => (
+                    <div key={k}><span style={{ color: theme.textMuted }}>{k}: </span>{String(v)}</div>
+                  ))}
+                  {r.message && (
+                    <div className="mt-1 p-3 rounded-lg text-sm leading-relaxed" style={{ background: theme.bg, color: theme.text }}>
+                      {r.message}
+                    </div>
+                  )}
+                </div>
+              </AdminCard>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminEvents() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
@@ -708,7 +1008,8 @@ export function AdminEvents() {
       type,
       location,
       description,
-      status: "Upcoming"
+      status: "Upcoming",
+      created_by: user?.id,
     });
     setCreating(false);
     if (error) {
@@ -1040,7 +1341,11 @@ export function AdminPrivacy() {
   }, []);
 
   const markProcessed = async (id: string) => {
-    await supabase.from('data_requests').update({ status: 'Processed' }).eq('id', id);
+    const { error } = await supabase.from('data_requests').update({ status: 'Processed' }).eq('id', id);
+    if (error) {
+      alert("Could not mark as processed: " + error.message);
+      return;
+    }
     setDeletionRequests(prev => prev.filter(r => r.id !== id));
     setExportRequests(prev => prev.filter(r => r.id !== id));
   };
@@ -1296,14 +1601,19 @@ export function AdminGroups() {
   };
 
   const handleGroupAction = async (id: string, action: "suspend" | "unsuspend" | "delete") => {
+    let error: any = null;
     if (action === "delete") {
       if (!confirm("Are you sure you want to delete this group? This cannot be easily undone.")) return;
-      await supabase.from("groups").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      ({ error } = await supabase.from("groups").update({ deleted_at: new Date().toISOString() }).eq("id", id));
     } else if (action === "suspend") {
       if (!confirm("Suspend this group? It will no longer appear in member feeds.")) return;
-      await supabase.from("groups").update({ suspended_at: new Date().toISOString() }).eq("id", id);
+      ({ error } = await supabase.from("groups").update({ suspended_at: new Date().toISOString() }).eq("id", id));
     } else if (action === "unsuspend") {
-      await supabase.from("groups").update({ suspended_at: null }).eq("id", id);
+      ({ error } = await supabase.from("groups").update({ suspended_at: null }).eq("id", id));
+    }
+    if (error) {
+      alert("Action failed: " + error.message);
+      return;
     }
     setGroups(groups.map(g => {
       if (g.id === id) {

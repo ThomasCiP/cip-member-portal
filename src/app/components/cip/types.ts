@@ -7,6 +7,7 @@ export type Screen =
   | "blocked"
   | "welcome"
   | "deleted-account"
+  | "update-password"  // password-recovery: set a new password
   // Member area (social platform)
   | "dashboard"        // admin-controlled home feed
   | "profile"          // own profile (editable)
@@ -26,6 +27,8 @@ export type Screen =
   | "admin-members"
   | "admin-support"
   | "admin-support-detail"
+  | "admin-complaints"
+  | "admin-enquiries"
   | "admin-events"
   | "admin-content"
   | "admin-resources"

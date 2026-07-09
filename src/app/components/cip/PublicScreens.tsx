@@ -1,6 +1,6 @@
 import { useState, ReactNode } from "react";
 import { supabase } from "../../../lib/supabase";
-import { CiPLogo, NAVY, GOLD, MUTED_BLUE } from "./brand";
+import { CiPLogo, NAVY, GOLD, MUTED_BLUE, useTheme } from "./brand";
 import { Screen } from "./types";
 import {
   ShieldCheck, Lock, Users, BookOpenCheck, ArrowRight,
@@ -14,7 +14,7 @@ type ModalType = "terms" | "privacy" | "conduct" | null;
 const LEGAL_CONTENT = {
   terms: {
     title: "Terms of Use",
-    updated: "May 2025 — prototype draft",
+    updated: "July 2026",
     sections: [
       {
         heading: "About Christians in Politics",
@@ -45,8 +45,12 @@ const LEGAL_CONTENT = {
         body: "The platform may be used only for purposes consistent with CiP's mission and these Terms. You must not use the platform for commercial promotion, party recruitment, or any activity inconsistent with the Member Conduct Agreement.",
       },
       {
-        heading: "No public member directory or member-to-member messaging",
-        body: "Member profiles are private. There is no public member directory. Members may not initiate direct contact with other members. All introductions are facilitated by CiP Admin with the explicit consent of both parties.",
+        heading: "Community feed, connections and messaging",
+        body: "The platform includes a community feed, group pages and company pages where members may publish posts, comment and react, subject to the Member Conduct Agreement. Members may also send connection requests and message accepted connections. Member profiles remain privacy-controlled and you decide what information is visible to others.",
+      },
+      {
+        heading: "AI monitoring and content moderation",
+        body: "To keep the community safe, CiP uses automated systems, including artificial intelligence, to monitor posts and comments for behaviour that may breach the Member Conduct Agreement. Content may also be reported by members. Posts or comments that are flagged are reviewed by CiP moderators — and, where the content was posted in a group or on a company page, by that group or page owner — and may be removed. Serious or repeated breaches may result in suspension or removal of your account.",
       },
       {
         heading: "Events and registrations",
@@ -122,7 +126,7 @@ const LEGAL_CONTENT = {
   },
   conduct: {
     title: "Member Conduct Agreement",
-    updated: "May 2025 — prototype draft",
+    updated: "July 2026",
     sections: [
       {
         heading: "Christian first, politics second",
@@ -141,8 +145,12 @@ const LEGAL_CONTENT = {
         body: "The CiP platform must not be used to recruit members to any political party, campaign on behalf of a party, or promote a candidate — unless explicitly approved in writing by CiP leadership. CiP is non-partisan.",
       },
       {
-        heading: "No public debate forum",
-        body: "This platform does not contain and is not intended to contain any public discussion forum, comment section, member-to-member messaging or debate forum. All communication on the platform is either member-to-CiP or CiP-to-member.",
+        heading: "Community posts and comments",
+        body: "The platform provides a community feed, group pages and company pages where members may post, comment and react. When you post or comment you must uphold this Agreement — engaging with charity and respect, and never using posts or comments for harassment, abuse, intimidation or factional campaigning. Post authors may choose to limit or turn off comments on their own posts.",
+      },
+      {
+        heading: "AI monitoring of comments and behaviour",
+        body: "You acknowledge and agree that CiP uses automated systems, including artificial intelligence, to monitor comment and posting behaviour on the platform. This monitoring is used solely to ensure members are keeping to this Member Conduct Agreement and the Terms of Use. Members can also report posts or comments they consider inappropriate. Reported or flagged content is sent to CiP Admin — and to the relevant group or company page owner where applicable — for review, and may be removed. Breaches identified through monitoring or reporting may lead to suspension or removal of access.",
       },
       {
         heading: "No member-to-member contact without consent",
@@ -250,6 +258,73 @@ export function DeletedAccountScreen({ navigate }: { navigate: (s: Screen) => vo
         </button>
       </div>
     </div>
+  );
+}
+
+// ── Set-new-password screen (password recovery) ─────────────────────
+export function UpdatePasswordScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    // The recovery link established a session, so updateUser applies to this account.
+    const { error: updErr } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (updErr) {
+      setError(updErr.message);
+      return;
+    }
+    // Strip ?reset=true (and any recovery hash) so a refresh can't re-trigger this.
+    window.history.replaceState({}, "", window.location.origin + "/");
+    setDone(true);
+    setTimeout(() => navigate("dashboard"), 1200);
+  };
+
+  return (
+    <PublicFrame onOpenModal={() => {}} navigate={navigate}>
+      <div className="max-w-lg mx-auto py-12">
+        <h1 style={{ color: NAVY, fontWeight: 700, fontSize: 32 }}>Set a new password</h1>
+        <p className="text-gray-500 mt-2 text-sm">
+          Choose a new password for your CiP member account.
+        </p>
+
+        {done ? (
+          <div className="mt-8 text-sm text-green-600">
+            Password updated. Taking you to your dashboard…
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+            <Field label="New password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <Field label="Confirm new password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+
+            {error && <div className="text-sm text-red-600">{error}</div>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-4 px-6 py-3 rounded-xl text-sm"
+              style={{ background: NAVY, color: "#fff", fontWeight: 600, opacity: loading ? 0.7 : 1 }}
+            >
+              {loading ? "Please wait..." : "Update password"}
+            </button>
+          </form>
+        )}
+      </div>
+    </PublicFrame>
   );
 }
 
@@ -493,9 +568,20 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setError("");
     sessionStorage.setItem("signup_first_name", firstName);
     sessionStorage.setItem("signup_last_name", lastName);
     sessionStorage.setItem("signup_email", email);
@@ -552,7 +638,9 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
           <Field label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <Field label="Mobile number (optional)" value={mobile} onChange={(e) => setMobile(e.target.value)} />
           <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          <Field label="Confirm password" type="password" required />
+          <Field label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+
+          {error && <div className="text-sm text-red-600">{error}</div>}
 
           {/* Linked legal checkbox */}
           <div
@@ -716,6 +804,10 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
       setLoading(false);
       return;
     }
+
+    // Clear the signup details (incl. the plaintext password) from sessionStorage.
+    ["signup_email", "signup_password", "signup_first_name", "signup_last_name", "signup_mobile"]
+      .forEach((k) => sessionStorage.removeItem(k));
 
     navigate("welcome");
   };

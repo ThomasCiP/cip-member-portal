@@ -11,8 +11,32 @@ import {
   Pin, MessageCircle, MessageSquare, ThumbsUp, Send, MoreHorizontal, X,
   FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
   Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
-  Plus, LifeBuoy, ArrowRight, Search, Filter, Activity, ArrowUpRight
+  Plus, LifeBuoy, ArrowRight, Search, Filter, Activity, ArrowUpRight,
+  PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2
 } from "lucide-react";
+
+// ── Peer profile lookups ───────────────────────────────────────────────
+// The base `profiles` table SELECT is owner/admin-only, so peer names/avatars
+// are read from the safe `member_directory` view (no is_admin/role/moderation
+// columns). Use these helpers instead of embedding `profiles(...)` for peers.
+async function fetchAuthorMap(userIds: (string | null | undefined)[]): Promise<Map<string, any>> {
+  const ids = Array.from(new Set(userIds.filter(Boolean))) as string[];
+  if (ids.length === 0) return new Map();
+  const { data } = await supabase
+    .from('member_directory')
+    .select('id, first_name, last_name, avatar_url, job_title, state, bio')
+    .in('id', ids);
+  const map = new Map<string, any>();
+  (data || []).forEach((p: any) => map.set(p.id, p));
+  return map;
+}
+
+// Attach a `.profiles` object to each row (keyed on row.user_id) so existing
+// render code that reads `row.profiles?.first_name` keeps working unchanged.
+async function attachAuthors(rows: any[]): Promise<any[]> {
+  const map = await fetchAuthorMap(rows.map(r => r.user_id));
+  return rows.map(r => ({ ...r, profiles: map.get(r.user_id) || null }));
+}
 
 // ── Shared primitives ─────────────────────────────────────────────────
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -161,6 +185,502 @@ function PostContent({ table, postId, body, isMine, onChanged, textColor }: {
   );
 }
 
+// ── LinkedIn-style reactions ──────────────────────────────────────────
+const REACTIONS = [
+  { key: "like",       label: "Like",       Icon: ThumbsUp,    color: "#0a66c2" },
+  { key: "celebrate",  label: "Celebrate",  Icon: PartyPopper, color: "#44712e" },
+  { key: "support",    label: "Support",    Icon: Handshake,   color: "#715e86" },
+  { key: "love",       label: "Love",       Icon: Heart,       color: "#b24020" },
+  { key: "insightful", label: "Insightful", Icon: Lightbulb,   color: "#c37d16" },
+  { key: "funny",      label: "Funny",      Icon: Laugh,       color: "#1d9db7" },
+] as const;
+const REACTION_BY_KEY: Record<string, (typeof REACTIONS)[number]> =
+  Object.fromEntries(REACTIONS.map((r) => [r.key, r]));
+
+function ReactionBar({ postType, postId }: { postType: "global" | "group"; postId: string }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [rows, setRows] = useState<{ reaction: string; user_id: string }[]>([]);
+
+  const load = useCallback(async () => {
+    const { data } = await supabase
+      .from("post_reactions")
+      .select("reaction, user_id")
+      .eq("post_type", postType)
+      .eq("post_id", postId);
+    setRows(data || []);
+  }, [postType, postId]);
+  useEffect(() => { load(); }, [load]);
+
+  const mine = rows.find((r) => r.user_id === user?.id)?.reaction || null;
+  const total = rows.length;
+  const present = REACTIONS.filter((r) => rows.some((x) => x.reaction === r.key));
+
+  const setReaction = async (key: string) => {
+    if (!user) return;
+    if (mine === key) {
+      setRows((prev) => prev.filter((r) => r.user_id !== user.id));
+      await supabase.from("post_reactions").delete()
+        .eq("post_type", postType).eq("post_id", postId).eq("user_id", user.id);
+    } else {
+      setRows((prev) => [...prev.filter((r) => r.user_id !== user.id), { reaction: key, user_id: user.id }]);
+      await supabase.from("post_reactions").upsert(
+        { post_type: postType, post_id: postId, user_id: user.id, reaction: key },
+        { onConflict: "post_type,post_id,user_id" }
+      );
+    }
+    load();
+  };
+
+  const active = mine ? REACTION_BY_KEY[mine] : null;
+  const ActiveIcon = active ? active.Icon : ThumbsUp;
+
+  return (
+    <div className="relative group/react">
+      <button
+        onClick={() => setReaction(mine || "like")}
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs hover:bg-black/5"
+        style={{ color: active ? active.color : theme.textMuted, fontWeight: active ? 600 : 500 }}
+      >
+        <ActiveIcon size={15} /> {active ? active.label : "Like"}
+        {total > 0 && (
+          <span className="ml-1 inline-flex items-center" style={{ color: theme.textSubtle }}>
+            {present.slice(0, 3).map((r) => { const I = r.Icon; return <I key={r.key} size={11} style={{ color: r.color }} />; })}
+            <span className="ml-1 text-[11px]">{total}</span>
+          </span>
+        )}
+      </button>
+      <div
+        className="absolute bottom-full left-0 mb-1 hidden group-hover/react:flex items-center gap-1 px-2 py-1.5 rounded-full shadow-lg z-20"
+        style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+      >
+        {REACTIONS.map((r) => {
+          const I = r.Icon;
+          return (
+            <button key={r.key} title={r.label} onClick={() => setReaction(r.key)}
+              className="p-1 rounded-full hover:scale-125 transition-transform" style={{ color: r.color }}>
+              <I size={18} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Comments ──────────────────────────────────────────────────────────
+function CommentItem({ c, canModerate, onReport, onChanged }: {
+  c: any; canModerate?: boolean; onReport: (t: { type: "comment"; id: string }) => void; onChanged: () => void;
+}) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(c.content);
+  const [busy, setBusy] = useState(false);
+  const isMine = c.user_id === user?.id;
+  const authorName = c.profiles ? `${c.profiles.first_name || ""} ${c.profiles.last_name || ""}`.trim() || "Member" : "Member";
+
+  const save = async () => {
+    if (!draft.trim()) return;
+    setBusy(true);
+    const { error } = await supabase.from("post_comments")
+      .update({ content: draft.trim(), edited_at: new Date().toISOString() }).eq("id", c.id);
+    setBusy(false);
+    if (error) { alert("Could not update comment: " + error.message); return; }
+    setEditing(false); onChanged();
+  };
+  const remove = async () => {
+    if (!confirm("Delete this comment?")) return;
+    const { error } = await supabase.from("post_comments").delete().eq("id", c.id);
+    if (error) { alert("Could not delete comment: " + error.message); return; }
+    onChanged();
+  };
+
+  return (
+    <div className="flex gap-2">
+      <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px]" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
+        {(authorName || "M").substring(0, 2).toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="rounded-2xl px-3 py-2" style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="text-xs" style={{ color: theme.text, fontWeight: 600 }}>{authorName}</div>
+          {editing ? (
+            <div className="mt-1 space-y-2">
+              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2}
+                className="w-full px-2 py-1 rounded-lg text-sm border outline-none resize-y"
+                style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
+              <div className="flex gap-2">
+                <PrimaryButton onClick={save} disabled={busy || !draft.trim()}>{busy ? "Saving…" : "Save"}</PrimaryButton>
+                <GhostButton onClick={() => { setEditing(false); setDraft(c.content); }}>Cancel</GhostButton>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm mt-0.5 whitespace-pre-wrap" style={{ color: theme.textMuted }}>{c.content}</p>
+          )}
+        </div>
+        {!editing && (
+          <div className="flex items-center gap-3 mt-1 ml-1 text-[11px]" style={{ color: theme.textSubtle }}>
+            <span>{new Date(c.created_at).toLocaleDateString()}{c.edited_at ? " · edited" : ""}</span>
+            {isMine && <button onClick={() => { setDraft(c.content); setEditing(true); }} className="hover:underline">Edit</button>}
+            {(isMine || canModerate) && <button onClick={remove} className="hover:underline">Delete</button>}
+            {!isMine && <button onClick={() => onReport({ type: "comment", id: c.id })} className="hover:underline inline-flex items-center gap-1"><Flag size={10} /> Report</button>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CommentSection({ postType, postId, authorId, groupId, commentPolicy, canModerate, onReport, onChanged }: {
+  postType: "global" | "group"; postId: string; authorId?: string; groupId?: string | null;
+  commentPolicy?: string; canModerate?: boolean;
+  onReport: (t: { type: "comment"; id: string }) => void; onChanged?: () => void;
+}) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [comments, setComments] = useState<any[]>([]);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [allowed, setAllowed] = useState(false);
+
+  const load = useCallback(async () => {
+    const { data } = await supabase.from("post_comments")
+      .select("*").eq("post_type", postType).eq("post_id", postId).is("removed_at", null)
+      .order("created_at", { ascending: true });
+    setComments(await attachAuthors(data || []));
+  }, [postType, postId]);
+  useEffect(() => { load(); }, [load]);
+
+  const reload = async () => { await load(); onChanged?.(); };
+
+  // Resolve whether the current user may comment, per the post's comment policy.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const policy = commentPolicy || "anyone";
+      if (policy === "none") { if (active) setAllowed(false); return; }
+      if (policy === "anyone" || !authorId || authorId === user?.id) { if (active) setAllowed(true); return; }
+      const { data } = await supabase.from("network_connections").select("id")
+        .or(`and(requester_id.eq.${user?.id},receiver_id.eq.${authorId}),and(requester_id.eq.${authorId},receiver_id.eq.${user?.id})`)
+        .eq("status", "accepted").maybeSingle();
+      if (active) setAllowed(!!data);
+    })();
+    return () => { active = false; };
+  }, [commentPolicy, authorId, user?.id]);
+
+  const add = async () => {
+    if (!text.trim() || !user) return;
+    setBusy(true);
+    const body = text.trim();
+    const { data, error } = await supabase.from("post_comments")
+      .insert({ post_type: postType, post_id: postId, user_id: user.id, content: body })
+      .select("id").single();
+    setBusy(false);
+    if (error) { alert("Could not post comment: " + error.message); return; }
+    setText("");
+    reload();
+    // Fire-and-forget AI moderation; never blocks the user or surfaces errors.
+    supabase.functions.invoke("moderate-comment", {
+      body: { commentId: data?.id, postType, postId, authorId, groupId: groupId ?? null, content: body },
+    }).catch(() => { /* best-effort moderation */ });
+  };
+
+  const policy = commentPolicy || "anyone";
+
+  return (
+    <div className="mt-3 space-y-3">
+      {policy === "none" ? (
+        <div className="text-xs text-center py-2" style={{ color: theme.textSubtle }}>
+          <Lock size={11} className="inline mr-1" /> Comments are turned off for this post.
+        </div>
+      ) : allowed ? (
+        <div className="flex gap-2">
+          <input
+            value={text} onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); add(); } }}
+            placeholder="Add a comment…"
+            className="flex-1 px-3 py-2 rounded-full text-sm outline-none"
+            style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          />
+          <button onClick={add} disabled={busy || !text.trim()}
+            className="px-3 rounded-full text-xs flex items-center"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600, opacity: busy || !text.trim() ? 0.6 : 1 }}>
+            <Send size={14} />
+          </button>
+        </div>
+      ) : (
+        <div className="text-xs text-center py-2" style={{ color: theme.textSubtle }}>
+          Only the author's connections can comment on this post.
+        </div>
+      )}
+      {comments.map((c) => (
+        <CommentItem key={c.id} c={c} canModerate={canModerate} onReport={onReport} onChanged={reload} />
+      ))}
+    </div>
+  );
+}
+
+// ── Report flow ───────────────────────────────────────────────────────
+const REPORT_REASONS = [
+  "Harassment or abuse", "Hate or discrimination", "Spam or scam",
+  "Misinformation", "Off-topic or inappropriate", "Other",
+];
+
+function ReportModal({ target, postType, groupId, onClose }: {
+  target: { type: "post" | "comment"; id: string };
+  postType: "global" | "group"; groupId?: string | null; onClose: () => void;
+}) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [reason, setReason] = useState(REPORT_REASONS[0]);
+  const [details, setDetails] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    if (!user) return;
+    setBusy(true);
+    const { error } = await supabase.from("content_reports").insert({
+      reporter_id: user.id,
+      target_type: target.type,
+      target_id: target.id,
+      post_type: postType,
+      group_id: groupId ?? null,
+      reason,
+      details: details.trim() || null,
+    });
+    if (error) { setBusy(false); alert("Could not submit report: " + error.message); return; }
+    // Notify the group/company owner where there is one.
+    if (groupId) {
+      const { data: g } = await supabase.from("groups").select("created_by, name").eq("id", groupId).maybeSingle();
+      if (g?.created_by && g.created_by !== user.id) {
+        await supabase.from("notifications").insert({
+          user_id: g.created_by,
+          type: "content_reported",
+          title: `A ${target.type} was reported`,
+          message: `A ${target.type} in ${g.name || "your group"} was reported and is awaiting review.`,
+        });
+      }
+    }
+    setBusy(false); setDone(true);
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6">
+        {done ? (
+          <div className="text-center py-4">
+            <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center mb-3" style={{ background: "#dcfce7" }}>
+              <CheckCircle2 size={22} style={{ color: "#16a34a" }} />
+            </div>
+            <h3 style={{ color: theme.text, fontWeight: 600 }}>Report submitted</h3>
+            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+              Thank you. Our team{groupId ? " and the group owner" : ""} will review this shortly.
+            </p>
+            <div className="mt-4"><PrimaryButton onClick={onClose}>Close</PrimaryButton></div>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 mb-3">
+              <Flag size={16} style={{ color: NAVY }} />
+              <h3 style={{ color: theme.text, fontWeight: 600 }}>Report this {target.type}</h3>
+            </div>
+            <p className="text-xs mb-3" style={{ color: theme.textMuted }}>
+              Reports are reviewed by CiP moderators. This platform also uses AI to monitor
+              behaviour against the Member Conduct Agreement.
+            </p>
+            <label className="text-xs" style={{ color: theme.textMuted }}>Reason</label>
+            <select value={reason} onChange={(e) => setReason(e.target.value)}
+              className="w-full mt-1 mb-3 px-3 py-2 rounded-lg text-sm outline-none"
+              style={{ background: theme.inputBg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}>
+              {REPORT_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <label className="text-xs" style={{ color: theme.textMuted }}>Details (optional)</label>
+            <textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={3}
+              className="w-full mt-1 px-3 py-2 rounded-lg text-sm border outline-none resize-y"
+              style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
+            <div className="flex gap-2 mt-4 justify-end">
+              <GhostButton onClick={onClose}>Cancel</GhostButton>
+              <PrimaryButton onClick={submit} disabled={busy}>{busy ? "Submitting…" : "Submit report"}</PrimaryButton>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Post "…" menu ─────────────────────────────────────────────────────
+function PostMenu({ isMine, canModerate, onEdit, onDelete, onRemove, onReport, policy, onPolicyChange }: {
+  isMine: boolean; canModerate?: boolean;
+  onEdit: () => void; onDelete: () => void; onRemove: () => void; onReport: () => void;
+  policy: string; onPolicyChange: (p: string) => void;
+}) {
+  const { theme } = useTheme();
+  const [open, setOpen] = useState(false);
+  const [subOpen, setSubOpen] = useState(false);
+  const item = "w-full text-left px-3 py-2 text-xs hover:bg-black/5 flex items-center gap-2";
+  return (
+    <div className="relative shrink-0">
+      <button onClick={() => setOpen((o) => !o)} className="p-1.5 rounded-full hover:bg-black/5" style={{ color: theme.textMuted }}>
+        <MoreHorizontal size={16} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => { setOpen(false); setSubOpen(false); }} />
+          <div className="absolute right-0 top-8 w-52 rounded-xl shadow-xl z-40 overflow-hidden py-1"
+            style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}>
+            {isMine && <button className={item} style={{ color: theme.text }} onClick={() => { setOpen(false); onEdit(); }}><Pencil size={13} /> Edit post</button>}
+            {isMine && (
+              <div>
+                <button className={item} style={{ color: theme.text }} onClick={() => setSubOpen((s) => !s)}>
+                  <MessageCircle size={13} /> Who can comment
+                </button>
+                {subOpen && (
+                  <div className="pl-3">
+                    {([["anyone", "Anyone"], ["connections", "Connections only"], ["none", "No one"]] as const).map(([val, lbl]) => (
+                      <button key={val} className={item} style={{ color: policy === val ? NAVY : theme.textMuted, fontWeight: policy === val ? 600 : 400 }}
+                        onClick={() => { onPolicyChange(val); setOpen(false); setSubOpen(false); }}>
+                        {policy === val ? <CheckCircle2 size={13} /> : <Circle size={13} />} {lbl}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {isMine && <button className={item} style={{ color: "#b42318" }} onClick={() => { setOpen(false); onDelete(); }}><Trash2 size={13} /> Delete post</button>}
+            {!isMine && canModerate && <button className={item} style={{ color: "#b42318" }} onClick={() => { setOpen(false); onRemove(); }}><Shield size={13} /> Remove (moderator)</button>}
+            {!isMine && <button className={item} style={{ color: theme.text }} onClick={() => { setOpen(false); onReport(); }}><Flag size={13} /> Report post</button>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Unified member post (feed + group), LinkedIn-style ─────────────────
+export function MemberPost({
+  postType, postId, authorId, authorName, subtitle, body, imageUrl, commentPolicy,
+  groupId, canModerate, navigate, onChanged, footer,
+}: {
+  postType: "global" | "group"; postId: string; authorId?: string; authorName: string;
+  subtitle: string; body: string; imageUrl?: string | null; commentPolicy?: string;
+  groupId?: string | null; canModerate?: boolean; navigate: (s: Screen) => void;
+  onChanged?: () => void; footer?: ReactNode;
+}) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const isMine = !!authorId && authorId === user?.id;
+  const table = postType === "global" ? "global_posts" : "group_posts";
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(body);
+  const [busy, setBusy] = useState(false);
+  const [text, setText] = useState(body);
+  const [policy, setPolicy] = useState(commentPolicy || "anyone");
+  const [showComments, setShowComments] = useState(false);
+  const [commentCount, setCommentCount] = useState(0);
+  const [report, setReport] = useState<{ type: "post" | "comment"; id: string } | null>(null);
+  const [removed, setRemoved] = useState(false);
+
+  const loadCount = useCallback(async () => {
+    const { count } = await supabase.from("post_comments")
+      .select("id", { count: "exact", head: true })
+      .eq("post_type", postType).eq("post_id", postId).is("removed_at", null);
+    setCommentCount(count || 0);
+  }, [postType, postId]);
+  useEffect(() => { loadCount(); }, [loadCount]);
+
+  const saveEdit = async () => {
+    if (!draft.trim()) return;
+    setBusy(true);
+    const { error } = await supabase.from(table).update({ content: draft.trim(), edited_at: new Date().toISOString() }).eq("id", postId);
+    setBusy(false);
+    if (error) { alert("Could not update post: " + error.message); return; }
+    setText(draft.trim()); setEditing(false);
+  };
+  const del = async () => {
+    if (!confirm("Delete this post? This cannot be undone.")) return;
+    const { error } = await supabase.from(table).delete().eq("id", postId);
+    if (error) { alert("Could not delete post: " + error.message); return; }
+    if (onChanged) onChanged(); else setRemoved(true);
+  };
+  const moderatorRemove = async () => {
+    if (!confirm("Remove this post from the feed? This is a moderation action.")) return;
+    const { error } = await supabase.from(table).update({ removed_at: new Date().toISOString(), removed_by: user?.id }).eq("id", postId);
+    if (error) { alert("Could not remove post: " + error.message); return; }
+    if (onChanged) onChanged(); else setRemoved(true);
+  };
+  const changePolicy = async (p: string) => {
+    setPolicy(p);
+    await supabase.from(table).update({ comment_policy: p }).eq("id", postId);
+  };
+
+  if (removed) return null;
+
+  return (
+    <Card className="overflow-hidden mb-4 p-5">
+      <div className="flex items-start gap-2 mb-2.5">
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] shrink-0" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
+          {(authorName || "M").substring(0, 2).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm leading-tight" style={{ color: theme.text, fontWeight: 600 }}>{authorName}</div>
+          <div className="text-xs leading-tight mt-0.5" style={{ color: theme.textSubtle }}>{subtitle}</div>
+        </div>
+        <PostMenu
+          isMine={isMine} canModerate={canModerate}
+          onEdit={() => { setDraft(text); setEditing(true); }}
+          onDelete={del} onRemove={moderatorRemove}
+          onReport={() => setReport({ type: "post", id: postId })}
+          policy={policy} onPolicyChange={changePolicy}
+        />
+      </div>
+
+      {editing ? (
+        <div className="mt-1 space-y-2">
+          <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4}
+            className="w-full px-3 py-2 rounded-lg text-sm border outline-none resize-y"
+            style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
+          <div className="flex gap-2">
+            <PrimaryButton onClick={saveEdit} disabled={busy || !draft.trim()}>{busy ? "Saving…" : "Save"}</PrimaryButton>
+            <GhostButton onClick={() => { setEditing(false); setDraft(text); }}>Cancel</GhostButton>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm mt-1 leading-relaxed whitespace-pre-wrap" style={{ color: theme.textMuted }}>{text}</p>
+      )}
+
+      {imageUrl && !editing && (
+        <div className="mt-3 rounded-xl overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
+          <img src={imageUrl} alt="Post attachment" className="w-full max-h-[520px] object-cover" />
+        </div>
+      )}
+
+      <div className="flex items-center gap-1 mt-3 pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
+        <ReactionBar postType={postType} postId={postId} />
+        <button onClick={() => setShowComments((s) => !s)}
+          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs hover:bg-black/5" style={{ color: theme.textMuted, fontWeight: 500 }}>
+          <MessageCircle size={15} /> {commentCount > 0 ? `${commentCount} ` : ""}Comment{commentCount === 1 ? "" : "s"}
+        </button>
+        {footer && <div className="ml-auto flex items-center gap-2">{footer}</div>}
+      </div>
+
+      {showComments && (
+        <CommentSection
+          postType={postType} postId={postId} authorId={authorId} groupId={groupId}
+          commentPolicy={policy} canModerate={canModerate}
+          onReport={(t) => setReport(t)} onChanged={loadCount}
+        />
+      )}
+
+      {report && (
+        <ReportModal target={report} postType={postType} groupId={groupId} onClose={() => { setReport(null); loadCount(); }} />
+      )}
+    </Card>
+  );
+}
+
 function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Screen) => void; onChanged?: () => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -168,51 +688,38 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
   if (item.isGroupPost || item.isGlobalPost) {
     const isGlobal = !!item.isGlobalPost;
     const isMine = !!item.authorId && item.authorId === user?.id;
+    const isAdmin = !!user?.email?.endsWith("@christiansinpolitics.com");
     return (
-      <Card className="overflow-hidden mb-4 p-5">
-        <div className="flex items-center gap-2 mb-2.5">
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px]"
-            style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
-          >
-            {(item.authorName || "M").substring(0, 2).toUpperCase()}
-          </div>
-          <div>
-            <div className="text-sm leading-tight" style={{ color: theme.text, fontWeight: 600 }}>
-              {item.authorName}
-            </div>
-            <div className="text-xs leading-tight mt-0.5" style={{ color: theme.textSubtle }}>
-              {isGlobal ? `Community Post · ${item.date}` : `Posted in ${item.groupName} · ${item.date}`}
-            </div>
-          </div>
-        </div>
-        <PostContent
-          table={isGlobal ? "global_posts" : "group_posts"}
-          postId={item.id}
-          body={item.body}
-          isMine={isMine}
-          onChanged={onChanged}
-          textColor={theme.textMuted}
-        />
-        <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
-          {!isGlobal && (
-            <GhostButton onClick={() => {
-              localStorage.setItem('activeGroupId', item.groupId);
-              if (item.groupType === 'organisation') {
-                localStorage.setItem('isOrgDetail', 'true');
-              } else {
-                localStorage.setItem('isOrgDetail', 'false');
-              }
-              navigate("group-detail");
-            }}>
-              View in {item.groupType === 'organisation' ? 'organisation' : 'group'}
-            </GhostButton>
-          )}
-          {item.authorId && !isMine && (
-            <MessageAuthorButton targetUserId={item.authorId} navigate={navigate} />
-          )}
-        </div>
-      </Card>
+      <MemberPost
+        postType={isGlobal ? "global" : "group"}
+        postId={item.id}
+        authorId={item.authorId}
+        authorName={item.authorName}
+        subtitle={isGlobal ? `Community Post · ${item.date}` : `Posted in ${item.groupName} · ${item.date}`}
+        body={item.body}
+        imageUrl={item.image_url}
+        commentPolicy={item.comment_policy}
+        groupId={isGlobal ? null : item.groupId}
+        canModerate={isAdmin}
+        navigate={navigate}
+        onChanged={onChanged}
+        footer={
+          <>
+            {!isGlobal && (
+              <GhostButton onClick={() => {
+                localStorage.setItem('activeGroupId', item.groupId);
+                localStorage.setItem('isOrgDetail', item.groupType === 'organisation' ? 'true' : 'false');
+                navigate("group-detail");
+              }}>
+                View in {item.groupType === 'organisation' ? 'organisation' : 'group'}
+              </GhostButton>
+            )}
+            {item.authorId && !isMine && (
+              <MessageAuthorButton targetUserId={item.authorId} navigate={navigate} />
+            )}
+          </>
+        }
+      />
     );
   }
 
@@ -221,7 +728,7 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
       {item.image && (
         <div
           className="h-44 w-full"
-          style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b 60%, ${GOLD})` }}
+          style={{ background: `linear-gradient(135deg, ${NAVY}, #1d4ed8 60%, ${GOLD})` }}
         />
       )}
       <div className="p-5">
@@ -268,12 +775,16 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
   );
 }
 
-export function PostComposer({ 
-  onPost, 
+const POLICY_LABEL: Record<string, string> = {
+  anyone: "Anyone can comment", connections: "Connections only", none: "No comments",
+};
+
+export function PostComposer({
+  onPost,
   disabledClickAction,
   placeholder = "Share something with the community..."
-}: { 
-  onPost: (content: string) => Promise<void>; 
+}: {
+  onPost: (content: string, opts?: { imageUrl?: string | null; commentPolicy?: string }) => Promise<boolean | void>;
   disabledClickAction?: () => void;
   placeholder?: string;
 }) {
@@ -281,10 +792,31 @@ export function PostComposer({
   const { user } = useAuth();
   const [content, setContent] = useState("");
   const [posting, setPosting] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [commentPolicy, setCommentPolicy] = useState("anyone");
+  const [policyOpen, setPolicyOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const initials = user?.user_metadata?.first_name 
+  const initials = user?.user_metadata?.first_name
     ? `${user.user_metadata.first_name[0]}${user.user_metadata.last_name?.[0] || ''}`.toUpperCase()
     : "U";
+
+  const disabled = !!disabledClickAction;
+
+  const handleFile = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploading(true);
+    const ext = file.name.split(".").pop();
+    const name = `${user.id}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("post-images").upload(name, file);
+    if (error) { setUploading(false); alert("Image upload failed: " + error.message); return; }
+    const { data } = supabase.storage.from("post-images").getPublicUrl(name);
+    setImageUrl(data.publicUrl);
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   return (
     <div className="p-4 rounded-xl space-y-3" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}>
@@ -296,33 +828,68 @@ export function PostComposer({
           {initials}
         </div>
         <div className="flex-1 relative">
-          {disabledClickAction && (
+          {disabled && (
             <div className="absolute inset-0 z-10 cursor-pointer" onClick={disabledClickAction} />
           )}
-          <input
+          <textarea
             placeholder={placeholder}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            disabled={!!disabledClickAction || posting}
-            className="w-full px-4 py-2.5 rounded-full text-sm outline-none"
-            style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+            disabled={disabled || posting}
+            rows={2}
+            className="w-full px-4 py-2.5 rounded-2xl text-sm outline-none resize-y"
+            style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text, minHeight: 44 }}
           />
         </div>
       </div>
+
+      {imageUrl && (
+        <div className="relative rounded-xl overflow-hidden ml-12" style={{ border: `1px solid ${theme.cardBorder}` }}>
+          <img src={imageUrl} alt="Attachment preview" className="w-full max-h-72 object-cover" />
+          <button onClick={() => setImageUrl(null)} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center gap-2 pt-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
-        <GhostButton onClick={disabledClickAction}><ImageIcon size={12} className="inline mr-1" /> Image</GhostButton>
-        <GhostButton onClick={disabledClickAction}><Link2 size={12} className="inline mr-1" /> Link</GhostButton>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+        <GhostButton onClick={disabled ? disabledClickAction : () => fileRef.current?.click()}>
+          <ImageIcon size={12} className="inline mr-1" /> {uploading ? "Uploading…" : "Image"}
+        </GhostButton>
+
+        <div className="relative">
+          <GhostButton onClick={disabled ? disabledClickAction : () => setPolicyOpen((o) => !o)}>
+            <MessageCircle size={12} className="inline mr-1" /> {POLICY_LABEL[commentPolicy]}
+          </GhostButton>
+          {policyOpen && !disabled && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setPolicyOpen(false)} />
+              <div className="absolute left-0 bottom-full mb-1 w-48 rounded-xl shadow-xl z-40 overflow-hidden py-1" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}>
+                {([["anyone", "Anyone"], ["connections", "Connections only"], ["none", "No one"]] as const).map(([val, lbl]) => (
+                  <button key={val} onClick={() => { setCommentPolicy(val); setPolicyOpen(false); }}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-black/5 flex items-center gap-2"
+                    style={{ color: commentPolicy === val ? NAVY : theme.text, fontWeight: commentPolicy === val ? 600 : 400 }}>
+                    {commentPolicy === val ? <CheckCircle2 size={13} /> : <Circle size={13} />} {lbl}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="ml-auto relative">
-          {disabledClickAction && (
+          {disabled && (
             <div className="absolute inset-0 z-10 cursor-pointer" onClick={disabledClickAction} />
           )}
-          <PrimaryButton 
-            disabled={!!disabledClickAction || posting || !content.trim()}
+          <PrimaryButton
+            disabled={disabled || posting || uploading || (!content.trim() && !imageUrl)}
             onClick={async () => {
-              if (!content.trim()) return;
+              if (!content.trim() && !imageUrl) return;
               setPosting(true);
-              await onPost(content);
-              setContent("");
+              const ok = await onPost(content, { imageUrl, commentPolicy });
+              // Keep the draft if the post failed so the user doesn't lose it.
+              if (ok !== false) { setContent(""); setImageUrl(null); }
               setPosting(false);
             }}
           >
@@ -359,7 +926,7 @@ function MessageAuthorButton({
     const { data: existing } = await supabase.from('network_connections')
       .select('id')
       .or(`and(requester_id.eq.${user.id},receiver_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},receiver_id.eq.${user.id})`)
-      .single();
+      .limit(1).maybeSingle();
 
     if (!existing) {
       await supabase.from('network_connections').insert({
@@ -466,11 +1033,52 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
   const [selectedPartyGroupId, setSelectedPartyGroupId] = useState<string | null>(null);
   const [joinPartyGroup, setJoinPartyGroup] = useState(false);
 
+  const hydratedRef = useRef(false);
+  const snapshotRef = useRef("");
+
+  // Load any previously-saved profile FIRST, so the autosave below never
+  // overwrites existing data with the empty initial state on mount.
   useEffect(() => {
-    const timer = setTimeout(async () => {
+    async function hydrate() {
       if (!user) return;
+      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+      const { data: priv } = await supabase.from("profile_private").select("party, tradition").eq("user_id", user.id).maybeSingle();
+      const vals = {
+        firstName: (data?.first_name ?? user.user_metadata?.first_name) || "",
+        lastName: (data?.last_name ?? user.user_metadata?.last_name) || "",
+        jobTitle: data?.job_title || "",
+        bio: data?.bio || "",
+        state: data?.state || "",
+        electorate: data?.federal_electorate || "",
+        stateElectorate: data?.state_electorate || "",
+        party: priv?.party || "No affiliation",
+        tradition: priv?.tradition || "",
+        showParty: data?.show_party || false,
+      };
+      setFirstName(vals.firstName);
+      setLastName(vals.lastName);
+      setJobTitle(vals.jobTitle);
+      setBio(vals.bio);
+      setState(vals.state);
+      setElectorate(vals.electorate);
+      setStateElectorate(vals.stateElectorate);
+      setParty(vals.party);
+      setTradition(vals.tradition);
+      setShowParty(vals.showParty);
+      snapshotRef.current = JSON.stringify(vals);
+      hydratedRef.current = true;
+    }
+    hydrate();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !hydratedRef.current) return;
+    const snapshot = JSON.stringify({ firstName, lastName, jobTitle, bio, state, electorate, stateElectorate, party, tradition, showParty });
+    // Skip the debounced save until the user actually changes something.
+    if (snapshot === snapshotRef.current) return;
+    const timer = setTimeout(async () => {
       setAutoSaveStatus("Saving...");
-      await supabase.from("profiles").upsert({
+      const { error } = await supabase.from("profiles").upsert({
         id: user.id,
         first_name: firstName,
         last_name: lastName,
@@ -481,7 +1089,9 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
         state_electorate: stateElectorate,
         show_party: showParty,
       });
+      if (error) { setAutoSaveStatus("Save failed"); return; }
       await supabase.from("profile_private").upsert({ user_id: user.id, party, tradition });
+      snapshotRef.current = snapshot;
       setAutoSaveStatus("Saved");
       setTimeout(() => setAutoSaveStatus(""), 2000);
     }, 1500);
@@ -510,6 +1120,7 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
   }, [party]);
 
   useEffect(() => {
+    let cancelled = false;
     async function searchSuburbs() {
       if (suburbSearch.length < 2) {
         setSuburbsData([]);
@@ -519,9 +1130,10 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
         .select('*')
         .ilike('suburb_name', `${suburbSearch}%`)
         .limit(10);
-      if (data) setSuburbsData(data);
+      if (!cancelled && data) setSuburbsData(data);
     }
     searchSuburbs();
+    return () => { cancelled = true; };
   }, [suburbSearch]);
 
   const suburbOptions = suburbsData.map(s => `${s.suburb_name}, ${s.state} ${s.postcode}`);
@@ -594,7 +1206,7 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
     if (user) {
       if (joinPartyGroup && party && party !== "No affiliation") {
         const pId = await ensureGroup('party', party);
-        if (pId) await supabase.from('group_members').upsert({ group_id: pId, user_id: user.id, status: 'approved' });
+        if (pId) await supabase.from('group_members').upsert({ group_id: pId, user_id: user.id });
       }
     }
 
@@ -749,20 +1361,39 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
       let groupPosts: any[] = [];
       if (myGroupIds.length > 0) {
         const { data: posts } = await supabase.from('group_posts')
-          .select('*, profiles(first_name, last_name, avatar_url), groups(name, id, group_type)')
+          .select('*, groups(name, id, group_type)')
           .in('group_id', myGroupIds)
+          .is('removed_at', null)
           .order('created_at', { ascending: false })
           .limit(100);
         if (posts) groupPosts = posts;
       }
 
+      const { data: globalPostsData } = await supabase.from('global_posts')
+        .select('*')
+        .is('removed_at', null)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      const globalPosts = globalPostsData || [];
+
+      // Resolve author names via the safe directory (peers aren't readable on the
+      // base profiles table anymore).
+      const authorMap = await fetchAuthorMap([
+        ...groupPosts.map(p => p.user_id),
+        ...globalPosts.map(p => p.user_id),
+      ]);
+      const authorName = (uid: string) => {
+        const a = authorMap.get(uid);
+        return a ? (`${a.first_name || ''} ${a.last_name || ''}`.trim() || "Member") : "Member";
+      };
+
       const formattedAnnouncements = (announcements || []).map(a => ({
         id: a.id,
         isAnnouncement: true,
-        type: a.target_audience || "Announcement",
+        type: a.category || "Announcement",
         title: a.title,
-        body: a.content,
-        cta: "Read more",
+        body: "",
+        cta: a.cta_text || "Read more",
         date: new Date(a.created_at).toLocaleDateString(),
         image: false,
         created_at: a.created_at
@@ -774,25 +1405,24 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         groupId: p.groups?.id,
         groupName: p.groups?.name || "Group",
         groupType: p.groups?.group_type || "standard",
-        authorName: p.profiles ? `${p.profiles?.first_name || ''} ${p.profiles?.last_name || ''}`.trim() : "Member",
+        authorName: authorName(p.user_id),
         authorId: p.user_id,
         body: p.content,
+        image_url: p.image_url,
+        comment_policy: p.comment_policy,
         date: new Date(p.created_at).toLocaleDateString(),
         created_at: p.created_at
       }));
 
-      const { data: globalPostsData } = await supabase.from('global_posts')
-        .select('*, profiles(first_name, last_name, avatar_url)')
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      const formattedGlobalPosts = (globalPostsData || []).map(p => ({
+      const formattedGlobalPosts = globalPosts.map(p => ({
         id: p.id,
         isGlobalPost: true,
         type: "Community Post",
-        authorName: p.profiles ? `${p.profiles?.first_name || ''} ${p.profiles?.last_name || ''}`.trim() : "Member",
+        authorName: authorName(p.user_id),
         authorId: p.user_id,
         body: p.content,
+        image_url: p.image_url,
+        comment_policy: p.comment_policy,
         date: new Date(p.created_at).toLocaleDateString(),
         created_at: p.created_at
       }));
@@ -809,17 +1439,20 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
     fetchFeed();
   }, [fetchFeed]);
 
-  const handleCreateGlobalPost = async (content: string) => {
-    if (!user) return;
+  const handleCreateGlobalPost = async (content: string, opts?: { imageUrl?: string | null; commentPolicy?: string }) => {
+    if (!user) return false;
     const { error } = await supabase.from('global_posts').insert({
       user_id: user.id,
-      content
+      content,
+      image_url: opts?.imageUrl ?? null,
+      comment_policy: opts?.commentPolicy ?? 'anyone',
     });
     if (error) {
       console.error("Failed to create post:", error);
-      return;
+      return false;
     }
     await fetchFeed();
+    return true;
   };
 
   return (
@@ -963,6 +1596,7 @@ export function ProfileScreen() {
   const [suburbsData, setSuburbsData] = useState<any[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     async function searchSuburbs() {
       if (suburbSearch.length < 2) {
         setSuburbsData([]);
@@ -972,9 +1606,10 @@ export function ProfileScreen() {
         .select('*')
         .ilike('suburb_name', `${suburbSearch}%`)
         .limit(10);
-      if (data) setSuburbsData(data);
+      if (!cancelled && data) setSuburbsData(data);
     }
     searchSuburbs();
+    return () => { cancelled = true; };
   }, [suburbSearch]);
 
   const suburbOptions = suburbsData.map(s => `${s.suburb_name}, ${s.state} ${s.postcode}`);
@@ -1110,7 +1745,7 @@ export function ProfileScreen() {
     <div className="space-y-4">
       {/* Header */}
       <Card className="overflow-hidden">
-        <div className="h-32" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b 60%, ${GOLD})` }} />
+        <div className="h-32" style={{ background: `linear-gradient(135deg, ${NAVY}, #1d4ed8 60%, ${GOLD})` }} />
         <div className="px-6 pb-5 -mt-12">
           {profile.avatarUrl ? (
             <img src={profile.avatarUrl} alt="Avatar" className="w-24 h-24 rounded-full object-cover" style={{ border: `4px solid ${theme.cardBg}` }} />
@@ -1580,12 +2215,27 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
             <button
               onClick={async () => {
                 if (user) {
+                  // Caveats only apply to restricted groups. For party/tradition the
+                  // select displays the first option as selected even when the user
+                  // never changed it (caveatValue stays ""), so coerce to that shown
+                  // default — otherwise the group stores an empty caveat and becomes
+                  // unjoinable.
+                  const isRestricted = vis === "restricted";
+                  const effCaveatType = isRestricted ? caveat : null;
+                  const effCaveatValue = !isRestricted ? null
+                    : caveat === "party"     ? (caveatValue || PARTIES[0])
+                    : caveat === "tradition" ? (caveatValue || TRADITIONS[0])
+                    : caveatValue;
+                  if (isRestricted && !effCaveatValue) {
+                    alert("Please choose the criterion members must match (e.g. an electorate).");
+                    return;
+                  }
                   const { data, error } = await supabase.from("groups").insert({
                     name,
                     description: desc,
                     visibility: vis,
-                    caveat_type: caveat,
-                    caveat_value: caveatValue,
+                    caveat_type: effCaveatType,
+                    caveat_value: effCaveatValue,
                     image_url: imageUrl,
                     created_by: user.id
                   }).select().single();
@@ -1665,7 +2315,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
             }
           }
           if (g && !currentMemberships.has(g.id)) {
-            await supabase.from('group_members').upsert({ group_id: g.id, user_id: user.id, status: 'approved' });
+            await supabase.from('group_members').upsert({ group_id: g.id, user_id: user.id });
             currentMemberships.add(g.id);
           }
         };
@@ -1974,14 +2624,14 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const refreshGroupPosts = async () => {
     if (!group) return;
     const { data } = await supabase.from('group_posts')
-      .select('*, profiles(first_name, last_name, avatar_url)')
+      .select('*')
       .eq('group_id', group.id)
+      .is('removed_at', null)
       .order('created_at', { ascending: false });
-    if (data) setGroupPosts(data);
+    if (data) setGroupPosts(await attachAuthors(data));
   };
 
-  useEffect(() => {
-    async function initGroup() {
+  const initGroup = useCallback(async () => {
       const groupId = localStorage.getItem('activeGroupId');
       if (!groupId) {
         navigate('groups');
@@ -1991,7 +2641,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       if (data) {
         setGroup(data);
         if (data.created_by) {
-          const { data: creator } = await supabase.from('profiles').select('first_name, last_name').eq('id', data.created_by).single();
+          const { data: creator } = await supabase.from('member_directory').select('first_name, last_name').eq('id', data.created_by).maybeSingle();
           if (creator) {
             setGroupCreator(`${creator.first_name || ''} ${creator.last_name || ''}`.trim() || "Anonymous Member");
           } else {
@@ -2001,10 +2651,11 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       }
       
       const { data: postsData } = await supabase.from('group_posts')
-        .select('*, profiles(first_name, last_name, avatar_url)')
+        .select('*')
         .eq('group_id', groupId)
+        .is('removed_at', null)
         .order('created_at', { ascending: false });
-      if (postsData) setGroupPosts(postsData);
+      if (postsData) setGroupPosts(await attachAuthors(postsData));
       setLoadingGroup(false);
       
       if (user) {
@@ -2018,14 +2669,16 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
           setIsFollowing(groupMembers.some(m => m.user_id === user.id));
           const userIds = groupMembers.map(m => m.user_id).filter(id => id !== user.id);
           if (userIds.length > 0) {
-            const { data: members } = await supabase.from('profiles').select('*').in('id', userIds).is("deleted_at", null).is("suspended_at", null);
+            const { data: members } = await supabase.from('member_directory').select('*').in('id', userIds);
             if (members) setDbMembers(members);
           }
         }
       }
-    }
-    initGroup();
   }, [user, navigate]);
+
+  useEffect(() => {
+    initGroup();
+  }, [initGroup]);
 
   const allMembers = [
     ...dbMembers.map(m => ({
@@ -2139,7 +2792,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                           const { data: existing } = await supabase.from('network_connections')
                             .select('id')
                             .or(`and(requester_id.eq.${user.id},receiver_id.eq.${group.created_by}),and(requester_id.eq.${group.created_by},receiver_id.eq.${user.id})`)
-                            .single();
+                            .limit(1).maybeSingle();
                           if (!existing) {
                             await supabase.from('network_connections').insert({ requester_id: user.id, receiver_id: group.created_by, status: 'accepted' });
                           } else {
@@ -2254,15 +2907,19 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         <div className="space-y-4">
           {/* Composer */}
           <Card className="p-4">
-            <PostComposer 
-              onPost={async (content) => {
-                if (!group || !user) return;
-                await supabase.from('group_posts').insert({
+            <PostComposer
+              onPost={async (content, opts) => {
+                if (!group || !user) return false;
+                const { error } = await supabase.from('group_posts').insert({
                   group_id: group.id,
                   user_id: user.id,
-                  content
+                  content,
+                  image_url: opts?.imageUrl ?? null,
+                  comment_policy: opts?.commentPolicy ?? 'anyone',
                 });
+                if (error) return false;
                 await refreshGroupPosts();
+                return true;
               }}
               placeholder="Share something with the group..."
               disabledClickAction={!visible ? () => setRevealOpen(true) : undefined}
@@ -2271,39 +2928,24 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
 
           {groupPosts.length > 0 ? (
             groupPosts.map((post: any) => {
-              const authorName = post.profiles ? `${post.profiles.first_name || ''} ${post.profiles.last_name || ''}`.trim() : "Member";
+              const authorName = post.profiles ? `${post.profiles.first_name || ''} ${post.profiles.last_name || ''}`.trim() || "Member" : "Member";
               return (
-                <Card key={post.id} className="p-5 mb-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-[10px]"
-                      style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
-                    >
-                      {(authorName || "M").substring(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="text-sm leading-tight" style={{ color: theme.text, fontWeight: 600 }}>
-                        {authorName}
-                      </div>
-                      <div className="text-xs leading-tight mt-0.5" style={{ color: theme.textSubtle }}>
-                        {new Date(post.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                  <PostContent
-                    table="group_posts"
-                    postId={post.id}
-                    body={post.content}
-                    isMine={post.user_id === user?.id}
-                    onChanged={refreshGroupPosts}
-                    textColor={theme.text}
-                  />
-                  {post.user_id !== user?.id && (
-                    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
-                      <MessageAuthorButton targetUserId={post.user_id} navigate={navigate} />
-                    </div>
-                  )}
-                </Card>
+                <MemberPost
+                  key={post.id}
+                  postType="group"
+                  postId={post.id}
+                  authorId={post.user_id}
+                  authorName={authorName}
+                  subtitle={new Date(post.created_at).toLocaleDateString()}
+                  body={post.content}
+                  imageUrl={post.image_url}
+                  commentPolicy={post.comment_policy}
+                  groupId={group.id}
+                  canModerate={isAdmin || group.created_by === user?.id}
+                  navigate={navigate}
+                  onChanged={refreshGroupPosts}
+                  footer={post.user_id !== user?.id ? <MessageAuthorButton targetUserId={post.user_id} navigate={navigate} /> : null}
+                />
               );
             })
           ) : (
@@ -2427,7 +3069,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                        const { data: existing } = await supabase.from('network_connections')
                          .select('id')
                          .or(`and(requester_id.eq.${user.id},receiver_id.eq.${group.created_by}),and(requester_id.eq.${group.created_by},receiver_id.eq.${user.id})`)
-                         .single();
+                         .limit(1).maybeSingle();
                        if (!existing) {
                          await supabase.from('network_connections').insert({ requester_id: user.id, receiver_id: group.created_by, status: 'accepted' });
                        } else {
@@ -2473,11 +3115,19 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
           onClose={() => setConnectUser(null)} 
           onSend={async () => {
             if (user && connectUser.id.length > 10) {
-              await supabase.from('network_connections').insert({
+              // Don't create a duplicate connection/request if one already exists (either direction).
+              const { data: existingConn } = await supabase.from('network_connections')
+                .select('id')
+                .or(`and(requester_id.eq.${user.id},receiver_id.eq.${connectUser.id}),and(requester_id.eq.${connectUser.id},receiver_id.eq.${user.id})`)
+                .limit(1).maybeSingle();
+              if (existingConn) { setConnectUser(null); return; }
+
+              const { error: connErr } = await supabase.from('network_connections').insert({
                 requester_id: user.id,
                 receiver_id: connectUser.id,
                 status: 'pending'
               });
+              if (connErr) { setConnectUser(null); return; }
 
               // Notify the receiver
               const myProfileRes = await supabase.from('profiles').select('first_name, last_name').eq('id', user.id).single();
@@ -2602,7 +3252,7 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
         ← All events
       </button>
       <Card className="overflow-hidden">
-        <div className="h-44" style={{ background: `linear-gradient(135deg, ${NAVY}, #1e3a6b 60%, ${GOLD})` }} />
+        <div className="h-44" style={{ background: `linear-gradient(135deg, ${NAVY}, #1d4ed8 60%, ${GOLD})` }} />
         <div className="p-6">
           <Pill color="#dbeafe">{event.type || 'In-person'}</Pill>
           <h1 className="mt-3" style={{ color: theme.text }}>{event.title}</h1>
@@ -2634,27 +3284,27 @@ export function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const [composerText, setComposerText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Tracks the open conversation so in-flight message fetches can discard their
+  // results if the user has since switched conversations.
+  const activePeerRef = useRef<string | null>(null);
+  activePeerRef.current = active?.peerId ?? null;
 
   const loadNetwork = async () => {
     if (!user) return;
     const { data } = await supabase
       .from('network_connections')
-      .select(`
-        id,
-        status,
-        requester:profiles!requester_id (id, first_name, last_name, job_title, state),
-        receiver:profiles!receiver_id (id, first_name, last_name, job_title, state)
-      `)
+      .select('id, status, requester_id, receiver_id')
       .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`)
       .eq('status', 'accepted');
-      
+
     if (data) {
+      const dir = await fetchAuthorMap(data.map(c => (c.requester_id === user.id ? c.receiver_id : c.requester_id)));
       const acc: any[] = [];
       for (const c of data) {
-         const isRequester = c.requester?.id === user.id;
-         const peer = isRequester ? c.receiver : c.requester;
+         const peerId = c.requester_id === user.id ? c.receiver_id : c.requester_id;
+         const peer = dir.get(peerId);
          if (!peer) continue;
-         
+
          acc.push({
            id: c.id,
            peerId: peer.id,
@@ -2685,14 +3335,16 @@ export function MessagesScreen() {
     loadNetwork();
   }, [user]);
 
-  const loadMessages = async () => {
-    if (!user || !active) return;
+  const loadMessages = async (peerId: string) => {
+    if (!user || !peerId) return;
     const { data } = await supabase
       .from('messages')
       .select('*')
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${active.peerId}),and(sender_id.eq.${active.peerId},receiver_id.eq.${user.id})`)
+      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${user.id})`)
       .order('created_at', { ascending: true });
-      
+
+    // Drop stale responses: the user may have switched conversations mid-fetch.
+    if (activePeerRef.current !== peerId) return;
     if (data) {
       setMessages(data.map(m => ({
         id: m.id,
@@ -2704,14 +3356,15 @@ export function MessagesScreen() {
   };
 
   useEffect(() => {
-    loadMessages();
-
     if (active && user) {
+       loadMessages(active.peerId);
        const channel = supabase.channel(`messages_${active.peerId}`)
          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-             loadMessages();
+             loadMessages(active.peerId);
          }).subscribe();
        return () => { supabase.removeChannel(channel); };
+    } else {
+       setMessages([]);
     }
   }, [active, user]);
 
@@ -2722,21 +3375,30 @@ export function MessagesScreen() {
   const handleSend = async () => {
     if (!user || !active || !composerText.trim()) return;
     const msg = composerText;
+    const peerId = active.peerId;
     setComposerText("");
 
     // Optimistic UI update
+    const tempId = `temp-${Date.now()}`;
     setMessages(prev => [...prev, {
-      id: Math.random().toString(),
+      id: tempId,
       from: 'me',
       body: msg,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }]);
 
-    await supabase.from('messages').insert({
+    const { error } = await supabase.from('messages').insert({
       sender_id: user.id,
-      receiver_id: active.peerId,
+      receiver_id: peerId,
       content: msg
     });
+
+    if (error) {
+      // Roll back the optimistic bubble and restore the draft so it isn't lost.
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setComposerText(msg);
+      alert("Message failed to send. Please try again.");
+    }
   };
 
   const filteredConnections = connections.filter(
@@ -3245,19 +3907,14 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
       if (!user) return;
       const { data } = await supabase
         .from('network_connections')
-        .select(`
-          id,
-          status,
-          created_at,
-          requester:profiles!requester_id (id, first_name, last_name, job_title, state),
-          receiver:profiles!receiver_id (id, first_name, last_name, job_title, state)
-        `)
+        .select('id, status, created_at, requester_id, receiver_id')
         .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
-        
+
       if (data) {
+        const dir = await fetchAuthorMap(data.map((c: any) => (c.requester_id === user.id ? c.receiver_id : c.requester_id)));
         const parsed = data.map((c: any) => {
-           const isRequester = c.requester?.id === user.id;
-           const peer = isRequester ? c.receiver : c.requester;
+           const peerId = c.requester_id === user.id ? c.receiver_id : c.requester_id;
+           const peer = dir.get(peerId);
            return {
              id: c.id,
              name: `${peer?.first_name || 'Unknown'} ${peer?.last_name || ''}`.trim(),
