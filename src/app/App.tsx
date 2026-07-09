@@ -10,7 +10,7 @@ import {
 } from "./components/cip/PublicScreens";
 import { MemberShell } from "./components/cip/MemberShell";
 import {
-  Dashboard, ProfileScreen, NetworkScreen, GroupsScreen, OrganisationsScreen, GroupDetailScreen,
+  Dashboard, ProfileScreen, MemberProfileScreen, NetworkScreen, GroupsScreen, OrganisationsScreen, GroupDetailScreen,
   EventsScreen, EventDetail, MessagesScreen, SupportScreen,
   DonateScreen, SettingsScreen, PrivacyScreen,
 } from "./components/cip/MemberScreens";
@@ -60,6 +60,7 @@ function normalizeMember(s: Screen): Screen {
   }
   if (s === "privacy") return "settings";
   if (s === "donate") return "dashboard";
+  if (s === "member-profile") return "network";
   return s;
 }
 
@@ -199,13 +200,14 @@ export default function App() {
     switch (screen) {
       case "dashboard":    return <Dashboard navigate={navigate} onboarded={onboarded ?? true} setOnboarded={setOnboarded} />;
       case "profile":      return <ProfileScreen />;
+      case "member-profile": return <MemberProfileScreen navigate={navigate} />;
       case "network":      return <NetworkScreen navigate={navigate} />;
       case "groups":       return <GroupsScreen navigate={navigate} />;
       case "organisations":return <OrganisationsScreen navigate={navigate} />;
       case "group-detail": return <GroupDetailScreen navigate={navigate} />;
       case "events":       return <EventsScreen navigate={navigate} />;
       case "event-detail": return <EventDetail navigate={navigate} />;
-      case "messages":     return <MessagesScreen />;
+      case "messages":     return <MessagesScreen navigate={navigate} />;
       case "support":      return <SupportScreen />;
       case "donate":       return <DonateScreen />;
       case "privacy":      return <PrivacyScreen navigate={navigate} />;
@@ -216,12 +218,12 @@ export default function App() {
 
   const adminContent = (() => {
     switch (screen) {
-      case "admin-overview":       return <AdminOverview />;
-      case "admin-members":        return <AdminMembers />;
+      case "admin-overview":       return <AdminOverview navigate={navigate} />;
+      case "admin-members":        return <AdminMembers navigate={navigate} />;
       case "admin-groups":         return <ErrorBoundary><AdminGroups /></ErrorBoundary>;
       case "admin-support":        return <AdminSupport navigate={navigate} />;
       case "admin-support-detail": return <AdminSupportDetail navigate={navigate} />;
-      case "admin-complaints":     return <ErrorBoundary><AdminComplaints /></ErrorBoundary>;
+      case "admin-complaints":     return <ErrorBoundary><AdminComplaints navigate={navigate} /></ErrorBoundary>;
       case "admin-enquiries":      return <AdminEnquiries />;
       case "admin-events":         return <AdminEvents />;
       case "admin-content":
@@ -229,7 +231,7 @@ export default function App() {
       case "admin-announcements":
       case "admin-affiliated":     return <AdminContent />;
       case "admin-donations":      return <AdminDonations />;
-      case "admin-privacy":        return <AdminPrivacy />;
+      case "admin-privacy":        return <AdminPrivacy navigate={navigate} />;
       default:                     return <AdminOverview />;
     }
   })();

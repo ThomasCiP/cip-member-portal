@@ -10,7 +10,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
 import { useAuth } from "./AuthContext";
-import { PARTIES, TRADITIONS } from "./MemberScreens";
+import { PARTIES, TRADITIONS, MemberNameLink } from "./MemberScreens";
 import { FEDERAL_ELECTORATES } from "./electorates";
 import { AutocompleteInput } from "./AutocompleteInput";
 
@@ -175,7 +175,7 @@ function StatusPill({ label, color }: { label: string; color?: string }) {
 }
 
 // ── Admin Overview ──────────────────────────────────────────────────
-export function AdminOverview() {
+export function AdminOverview({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const [stats, setStats] = useState([
     { l: "Total members", v: "0", d: "" },
@@ -296,7 +296,7 @@ export function AdminOverview() {
                     >
                       {p.first_name ? p.first_name.charAt(0) : "?"}
                     </div>
-                    <span className="text-sm" style={{ color: theme.text }}>{p.first_name} {p.last_name}</span>
+                    <span className="text-sm" style={{ color: theme.text }}><MemberNameLink userId={p.id} name={`${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Member'} navigate={navigate} /></span>
                     <span className="text-xs" style={{ color: theme.textSubtle }}>{p.state}</span>
                   </div>
                   <span className="text-xs" style={{ color: theme.textSubtle }}>
@@ -313,7 +313,7 @@ export function AdminOverview() {
 }
 
 // ── Admin Members ──────────────────────────────────────────────────
-export function AdminMembers() {
+export function AdminMembers({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -403,7 +403,7 @@ export function AdminMembers() {
               rows.map((r) => (
                 <tr key={r.id} style={{ borderBottom: `1px solid ${theme.divider}` }}>
                   <td className="px-5 py-3">
-                    <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.first_name} {r.last_name}</div>
+                    <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}><MemberNameLink userId={r.id} name={`${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Member'} navigate={navigate} /></div>
                     <div className="text-xs" style={{ color: theme.textMuted }}>{r.email}</div>
                   </td>
                   <td className="px-5 py-3 text-xs" style={{ color: theme.textMuted }}>{r.state}</td>
@@ -419,7 +419,10 @@ export function AdminMembers() {
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: theme.textMuted }}>
+                      <button
+                        onClick={() => { localStorage.setItem('activeProfileUserId', r.id); navigate('member-profile'); }}
+                        title="View profile"
+                        className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: theme.textMuted }}>
                         <Eye size={14} />
                       </button>
                       <DropdownMenu.Root>
@@ -532,7 +535,7 @@ export function AdminSupport({ navigate }: { navigate: (s: Screen) => void }) {
               rows.map((r) => (
                 <tr key={r.id} style={{ borderBottom: `1px solid ${theme.divider}` }}>
                   <td className="px-4 py-3" style={{ color: theme.text, fontWeight: 500 }}>{r.request_type}</td>
-                  <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.first_name} {r.profiles?.last_name}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}><MemberNameLink userId={r.user_id} name={`${r.profiles?.first_name || ''} ${r.profiles?.last_name || ''}`.trim() || 'Member'} navigate={navigate} /></td>
                   <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.state}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: theme.textMuted }}>{r.profiles?.profile_private?.party}</td>
                   <td className="px-4 py-3">
@@ -628,7 +631,7 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
             <StatusPill label={req.status} />
             <h2 className="mt-2" style={{ color: theme.text }}>{req.request_type}</h2>
             <div className="text-xs mt-1" style={{ color: theme.textMuted }}>
-              Submitted {new Date(req.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })} by {memberName}{p.state ? ` (${p.state})` : ""}
+              Submitted {new Date(req.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })} by <MemberNameLink userId={req.user_id} name={memberName} navigate={navigate} />{p.state ? ` (${p.state})` : ""}
             </div>
             <div className="grid grid-cols-2 gap-4 mt-5 text-sm">
               {[
@@ -697,7 +700,7 @@ const REPORT_STATUS_STYLE: Record<string, { bg: string; text: string }> = {
   dismissed: { bg: "#f3f4f6", text: "#6b7280" },
 };
 
-export function AdminComplaints() {
+export function AdminComplaints({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
@@ -739,6 +742,7 @@ export function AdminComplaints() {
         reporterName: r.reporter_id ? (nameMap.get(r.reporter_id) || "Member") : "AI monitor",
         targetContent: t ? t.content : "(content unavailable — it may have been deleted)",
         targetAuthor: t?.user_id ? (nameMap.get(t.user_id) || "Member") : "Unknown",
+        targetAuthorId: t?.user_id || null,
         targetRemoved: !!t?.removed_at,
       };
     }));
@@ -800,12 +804,12 @@ export function AdminComplaints() {
                   <span className="text-xs" style={{ color: theme.textMuted }}>{r.reason || "No reason given"}</span>
                 </div>
                 <div className="text-[11px] mt-1" style={{ color: theme.textSubtle }}>
-                  Reported by {r.reporterName} · {new Date(r.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                  Reported by <MemberNameLink userId={r.reporter_id} name={r.reporterName} navigate={navigate} /> · {new Date(r.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
                 </div>
 
                 <div className="mt-3 rounded-xl p-3" style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}>
                   <div className="text-xs mb-1" style={{ color: theme.textSubtle }}>
-                    {r.target_type === "comment" ? "Comment" : "Post"} by {r.targetAuthor}{r.targetRemoved ? " · removed" : ""}
+                    {r.target_type === "comment" ? "Comment" : "Post"} by <MemberNameLink userId={r.targetAuthorId} name={r.targetAuthor} navigate={navigate} />{r.targetRemoved ? " · removed" : ""}
                   </div>
                   <div className="text-sm whitespace-pre-wrap" style={{ color: theme.text }}>{r.targetContent}</div>
                 </div>
@@ -1324,7 +1328,7 @@ export function AdminDonations() {
   );
 }
 
-export function AdminPrivacy() {
+export function AdminPrivacy({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [exportRequests, setExportRequests] = useState<any[]>([]);
@@ -1366,7 +1370,7 @@ export function AdminPrivacy() {
           ) : (
             deletionRequests.map((r, i) => (
               <div key={i} className="flex items-center justify-between p-3 rounded-xl mb-2" style={{ background: theme.tableHead }}>
-                <span className="text-sm" style={{ color: theme.text }}>{r.profiles?.first_name} {r.profiles?.last_name}</span>
+                <span className="text-sm" style={{ color: theme.text }}><MemberNameLink userId={r.user_id} name={`${r.profiles?.first_name || ''} ${r.profiles?.last_name || ''}`.trim() || 'Member'} navigate={navigate} /></span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs" style={{ color: theme.textSubtle }}>{new Date(r.created_at).toLocaleDateString()}</span>
                   <button onClick={() => markProcessed(r.id)} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Processed</button>
@@ -1382,7 +1386,7 @@ export function AdminPrivacy() {
           ) : (
             exportRequests.map((r, i) => (
               <div key={i} className="flex items-center justify-between p-3 rounded-xl mb-2" style={{ background: theme.tableHead }}>
-                <span className="text-sm" style={{ color: theme.text }}>{r.profiles?.first_name} {r.profiles?.last_name}</span>
+                <span className="text-sm" style={{ color: theme.text }}><MemberNameLink userId={r.user_id} name={`${r.profiles?.first_name || ''} ${r.profiles?.last_name || ''}`.trim() || 'Member'} navigate={navigate} /></span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs" style={{ color: theme.textSubtle }}>{new Date(r.created_at).toLocaleDateString()}</span>
                   <button onClick={() => markProcessed(r.id)} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: theme.cardBorder, color: theme.text }}>Process</button>

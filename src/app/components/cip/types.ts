@@ -11,6 +11,7 @@ export type Screen =
   // Member area (social platform)
   | "dashboard"        // admin-controlled home feed
   | "profile"          // own profile (editable)
+  | "member-profile"   // read-only view of another member
   | "network"          // accepted connections directory
   | "groups"           // discover/joined groups
   | "organisations"    // discover/joined organisations

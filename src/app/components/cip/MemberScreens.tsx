@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, ReactNode, MouseEventHandler } from "react";
+import { useState, useEffect, useRef, useCallback, ReactNode, MouseEventHandler, CSSProperties } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { Screen } from "./types";
@@ -11,7 +11,7 @@ import {
   Pin, MessageCircle, MessageSquare, ThumbsUp, Send, MoreHorizontal, X,
   FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
   Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
-  Plus, LifeBuoy, ArrowRight, Search, Filter, Activity, ArrowUpRight,
+  Plus, LifeBuoy, ArrowRight, ArrowLeft, Search, Filter, Activity, ArrowUpRight,
   PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2
 } from "lucide-react";
 
@@ -160,6 +160,36 @@ function GoldButton({ children, onClick, full }: { children: ReactNode; onClick?
     >
       {children}
     </button>
+  );
+}
+
+// Clickable member name → opens that member's read-only profile. Rendered as a
+// `span role="link"` (not a <button>) so it can sit inside other clickable rows
+// without invalid nesting; stopPropagation keeps a parent row's onClick from
+// also firing. Falls back to plain text when we have no id/navigate.
+export function MemberNameLink({ userId, name, navigate, className, style }: {
+  userId?: string | null;
+  name: string;
+  navigate?: (s: Screen) => void;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  if (!userId || !navigate) return <span className={className} style={style}>{name}</span>;
+  const openProfile = () => {
+    localStorage.setItem('activeProfileUserId', userId);
+    navigate('member-profile');
+  };
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      className={className}
+      style={{ ...style, cursor: 'pointer' }}
+      onClick={(e) => { e.stopPropagation(); openProfile(); }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); openProfile(); } }}
+    >
+      {name}
+    </span>
   );
 }
 
@@ -331,8 +361,8 @@ function ReactionBar({ postType, postId }: { postType: "global" | "group"; postI
 }
 
 // ── Comments ──────────────────────────────────────────────────────────
-function CommentItem({ c, canModerate, onReport, onChanged }: {
-  c: any; canModerate?: boolean; onReport: (t: { type: "comment"; id: string }) => void; onChanged: () => void;
+function CommentItem({ c, canModerate, navigate, onReport, onChanged }: {
+  c: any; canModerate?: boolean; navigate?: (s: Screen) => void; onReport: (t: { type: "comment"; id: string }) => void; onChanged: () => void;
 }) {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -365,7 +395,9 @@ function CommentItem({ c, canModerate, onReport, onChanged }: {
       </div>
       <div className="flex-1 min-w-0">
         <div className="rounded-2xl px-3 py-2" style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}>
-          <div className="text-xs" style={{ color: theme.text, fontWeight: 600 }}>{authorName}</div>
+          <div className="text-xs" style={{ color: theme.text, fontWeight: 600 }}>
+            <MemberNameLink userId={c.user_id} name={authorName} navigate={navigate} />
+          </div>
           {editing ? (
             <div className="mt-1 space-y-2">
               <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2}
@@ -393,9 +425,9 @@ function CommentItem({ c, canModerate, onReport, onChanged }: {
   );
 }
 
-function CommentSection({ postType, postId, authorId, groupId, commentPolicy, canModerate, onReport, onChanged }: {
+function CommentSection({ postType, postId, authorId, groupId, commentPolicy, canModerate, navigate, onReport, onChanged }: {
   postType: "global" | "group"; postId: string; authorId?: string; groupId?: string | null;
-  commentPolicy?: string; canModerate?: boolean;
+  commentPolicy?: string; canModerate?: boolean; navigate?: (s: Screen) => void;
   onReport: (t: { type: "comment"; id: string }) => void; onChanged?: () => void;
 }) {
   const { theme } = useTheme();
@@ -476,7 +508,7 @@ function CommentSection({ postType, postId, authorId, groupId, commentPolicy, ca
         </div>
       )}
       {comments.map((c) => (
-        <CommentItem key={c.id} c={c} canModerate={canModerate} onReport={onReport} onChanged={reload} />
+        <CommentItem key={c.id} c={c} canModerate={canModerate} navigate={navigate} onReport={onReport} onChanged={reload} />
       ))}
     </div>
   );
@@ -687,7 +719,9 @@ export function MemberPost({
           {(authorName || "M").substring(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm leading-tight" style={{ color: theme.text, fontWeight: 600 }}>{authorName}</div>
+          <div className="text-sm leading-tight" style={{ color: theme.text, fontWeight: 600 }}>
+            <MemberNameLink userId={authorId} name={authorName} navigate={navigate} />
+          </div>
           <div className="text-xs leading-tight mt-0.5" style={{ color: theme.textSubtle }}>{subtitle}</div>
         </div>
         <PostMenu
@@ -731,7 +765,7 @@ export function MemberPost({
       {showComments && (
         <CommentSection
           postType={postType} postId={postId} authorId={authorId} groupId={groupId}
-          commentPolicy={policy} canModerate={canModerate}
+          commentPolicy={policy} canModerate={canModerate} navigate={navigate}
           onReport={(t) => setReport(t)} onChanged={loadCount}
         />
       )}
@@ -2903,7 +2937,9 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                     {(m.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{m.name}</div>
+                    <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
+                      <MemberNameLink userId={m.id} name={m.name} navigate={navigate} />
+                    </div>
                     <div className="text-[11px]" style={{ color: theme.textSubtle }}>{m.state}</div>
                   </div>
                 </div>
@@ -2970,7 +3006,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                )}
                <div className="mt-5">
                  <h4 className="text-xs uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>Contact</h4>
-                 <div className="mt-2 text-sm" style={{ color: theme.text }}>Managed by {groupCreator}</div>
+                 <div className="mt-2 text-sm" style={{ color: theme.text }}>Managed by <MemberNameLink userId={group?.created_by} name={groupCreator} navigate={navigate} /></div>
                  {group.created_by !== user?.id && (
                    <button
                      onClick={async () => {
@@ -3010,7 +3046,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
               <h4 className="text-xs mt-5 uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>
                 Moderators
               </h4>
-              <div className="mt-2 text-sm" style={{ color: theme.text }}>{groupCreator}</div>
+              <div className="mt-2 text-sm" style={{ color: theme.text }}><MemberNameLink userId={group?.created_by} name={groupCreator} navigate={navigate} /></div>
             </>
           )}
         </Card>
@@ -3160,13 +3196,17 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
   );
 }
 
-export function MessagesScreen() {
+export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const [active, setActive] = useState<any>(null);
   const [search, setSearch] = useState("");
-  
+
   const [connections, setConnections] = useState<any[]>([]);
+  // Peers with an accepted connection — kept separate from `connections` because
+  // that list can also hold synthesized (not-yet-connected) conversations opened
+  // via a deep-link. Used to decide whether the composer is unlocked.
+  const [acceptedPeerIds, setAcceptedPeerIds] = useState<Set<string>>(new Set());
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [composerText, setComposerText] = useState("");
@@ -3175,6 +3215,9 @@ export function MessagesScreen() {
   // results if the user has since switched conversations.
   const activePeerRef = useRef<string | null>(null);
   activePeerRef.current = active?.peerId ?? null;
+  // Ensures the incoming deep-link is consumed exactly once (survives the
+  // StrictMode dev double-mount).
+  const deepLinkHandledRef = useRef(false);
 
   const loadNetwork = async () => {
     if (!user) return;
@@ -3187,10 +3230,12 @@ export function MessagesScreen() {
     if (data) {
       const dir = await fetchAuthorMap(data.map(c => (c.requester_id === user.id ? c.receiver_id : c.requester_id)));
       const acc: any[] = [];
+      const accepted = new Set<string>();
       for (const c of data) {
          const peerId = c.requester_id === user.id ? c.receiver_id : c.requester_id;
          const peer = dir.get(peerId);
          if (!peer) continue;
+         accepted.add(peer.id);
 
          acc.push({
            id: c.id,
@@ -3203,17 +3248,12 @@ export function MessagesScreen() {
            time: "",
          });
       }
-      setConnections(acc);
-
-      // Deep-link: auto-select a conversation if navigated from "Message author"
-      const targetUserId = localStorage.getItem('activeMessageUserId');
-      if (targetUserId) {
-        localStorage.removeItem('activeMessageUserId');
-        const targetConnection = acc.find(c => c.peerId === targetUserId);
-        if (targetConnection) {
-          setActive(targetConnection);
-        }
-      }
+      setAcceptedPeerIds(accepted);
+      // Preserve any synthesized deep-link conversation already in the list.
+      setConnections(prev => {
+        const synthesized = prev.filter(c => !accepted.has(c.peerId) && String(c.id).startsWith('dm-'));
+        return [...synthesized, ...acc];
+      });
     }
     setLoading(false);
   };
@@ -3221,6 +3261,33 @@ export function MessagesScreen() {
   useEffect(() => {
     loadNetwork();
   }, [user]);
+
+  // Deep-link: when navigated from a "Message" action, always open a chat with
+  // the target — even if they aren't an accepted connection yet (synthesize a
+  // conversation). History then loads via the [active] effect below.
+  useEffect(() => {
+    if (loading || deepLinkHandledRef.current || !user) return;
+    const targetUserId = localStorage.getItem('activeMessageUserId');
+    if (!targetUserId) return;
+    deepLinkHandledRef.current = true;
+    localStorage.removeItem('activeMessageUserId');
+    (async () => {
+      const existing = connections.find(c => c.peerId === targetUserId);
+      if (existing) { setActive(existing); return; }
+      const dir = await fetchAuthorMap([targetUserId]);
+      const peer = dir.get(targetUserId);
+      const convo = {
+        id: `dm-${targetUserId}`,
+        peerId: targetUserId,
+        name: peer ? `${peer.first_name || 'Member'} ${peer.last_name || ''}`.trim() : 'Member',
+        title: peer?.job_title || 'Member',
+        group: 'CiP Network',
+        unread: 0, last: '', time: '',
+      };
+      setConnections(prev => prev.some(c => c.peerId === targetUserId) ? prev : [convo, ...prev]);
+      setActive(convo);
+    })();
+  }, [loading, connections, user]);
 
   const loadMessages = async (peerId: string) => {
     if (!user || !peerId) return;
@@ -3259,8 +3326,16 @@ export function MessagesScreen() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // LinkedIn-style gating: you may send ONE message to someone you're not
+  // connected to; the composer then locks until they accept your connection
+  // request OR reply to that first message. Connected peers = unlimited.
+  const isConnected = active ? acceptedPeerIds.has(active.peerId) : false;
+  const theyReplied = messages.some(m => m.from === 'them');
+  const iSent = messages.some(m => m.from === 'me');
+  const composerLocked = !!active && !isConnected && !theyReplied && iSent;
+
   const handleSend = async () => {
-    if (!user || !active || !composerText.trim()) return;
+    if (!user || !active || !composerText.trim() || composerLocked) return;
     const msg = composerText;
     const peerId = active.peerId;
     setComposerText("");
@@ -3354,11 +3429,8 @@ export function MessagesScreen() {
                         {(c.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                       </div>
                       <div className="flex-1 min-w-0 flex flex-col justify-center h-12">
-                        <div
-                          className="text-sm truncate"
-                          style={{ color: theme.text, fontWeight: 600 }}
-                        >
-                          {c.name}
+                        <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
+                          <MemberNameLink userId={c.peerId} name={c.name} navigate={navigate} />
                         </div>
                         <div className="text-[11px] truncate" style={{ color: theme.textSubtle }}>
                           Connected via {c.group}
@@ -3387,7 +3459,7 @@ export function MessagesScreen() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
-                      {active.name}
+                      <MemberNameLink userId={active.peerId} name={active.name} navigate={navigate} />
                     </div>
                   </div>
                 </div>
@@ -3429,13 +3501,19 @@ export function MessagesScreen() {
                 </div>
 
                 <div className="px-6 py-4 shrink-0" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                  {composerLocked && (
+                    <div className="mb-2 text-[11px] leading-relaxed flex items-center gap-1.5" style={{ color: theme.textSubtle }}>
+                      <Lock size={11} /> You can send one message until {active.name} accepts your connection request or replies.
+                    </div>
+                  )}
                   <div
                     className="flex items-end gap-2 rounded-2xl px-3 py-2"
-                    style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}` }}
+                    style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, opacity: composerLocked ? 0.6 : 1 }}
                   >
                     <textarea
                       rows={1}
                       value={composerText}
+                      disabled={composerLocked}
                       onChange={(e) => setComposerText(e.target.value)}
                       onKeyDown={(e) => {
                          if (e.key === "Enter" && !e.shiftKey) {
@@ -3443,13 +3521,13 @@ export function MessagesScreen() {
                            handleSend();
                          }
                       }}
-                      placeholder="Write a message…"
-                      className="flex-1 px-2 py-1.5 text-sm outline-none resize-none bg-transparent"
+                      placeholder={composerLocked ? "Waiting for a reply or connection…" : "Write a message…"}
+                      className="flex-1 px-2 py-1.5 text-sm outline-none resize-none bg-transparent disabled:cursor-not-allowed"
                       style={{ color: theme.text, minHeight: 32, maxHeight: 120 }}
                     />
                     <button
                       onClick={handleSend}
-                      disabled={!composerText.trim()}
+                      disabled={!composerText.trim() || composerLocked}
                       className="px-4 py-1.5 rounded-lg text-sm inline-flex items-center gap-1.5 disabled:opacity-50"
                       style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
                     >
@@ -3852,6 +3930,164 @@ export function PrivacyScreen(_props: { navigate?: (s: Screen) => void } = {}) {
   );
 }
 
+// ── Member profile (read-only, another member) ───────────────────────
+// Opened by clicking a member's name anywhere (see MemberNameLink). Reads the
+// target id from localStorage and renders the privacy-masked member_directory
+// row. All fields are nullable (the view masks hidden ones), so render each
+// conditionally. Includes Message (always opens a chat) + Connect controls.
+export function MemberProfileScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [targetId] = useState(() => localStorage.getItem('activeProfileUserId'));
+  const [loading, setLoading] = useState(true);
+  const [member, setMember] = useState<any>(null);
+  const [connState, setConnState] = useState<'loading' | 'none' | 'pending' | 'accepted'>('loading');
+  const [connBusy, setConnBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!targetId) { setLoading(false); return; }
+      const { data } = await supabase
+        .from('member_directory')
+        .select('id, first_name, last_name, avatar_url, job_title, bio, state, federal_electorate, state_electorate, show_party, party')
+        .eq('id', targetId)
+        .maybeSingle();
+      if (!cancelled) { setMember(data); setLoading(false); }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [targetId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function checkConn() {
+      if (!user || !targetId || targetId === user.id) { setConnState('none'); return; }
+      const existing = await findConnection(user.id, targetId);
+      if (!cancelled) setConnState(existing ? (existing.status as any) : 'none');
+    }
+    checkConn();
+    return () => { cancelled = true; };
+  }, [user, targetId]);
+
+  const openMessage = () => {
+    if (!targetId) return;
+    localStorage.setItem('activeMessageUserId', targetId);
+    navigate('messages');
+  };
+
+  const requestConnect = async () => {
+    if (!user || !targetId) return;
+    setConnBusy(true);
+    const status = await sendConnectionRequest(user.id, targetId);
+    setConnBusy(false);
+    if (status) setConnState(status as any);
+  };
+
+  const BackBar = (
+    <button
+      onClick={() => window.history.back()}
+      className="inline-flex items-center gap-1.5 text-sm mb-4"
+      style={{ color: theme.textMuted }}
+    >
+      <ArrowLeft size={15} /> Back
+    </button>
+  );
+
+  if (loading) {
+    return (
+      <div>
+        {BackBar}
+        <Card className="p-10 text-center"><div className="text-sm" style={{ color: theme.textMuted }}>Loading…</div></Card>
+      </div>
+    );
+  }
+
+  if (!member) {
+    return (
+      <div>
+        {BackBar}
+        <Card className="p-10 text-center">
+          <div className="text-sm" style={{ color: theme.textMuted }}>This member isn't available.</div>
+        </Card>
+      </div>
+    );
+  }
+
+  const name = `${member.first_name || 'Member'} ${member.last_name || ''}`.trim();
+  const isSelf = user && targetId === user.id;
+  const electorate = [member.federal_electorate, member.state_electorate].filter(Boolean).join(' · ');
+
+  return (
+    <div>
+      {BackBar}
+      <Card className="overflow-hidden">
+        <div className="h-20" style={{ background: `linear-gradient(135deg, ${NAVY}, #3a6494)` }} />
+        <div className="px-6 pb-6 -mt-10">
+          {member.avatar_url ? (
+            <img src={member.avatar_url} alt={name} className="w-20 h-20 rounded-full object-cover" style={{ border: `3px solid ${theme.cardBg}` }} />
+          ) : (
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center text-white text-xl"
+              style={{ background: NAVY, border: `3px solid ${theme.cardBg}`, fontWeight: 600 }}
+            >
+              {(name || '').split(' ').map((w: string) => w[0] || '').slice(0, 2).join('')}
+            </div>
+          )}
+
+          <div className="mt-3 flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <h1 style={{ color: theme.text }}>{name}</h1>
+              {member.job_title && <div className="text-sm mt-0.5" style={{ color: theme.textMuted }}>{member.job_title}</div>}
+            </div>
+            {member.show_party && member.party && <Pill>{member.party}</Pill>}
+          </div>
+
+          {!isSelf && (
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <button
+                onClick={openMessage}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm"
+                style={{ background: NAVY, color: '#fff', fontWeight: 600 }}
+              >
+                <Send size={13} /> Message
+              </button>
+              {connState === 'accepted' ? (
+                <Pill color="#d1fae5" fg="#065f46"><CheckCircle2 size={12} /> Connected</Pill>
+              ) : connState === 'pending' ? (
+                <Pill color="#fef3c7" fg="#92400e"><Clock size={12} /> Connection pending</Pill>
+              ) : connState === 'none' ? (
+                <button
+                  onClick={requestConnect}
+                  disabled={connBusy}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm disabled:opacity-50"
+                  style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                >
+                  {connBusy ? <><Clock size={13} /> Connecting…</> : <><UserPlus size={13} /> Connect</>}
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {(member.state || electorate) && (
+            <div className="mt-6 space-y-3 pt-5" style={{ borderTop: `1px solid ${theme.divider}` }}>
+              {member.state && <ProfileMetaRow icon={MapPin} label="State" value={member.state} />}
+              {electorate && <ProfileMetaRow icon={Flag} label="Electorate" value={electorate} />}
+            </div>
+          )}
+
+          {member.bio && (
+            <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${theme.divider}` }}>
+              <div className="text-[11px] mb-1.5" style={{ color: theme.textSubtle }}>About</div>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: theme.text }}>{member.bio}</p>
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── Network ──────────────────────────────────────────────────────────
 
 // Avatar initials bubble reused across Network cards.
@@ -4037,7 +4273,9 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                     <div className="flex items-start gap-3">
                       <Initials name={name} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{name}</div>
+                        <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
+                          <MemberNameLink userId={m.id} name={name} navigate={navigate} />
+                        </div>
                         <div className="text-xs truncate" style={{ color: theme.textMuted }}>{m.job_title || 'Member'}</div>
                         {m.state && <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{m.state}</div>}
                       </div>
@@ -4085,7 +4323,9 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                   <div key={n.id} className="flex items-center gap-3 flex-wrap">
                     <Initials name={n.name} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{n.name}</div>
+                      <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
+                        <MemberNameLink userId={n.peerId} name={n.name} navigate={navigate} />
+                      </div>
                       <div className="text-xs truncate" style={{ color: theme.textMuted }}>{n.title}{n.state ? ` · ${n.state}` : ''}</div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -4124,7 +4364,9 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                   <div className="flex items-start gap-3">
                     <Initials name={n.name} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{n.name}</div>
+                      <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
+                        <MemberNameLink userId={n.peerId} name={n.name} navigate={navigate} />
+                      </div>
                       <div className="text-xs truncate" style={{ color: theme.textMuted }}>{n.title}</div>
                       {n.state && <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{n.state}</div>}
                     </div>
