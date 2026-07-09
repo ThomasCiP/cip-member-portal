@@ -422,7 +422,7 @@ export function NotificationBell({ navigate }: { navigate?: (s: Screen) => void 
         onClick={() => setOpen(!open)}
         className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
       >
-        <Bell size={16} style={{ color: NAVY }} />
+        <Bell size={16} strokeWidth={2.5} style={{ color: NAVY }} />
         {unreadCount > 0 && (
           <span
             className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
@@ -495,7 +495,7 @@ function TopHeader({
       </div>
 
       <div className="hidden md:block flex-1 max-w-sm relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: NAVY }} />
+        <Search size={14} strokeWidth={2.5} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: NAVY }} />
         <input
           placeholder="Search groups, events, people…"
           className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm outline-none"
@@ -517,13 +517,13 @@ function TopHeader({
               onClick={() => navigate(it.key)}
               className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-colors min-w-[64px] tour-nav-${it.key}`}
               style={{
-                color: active ? NAVY : "rgba(90,79,207,0.55)",
+                color: active ? NAVY : "rgba(90,79,207,0.9)",
                 fontWeight: active ? 600 : 400,
                 background: active ? "rgba(90,79,207,0.1)" : "transparent",
                 borderBottom: active ? `2px solid ${NAVY}` : "2px solid transparent",
               }}
             >
-              <Icon size={16} />
+              <Icon size={16} strokeWidth={2.5} />
               <span className="text-[10px] mt-0.5">{it.label}</span>
             </button>
           );
@@ -554,7 +554,7 @@ function TopHeader({
                 {initials}
               </div>
             )}
-            <ChevronDown size={12} style={{ color: NAVY }} />
+            <ChevronDown size={12} strokeWidth={2.5} style={{ color: NAVY }} />
           </button>
           {menuOpen && (
             <div
