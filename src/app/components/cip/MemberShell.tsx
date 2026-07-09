@@ -16,7 +16,6 @@ const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "network",   label: "Network",  icon: Network },
   { key: "events",    label: "Events",   icon: CalendarDays },
   { key: "messages",  label: "Messages", icon: MessageSquare },
-  { key: "support",   label: "Get Involved",  icon: ArrowUpRight },
 ];
 
 // ── Dynamic Data Rails ────────────────────────────────────────────────
@@ -614,8 +613,7 @@ export function MemberShell({
     { target: ".tour-profile", content: "This is your profile card. Keep your details up to date to help others connect with you.", placement: "right", disableBeacon: true },
     { target: ".tour-nav-home", content: "Your Home feed is where you'll see updates from your groups.", placement: "right" },
     { target: ".tour-nav-network", content: "Find and connect with people, organisations, and groups — all under Network.", placement: "right" },
-    { target: ".tour-nav-events", content: "Stay updated on upcoming briefings, forums, and prayer meetings.", placement: "right" },
-    { target: ".tour-nav-support", content: "Need help? The support tab connects you to our team and local branches.", placement: "right" }
+    { target: ".tour-nav-events", content: "Stay updated on upcoming briefings, forums, and prayer meetings.", placement: "right" }
   ];
 
   const handleJoyrideCallback = (data: any) => {
