@@ -4206,7 +4206,7 @@ export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => 
       <Card className="p-5 pb-0">
         <div className="flex gap-1 overflow-x-auto" style={{ borderBottom: `1px solid ${theme.divider}` }}>
           <HubTab id="people" label="People" />
-          <HubTab id="orgs" label="Orgs" />
+          <HubTab id="orgs" label="Organisations" />
           <HubTab id="groups" label="Groups" />
         </div>
       </Card>
@@ -4539,11 +4539,11 @@ export const SUPPORT_PATHWAYS = [
     cta: "Request a chat",
   },
   {
-    id: "mentor",
-    icon: UserPlus,
-    title: "Be matched with a mentor",
-    desc: "We'll pair you with a more experienced member who can mentor you for a season as you grow in faith and public life.",
-    cta: "Request a mentor",
+    id: "party",
+    icon: Flag,
+    title: "Pick a political party",
+    desc: "We'll help you explore the major parties, understand where each stands, and discern which one best fits your convictions and calling.",
+    cta: "Request guidance",
   },
 ];
 
