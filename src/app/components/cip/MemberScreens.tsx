@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, ReactNode, MouseEventHandler, CSSProperties } from "react";
+import { useState, useEffect, useRef, useCallback, useLayoutEffect, ReactNode, MouseEventHandler, CSSProperties } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { Screen } from "./types";
@@ -223,6 +223,52 @@ const FEED_TYPE_COLORS: Record<string, string> = {
   Donate:       "#f5e6c8",
 };
 
+// ── Auto-growing textarea (LinkedIn-style composer) ──────────────────
+function AutoGrowTextarea({
+  value, minHeight = 44, maxHeight = 220, style, ...props
+}: { value: string; minHeight?: number; maxHeight?: number; style?: CSSProperties; [key: string]: any }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, maxHeight) + "px";
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [value, maxHeight]);
+  return (
+    <textarea ref={ref} value={value} rows={1}
+      style={{ minHeight, resize: "none", ...style }} {...props} />
+  );
+}
+
+// ── Text clamped to N lines with a "…more"/"…less" toggle ─────────────
+function ClampText({
+  text, lines = 2, className, style,
+}: { text: string; lines?: number; className?: string; style?: CSSProperties }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  useLayoutEffect(() => {
+    if (expanded) return;
+    const el = ref.current;
+    if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded, lines]);
+  const clampStyle: CSSProperties = expanded ? {} : {
+    display: "-webkit-box", WebkitLineClamp: lines, WebkitBoxOrient: "vertical", overflow: "hidden",
+  };
+  return (
+    <>
+      <p ref={ref} className={className} style={{ ...style, ...clampStyle }}>{text}</p>
+      {(overflowing || expanded) && (
+        <button type="button" onClick={() => setExpanded((e) => !e)}
+          className="text-xs mt-0.5" style={{ color: NAVY, fontWeight: 600, cursor: "pointer" }}>
+          {expanded ? "…less" : "…more"}
+        </button>
+      )}
+    </>
+  );
+}
+
 // Renders a post body with inline edit + delete controls for the author.
 function PostContent({ table, postId, body, isMine, onChanged, textColor }: {
   table: "global_posts" | "group_posts"; postId: string; body: string; isMine: boolean; onChanged?: () => void; textColor: string;
@@ -409,7 +455,7 @@ function CommentItem({ c, canModerate, navigate, onReport, onChanged }: {
               </div>
             </div>
           ) : (
-            <p className="text-sm mt-0.5 whitespace-pre-wrap" style={{ color: theme.textMuted }}>{c.content}</p>
+            <ClampText text={c.content} className="text-sm mt-0.5 whitespace-pre-wrap" style={{ color: theme.textMuted }} />
           )}
         </div>
         {!editing && (
@@ -488,12 +534,13 @@ function CommentSection({ postType, postId, authorId, groupId, commentPolicy, ca
           <Lock size={11} className="inline mr-1" /> Comments are turned off for this post.
         </div>
       ) : allowed ? (
-        <div className="flex gap-2">
-          <input
+        <div className="flex gap-2 items-end">
+          <AutoGrowTextarea
             value={text} onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); add(); } }}
             placeholder="Add a comment…"
-            className="flex-1 px-3 py-2 rounded-full text-sm outline-none"
+            minHeight={38}
+            className="flex-1 px-3 py-2 rounded-2xl text-sm outline-none"
             style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
           />
           <button onClick={add} disabled={busy || !text.trim()}
@@ -744,7 +791,7 @@ export function MemberPost({
           </div>
         </div>
       ) : (
-        <p className="text-sm mt-1 leading-relaxed whitespace-pre-wrap" style={{ color: dark ? theme.textMuted : "#1a1a1a" }}>{text}</p>
+        <ClampText text={text} className="text-sm mt-1 leading-relaxed whitespace-pre-wrap" style={{ color: dark ? theme.textMuted : "#1a1a1a" }} />
       )}
 
       {imageUrl && !editing && (
@@ -849,9 +896,7 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
             {item.title}
           </h3>
         )}
-        <p className="text-sm mt-2 leading-relaxed" style={{ color: dark ? theme.textMuted : "#1a1a1a" }}>
-          {item.body}
-        </p>
+        <ClampText text={item.body} className="text-sm mt-2 leading-relaxed" style={{ color: dark ? theme.textMuted : "#1a1a1a" }} />
         <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
           {item.cta && (
             <PrimaryButton onClick={() => {
@@ -927,14 +972,13 @@ export function PostComposer({
           {disabled && (
             <div className="absolute inset-0 z-10 cursor-pointer" onClick={disabledClickAction} />
           )}
-          <textarea
+          <AutoGrowTextarea
             placeholder={placeholder}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             disabled={disabled || posting}
-            rows={1}
-            className="w-full px-4 py-2.5 rounded-2xl text-sm outline-none resize-y"
-            style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text, minHeight: 44 }}
+            className="w-full px-4 py-2.5 rounded-2xl text-sm outline-none"
+            style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
           />
         </div>
       </div>
