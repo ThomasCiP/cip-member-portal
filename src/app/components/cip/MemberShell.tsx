@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect, useRef } from "react";
 import {
   Home, UserCircle2, CalendarDays, MessageSquare, Settings,
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
-  Network, Activity, LogOut, ArrowUpRight, Plus
+  Network, Activity, LogOut, ArrowUpRight, Plus, LifeBuoy
 } from "lucide-react";
 import { Joyride, Step } from "react-joyride";
 import { supabase } from "../../../lib/supabase";
@@ -546,6 +546,7 @@ function TopHeader({
                 { l: "Profile",   k: "profile" as Screen,         icon: UserCircle2 },
                 { l: "Settings",  k: "settings" as Screen,        icon: Settings },
                 { l: "Notifications", k: "notifications" as Screen, icon: Bell },
+                { l: "Your support requests", k: "support" as Screen, icon: LifeBuoy },
                 { l: "Privacy",   k: "privacy" as Screen,         icon: Lock },
                 ...(user?.email?.endsWith("@christiansinpolitics.com") ? [{ l: "Admin", k: "admin-overview" as Screen, icon: ShieldCheck }] : []),
               ].map((it) => {
@@ -636,7 +637,6 @@ export function MemberShell({
     <div className="space-y-4">
       <GetStartedRail navigate={navigate} />
       <UpcomingEventsRail navigate={navigate} />
-      <SupportStatusRail navigate={navigate} />
     </div>
   );
 

@@ -599,6 +599,15 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
     const { error } = await supabase.from("support_requests").update({ status }).eq("id", req.id);
     setSaving(false);
     if (error) { alert("Could not update status: " + error.message); return; }
+    // Notify the requester that an admin changed their request status.
+    if (req.user_id) {
+      await supabase.from("notifications").insert({
+        user_id: req.user_id,
+        type: "support_status",
+        title: "Support request updated",
+        message: `An admin updated your support request${req.request_type ? ` "${req.request_type}"` : ""} status to "${status}".`,
+      });
+    }
     setReq({ ...req, status });
   };
 
