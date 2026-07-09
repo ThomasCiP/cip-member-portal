@@ -94,7 +94,7 @@ function GoldButton({ children, onClick, full }: { children: ReactNode; onClick?
     <button
       onClick={onClick}
       className={`px-3 py-1.5 rounded-lg text-xs ${full ? "w-full" : ""}`}
-      style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+      style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
     >
       {children}
     </button>
@@ -298,7 +298,7 @@ function CommentItem({ c, canModerate, onReport, onChanged }: {
 
   return (
     <div className="flex gap-2">
-      <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px]" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
+      <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px]" style={{ background: GOLD, color: "#fff", fontWeight: 600 }}>
         {(authorName || "M").substring(0, 2).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
@@ -621,7 +621,7 @@ export function MemberPost({
   return (
     <Card className="overflow-hidden mb-4 p-5">
       <div className="flex items-start gap-2 mb-2.5">
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] shrink-0" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] shrink-0" style={{ background: GOLD, color: "#fff", fontWeight: 600 }}>
           {(authorName || "M").substring(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
@@ -2256,7 +2256,7 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
                 }
               }}
               className="px-4 py-2 rounded-lg text-sm"
-              style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+              style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
             >
               Create group
             </button>
@@ -2738,7 +2738,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                   ) : (
                     <div
                       className="w-20 h-20 sm:w-28 sm:h-28 rounded-xl flex items-center justify-center"
-                      style={{ background: GOLD, color: NAVY, fontWeight: 700, fontSize: 32 }}
+                      style={{ background: GOLD, color: "#fff", fontWeight: 700, fontSize: 32 }}
                     >
                       {(group.name || "ORG").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                     </div>
@@ -2820,7 +2820,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 ) : (
                   <div
                     className="w-16 h-16 rounded-2xl shrink-0 flex items-center justify-center"
-                    style={{ background: GOLD, color: NAVY, fontWeight: 700, fontSize: 20 }}
+                    style={{ background: GOLD, color: "#fff", fontWeight: 700, fontSize: 20 }}
                   >
                     {(group.name || "GRP").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
                   </div>
@@ -3078,7 +3078,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                        navigate('messages');
                      }}
                      className="mt-3 px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 transition-transform hover:scale-[1.02]"
-                     style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+                     style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
                    >
                      <MessageCircle size={16} /> Message Organisation
                    </button>
@@ -3614,7 +3614,7 @@ export function DonateScreen() {
         </div>
         <button
           className="mt-6 px-6 py-3 rounded-xl inline-flex items-center gap-2"
-          style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+          style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
         >
           Continue to donation page <ExternalLink size={14} />
         </button>
@@ -4458,7 +4458,7 @@ function OrganisationFormModal({ onClose, onSave, initialData }: { onClose: () =
               }
             }}
             className="px-4 py-2 rounded-lg text-sm"
-            style={{ background: !canNext ? theme.cardBorder : GOLD, color: !canNext ? theme.textMuted : NAVY, fontWeight: 600 }}
+            style={{ background: !canNext ? theme.cardBorder : GOLD, color: !canNext ? theme.textMuted : "#fff", fontWeight: 600 }}
           >
             {initialData ? "Save changes" : "Create organisation"}
           </button>
@@ -4632,7 +4632,7 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
                 {o.image_url ? (
                   <img src={o.image_url} alt={o.name} className="w-12 h-12 rounded-lg object-cover shrink-0" style={{ border: `1px solid ${theme.cardBorder}` }} />
                 ) : (
-                  <div className="w-12 h-12 rounded-lg shrink-0 flex items-center justify-center text-sm" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
+                  <div className="w-12 h-12 rounded-lg shrink-0 flex items-center justify-center text-sm" style={{ background: GOLD, color: "#fff", fontWeight: 600 }}>
                     {o.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
                   </div>
                 )}

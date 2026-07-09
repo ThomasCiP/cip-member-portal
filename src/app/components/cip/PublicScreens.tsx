@@ -435,7 +435,7 @@ export function SignupScreen({ navigate }: { navigate: (s: Screen) => void }) {
             <p className="text-xs tracking-widest uppercase mb-1" style={{ color: "rgba(201,162,39,0.9)" }}>
               Christians in Politics
             </p>
-            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
+            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.95)" }}>
               Christian first. Politics second. Kingdom before tribe.
             </p>
           </div>
@@ -860,7 +860,7 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
               <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>✚</span>
             </div>
             <span style={{ color: "#fff", fontWeight: 600 }}>The Nicene Creed</span>
-            <span className="ml-auto text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <span className="ml-auto text-xs" style={{ color: "rgba(255,255,255,0.95)" }}>
               Council of Nicaea, AD 325 / 381
             </span>
           </div>

@@ -51,7 +51,7 @@ function DonateModal({ onClose }: { onClose: () => void }) {
         </p>
         <button
           className="w-full mt-5 px-5 py-3 rounded-xl inline-flex items-center justify-center gap-2"
-          style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+          style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
         >
           Continue to donation page <ExternalLink size={14} />
         </button>
@@ -328,13 +328,13 @@ export function DonateRail({ onDonate }: { onDonate: () => void }) {
         <Heart size={16} style={{ color: NAVY }} />
       </div>
       <div style={{ fontWeight: 600 }}>Get Involved</div>
-      <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.7)" }}>
+      <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.95)" }}>
         Help equip Christians for faithful public life.
       </div>
       <button
         onClick={onDonate}
         className="mt-3 w-full py-2 rounded-lg text-sm"
-        style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+        style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
       >
         Donate
       </button>
@@ -409,7 +409,7 @@ export function NotificationBell() {
         onClick={() => setOpen(!open)}
         className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
       >
-        <Bell size={16} style={{ color: "rgba(255,255,255,0.75)" }} />
+        <Bell size={16} style={{ color: "rgba(255,255,255,0.95)" }} />
         {unreadCount > 0 && (
           <span
             className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
@@ -482,7 +482,7 @@ function TopHeader({
       </div>
 
       <div className="hidden md:block flex-1 max-w-sm relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.55)" }} />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.95)" }} />
         <input
           placeholder="Search groups, events, people…"
           className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm outline-none"
@@ -522,7 +522,7 @@ function TopHeader({
         <button
           onClick={onDonate}
           className="px-3 py-1.5 rounded-lg text-sm transition-colors"
-          style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+          style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
         >
           Donate
         </button>
@@ -536,12 +536,12 @@ function TopHeader({
             ) : (
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center text-xs"
-                style={{ background: GOLD, color: NAVY, fontWeight: 700 }}
+                style={{ background: GOLD, color: "#fff", fontWeight: 700 }}
               >
                 {initials}
               </div>
             )}
-            <ChevronDown size={12} style={{ color: "rgba(255,255,255,0.7)" }} />
+            <ChevronDown size={12} style={{ color: "rgba(255,255,255,0.95)" }} />
           </button>
           {menuOpen && (
             <div

@@ -49,7 +49,7 @@ export function AdminShell({
           <CiPLogo light size={26} />
           <div
             className="mt-2.5 inline-block px-2 py-0.5 rounded-full text-[10px]"
-            style={{ background: GOLD, color: NAVY, fontWeight: 700, letterSpacing: "0.06em" }}
+            style={{ background: GOLD, color: "#fff", fontWeight: 700, letterSpacing: "0.06em" }}
           >
             ADMIN
           </div>
@@ -82,7 +82,7 @@ export function AdminShell({
           <button
             onClick={exitAdmin}
             className="flex items-center gap-1.5 text-xs hover:text-white transition-colors"
-            style={{ color: "rgba(255,255,255,0.45)" }}
+            style={{ color: "rgba(255,255,255,0.95)" }}
           >
             <ArrowLeft size={12} /> Back to member view
           </button>
@@ -109,7 +109,7 @@ export function AdminShell({
             </button>
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-xs"
-              style={{ background: GOLD, color: NAVY, fontWeight: 700 }}
+              style={{ background: GOLD, color: "#fff", fontWeight: 700 }}
             >
               AD
             </div>
@@ -1071,7 +1071,7 @@ export function AdminEvents() {
             </div>
           </div>
           
-          <button onClick={handleCreate} disabled={creating || !title || !date} className="w-full py-2.5 rounded-xl text-sm disabled:opacity-50" style={{ background: GOLD, color: NAVY, fontWeight: 600 }}>
+          <button onClick={handleCreate} disabled={creating || !title || !date} className="w-full py-2.5 rounded-xl text-sm disabled:opacity-50" style={{ background: GOLD, color: "#fff", fontWeight: 600 }}>
             {creating ? "Creating..." : "Save Event"}
           </button>
         </div>
@@ -1752,7 +1752,7 @@ export function AdminGroups() {
             <button 
               onClick={handleCreate} disabled={creating || !newName.trim() || (newVis === "restricted" && !newCaveatValue.trim())}
               className="w-full py-2 rounded-lg text-sm disabled:opacity-50"
-              style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+              style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
             >
               {creating ? "Creating..." : "Save Group"}
             </button>
@@ -1923,7 +1923,7 @@ export function AdminGroups() {
             <button 
               onClick={handleUpdate} disabled={savingEdit || (editVis === "restricted" && (!editCaveatValue || !editCaveatValue.trim()))}
               className="w-full py-2 rounded-lg text-sm disabled:opacity-50 mt-2"
-              style={{ background: GOLD, color: NAVY, fontWeight: 600 }}
+              style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
             >
               {savingEdit ? "Saving..." : "Update Group"}
             </button>
