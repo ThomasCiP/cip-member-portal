@@ -645,7 +645,7 @@ export function MemberShell({
       <div className="tour-profile">
         <ProfileSummaryCard navigate={navigate} profile={profile} />
       </div>
-      <JoinedGroupsCard navigate={navigate} />
+      <DonateRail onDonate={() => setDonateOpen(true)} />
     </div>
   );
 
@@ -654,7 +654,6 @@ export function MemberShell({
       <UpcomingEventsRail navigate={navigate} />
       <SuggestedGroupsRail navigate={navigate} />
       <SupportStatusRail navigate={navigate} />
-      <DonateRail onDonate={() => setDonateOpen(true)} />
     </div>
   );
 
