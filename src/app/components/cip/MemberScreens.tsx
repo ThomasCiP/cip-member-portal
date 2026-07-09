@@ -4868,7 +4868,10 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
   const fetchOrgs = async () => {
     if (!user) { setLoading(false); return; }
     try {
-      const { data: orgs } = await supabase.from("groups").select("*").is("deleted_at", null).is("suspended_at", null).eq("group_type", "organisation");
+      // Show every group the user is allowed to see (organisations + standard groups).
+      // Row-level security still governs which rows are returned; restricted groups are
+      // listed but join-gated below.
+      const { data: orgs } = await supabase.from("groups").select("*").is("deleted_at", null).is("suspended_at", null);
       const { data: members } = await supabase.from("group_members").select("group_id").eq("user_id", user.id);
       if (orgs) setAllOrgs(orgs);
       if (members) setMyMemberships(new Set(members.map(m => m.group_id)));
@@ -4906,13 +4909,21 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
     return score;
   };
 
-  const mapped = allOrgs.map(o => ({
-    id: o.id, name: o.name, desc: o.description, joined: myMemberships.has(o.id),
-    created_by: o.created_by, image_url: o.image_url, website_url: o.website_url,
-    location: o.location, religion: o.religion, party: o.party_affiliation, profession: o.profession, identifiers: o.christian_org_identifiers,
-    allowed: true, // Orgs are public
-    relevance: computeRelevance(o),
-  }));
+  const mapped = allOrgs.map(o => {
+    // Restricted groups are shown but can only be joined from the group's own page
+    // (which enforces the electorate/party/tradition caveat). Organisations and
+    // public groups can be followed inline.
+    const isRestricted = o.visibility === "restricted";
+    return {
+      id: o.id, name: o.name, desc: o.description, joined: myMemberships.has(o.id),
+      created_by: o.created_by, image_url: o.image_url, website_url: o.website_url,
+      location: o.location, religion: o.religion, party: o.party_affiliation, profession: o.profession, identifiers: o.christian_org_identifiers,
+      group_type: o.group_type,
+      allowed: !isRestricted,
+      restrictionMessage: isRestricted ? (o.caveat_value ? `Restricted to ${o.caveat_value}` : "Restricted group — open to join") : "",
+      relevance: computeRelevance(o),
+    };
+  });
 
   const list = (() => {
     if (tab === "joined") return mapped.filter(o => o.joined);
@@ -5028,18 +5039,21 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
               </div>
               <p className="text-sm mt-3 line-clamp-2" style={{ color: theme.textMuted, flex: 1 }}>{o.desc}</p>
               <div className="mt-4 pt-4 flex items-center justify-between" style={{ borderTop: `1px solid ${theme.divider}` }}>
-                <span className="text-xs" style={{ color: theme.textSubtle }}>Organisation</span>
+                <span className="text-xs" style={{ color: theme.textSubtle }}>{o.group_type === "organisation" ? "Organisation" : "Group"}</span>
                 <div className="flex items-center gap-2">
                   <button onClick={(e) => { e.stopPropagation(); localStorage.setItem("activeGroupId", o.id); localStorage.setItem("isOrgDetail", "true"); navigate("group-detail"); }} className="px-3 py-1.5 rounded-lg text-xs hover:underline" style={{ color: NAVY, fontWeight: 600 }}>
                     View Profile
                   </button>
-                  {!o.joined && o.allowed && (
+                  {o.joined ? (
+                    <Pill color="#d1fae5" fg="#065f46">Following</Pill>
+                  ) : o.allowed ? (
                     <button onClick={(e) => { e.stopPropagation(); handleJoin(o.id); }} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
                       Follow
                     </button>
-                  )}
-                  {o.joined && (
-                    <Pill color="#d1fae5" fg="#065f46">Following</Pill>
+                  ) : (
+                    <span title={o.restrictionMessage} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs" style={{ background: theme.pillBg, color: theme.textMuted, fontWeight: 500 }}>
+                      <Lock size={10} /> Restricted
+                    </span>
                   )}
                 </div>
               </div>
