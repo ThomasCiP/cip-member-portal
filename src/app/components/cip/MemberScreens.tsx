@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, ReactNode, MouseEventHandler } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { Screen } from "./types";
@@ -38,13 +38,75 @@ async function attachAuthors(rows: any[]): Promise<any[]> {
   return rows.map(r => ({ ...r, profiles: map.get(r.user_id) || null }));
 }
 
+// ── Connection helpers (request → approve) ─────────────────────────────
+// Single source of truth for network connections, replacing the four divergent
+// inline copies. Connecting is now request → approve: requests start 'pending'
+// and only the recipient's accept flips them to 'accepted'. All paths respect
+// the DB unique-pair index (least/greatest) by pre-checking existence.
+async function findConnection(userA: string, userB: string): Promise<any | null> {
+  const { data } = await supabase.from('network_connections')
+    .select('id, status, requester_id, receiver_id')
+    .or(`and(requester_id.eq.${userA},receiver_id.eq.${userB}),and(requester_id.eq.${userB},receiver_id.eq.${userA})`)
+    .limit(1).maybeSingle();
+  return data || null;
+}
+
+// Own display name for notification copy.
+async function fetchOwnName(userId: string): Promise<string> {
+  const { data } = await supabase.from('profiles').select('first_name, last_name').eq('id', userId).maybeSingle();
+  return `${data?.first_name || ''} ${data?.last_name || ''}`.trim();
+}
+
+// Create a pending request + notify the recipient. No-op if a connection
+// already exists in either direction. Returns the resulting status, or null on error.
+async function sendConnectionRequest(fromUserId: string, toUserId: string, fromName?: string): Promise<string | null> {
+  const existing = await findConnection(fromUserId, toUserId);
+  if (existing) return existing.status;
+
+  const { error } = await supabase.from('network_connections').insert({
+    requester_id: fromUserId,
+    receiver_id: toUserId,
+    status: 'pending',
+  });
+  if (error) return null;
+
+  const name = fromName || (await fetchOwnName(fromUserId));
+  await supabase.from('notifications').insert({
+    user_id: toUserId,
+    type: 'connection_invite',
+    title: 'New Connection Request',
+    message: `${name || 'Someone'} wants to connect with you.`,
+  });
+  return 'pending';
+}
+
+// Accept an incoming request + notify the original requester.
+async function acceptConnection(connId: string, requesterId: string, myName?: string): Promise<boolean> {
+  const { error } = await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', connId);
+  if (error) return false;
+  await supabase.from('notifications').insert({
+    user_id: requesterId,
+    type: 'connection_accepted',
+    title: 'Connection accepted',
+    message: `${myName || 'A member'} accepted your connection request.`,
+  });
+  return true;
+}
+
+// Decline/withdraw a request by removing the row.
+async function declineConnection(connId: string): Promise<boolean> {
+  const { error } = await supabase.from('network_connections').delete().eq('id', connId);
+  return !error;
+}
+
 // ── Shared primitives ─────────────────────────────────────────────────
-function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+function Card({ children, className = "", onClick }: { children: ReactNode; className?: string; onClick?: MouseEventHandler<HTMLDivElement> }) {
   const { theme } = useTheme();
   return (
     <div
       className={`rounded-2xl ${className}`}
       style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+      onClick={onClick}
     >
       {children}
     </div>
@@ -901,113 +963,67 @@ export function PostComposer({
   );
 }
 
-function MessageAuthorButton({ 
-  targetUserId, 
+// Footer button on feed/group posts. Messaging now requires an accepted
+// connection: if one exists we deep-link to the conversation, otherwise we send
+// a connection request (request → approve).
+function MessageAuthorButton({
+  targetUserId,
   navigate,
   label = "Message author"
-}: { 
-  targetUserId: string; 
+}: {
+  targetUserId: string;
   navigate: (s: Screen) => void;
   label?: string;
 }) {
   const { theme } = useTheme();
-  const { user, profile } = useAuth();
-  const [showPrompt, setShowPrompt] = useState(false);
-  const [connecting, setConnecting] = useState(false);
+  const { user } = useAuth();
+  const [connState, setConnState] = useState<'loading' | 'none' | 'pending' | 'accepted'>('loading');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      if (!user || targetUserId === user.id) return;
+      const existing = await findConnection(user.id, targetUserId);
+      if (!cancelled) setConnState(existing ? existing.status : 'none');
+    }
+    check();
+    return () => { cancelled = true; };
+  }, [user, targetUserId]);
 
   // Don't show button if the target is the current user
   if (!user || targetUserId === user.id) return null;
 
-  const initiateMessage = async () => {
-    if (!user) return;
-    setConnecting(true);
-
-    // Ensure a network connection exists between the two users
-    const { data: existing } = await supabase.from('network_connections')
-      .select('id')
-      .or(`and(requester_id.eq.${user.id},receiver_id.eq.${targetUserId}),and(requester_id.eq.${targetUserId},receiver_id.eq.${user.id})`)
-      .limit(1).maybeSingle();
-
-    if (!existing) {
-      await supabase.from('network_connections').insert({
-        requester_id: user.id,
-        receiver_id: targetUserId,
-        status: 'accepted'
-      });
-    } else {
-      await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', existing.id);
-    }
-
-    // Set the target user for deep-linking into MessagesScreen
+  const openMessage = () => {
+    // Deep-link the target conversation in MessagesScreen.
     localStorage.setItem('activeMessageUserId', targetUserId);
-    setConnecting(false);
     navigate('messages');
   };
 
-  const handleClick = () => {
-    // Check if user profile is anonymised (no first name set, or profile not onboarded)
-    const isAnonymised = !profile?.first_name || profile?.first_name === '';
-    if (isAnonymised) {
-      setShowPrompt(true);
-    } else {
-      initiateMessage();
-    }
+  const requestConnect = async () => {
+    setBusy(true);
+    const status = await sendConnectionRequest(user.id, targetUserId);
+    setBusy(false);
+    if (status) setConnState(status as any);
   };
 
-  return (
-    <>
-      <button
-        onClick={handleClick}
-        disabled={connecting}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-      >
-        <MessageSquare size={12} />
-        {connecting ? 'Connecting...' : label}
-      </button>
+  let icon = <MessageSquare size={12} />;
+  let text: string = label;
+  let onClick: (() => void) | undefined = openMessage;
+  let disabled = busy || connState === 'loading';
 
-      {/* Anonymised profile warning modal */}
-      {showPrompt && (
-        <Modal onClose={() => setShowPrompt(false)}>
-          <div className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center"
-                style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}
-              >
-                <EyeOff size={18} style={{ color: '#f59e0b' }} />
-              </div>
-              <h3 className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
-                Share your profile?
-              </h3>
-            </div>
-            <p className="text-sm leading-relaxed" style={{ color: theme.textMuted }}>
-              You are currently browsing anonymously. If you send a message, your profile details 
-              (name, job title, and other profile information) will be visible to the person you are messaging.
-            </p>
-            <div className="flex items-center gap-2 mt-5">
-              <button
-                onClick={() => setShowPrompt(false)}
-                className="flex-1 px-4 py-2.5 rounded-lg text-sm"
-                style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowPrompt(false);
-                  initiateMessage();
-                }}
-                className="flex-1 px-4 py-2.5 rounded-lg text-sm"
-                style={{ background: NAVY, color: '#fff', fontWeight: 600 }}
-              >
-                Continue & share profile
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </>
+  if (connState === 'none') { icon = <UserPlus size={12} />; text = 'Connect'; onClick = requestConnect; }
+  else if (connState === 'pending') { icon = <Clock size={12} />; text = 'Request sent'; onClick = undefined; disabled = true; }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+      style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+    >
+      {busy ? <><Clock size={12} /> Connecting…</> : <>{icon} {text}</>}
+    </button>
   );
 }
 
@@ -2484,84 +2500,6 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
 // ── Group detail ─────────────────────────────────────────────────────
 
-function RevealModal({ onClose, onReveal }: { onClose: () => void; onReveal: () => void }) {
-  const { theme } = useTheme();
-  const [opts, setOpts] = useState({
-    firstName: true, fullName: false, photo: true, state: false,
-    bio: true, party: false, church: false,
-  });
-  const toggle = (k: keyof typeof opts) => setOpts({ ...opts, [k]: !opts[k] });
-
-  const Row = ({ k, label, hint }: { k: keyof typeof opts; label: string; hint?: string }) => (
-    <button
-      onClick={() => toggle(k)}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left"
-      style={{ background: opts[k] ? "#f0f7ff" : theme.bg, border: `1px solid ${opts[k] ? "#bfdbfe" : theme.cardBorder}` }}
-    >
-      <div
-        className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
-        style={{ background: opts[k] ? NAVY : "#fff", border: `1px solid ${opts[k] ? NAVY : theme.cardBorder}` }}
-      >
-        {opts[k] && <CheckCircle2 size={12} className="text-white" />}
-      </div>
-      <div className="flex-1">
-        <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{label}</div>
-        {hint && <div className="text-[11px]" style={{ color: theme.textSubtle }}>{hint}</div>}
-      </div>
-    </button>
-  );
-
-  return (
-    <Modal onClose={onClose}>
-      <div className="p-6">
-        <div className="flex items-start gap-3 mb-4">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: GOLD }}
-          >
-            <ShieldCheck size={16} style={{ color: NAVY }} />
-          </div>
-          <div className="flex-1">
-            <h3 style={{ color: theme.text, fontWeight: 600 }}>Reveal your profile to this group?</h3>
-            <p className="text-sm mt-1.5 leading-relaxed" style={{ color: theme.textMuted }}>
-              You can choose to become visible to members of this group. This will allow others
-              in the group to see your selected profile details and interact with your posts and
-              comments. You can change your visibility later.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-2 mt-4">
-          <Row k="firstName" label="Show first name only" />
-          <Row k="fullName"  label="Show full name" />
-          <Row k="photo"     label="Show profile photo" />
-          <Row k="state"     label="Show state / territory" />
-          <Row k="bio"       label="Show short bio" />
-          <Row k="party"     label="Show political party interest" hint="Optional · off by default" />
-          <Row k="church"    label="Show church tradition" hint="Optional · off by default" />
-        </div>
-
-        <div className="flex items-center gap-2 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 rounded-lg text-sm"
-            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-          >
-            Stay anonymous
-          </button>
-          <button
-            onClick={onReveal}
-            className="flex-1 px-4 py-2.5 rounded-lg text-sm"
-            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
-          >
-            Reveal my profile
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 function ConnectModal({ name, onClose, onSend }: { name: string; onClose: () => void; onSend: () => void }) {
   const { theme } = useTheme();
   return (
@@ -2569,8 +2507,8 @@ function ConnectModal({ name, onClose, onSend }: { name: string; onClose: () => 
       <div className="p-6">
         <h3 style={{ color: theme.text, fontWeight: 600 }}>Send connection request?</h3>
         <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
-          You can send a connection request to <strong style={{ color: theme.text }}>{name}</strong> because
-          you are both visible in this group. Direct messaging will only become available if they accept.
+          Send a connection request to <strong style={{ color: theme.text }}>{name}</strong>.
+          Direct messaging will become available once they accept.
         </p>
         <label className="block mt-4 text-xs" style={{ color: theme.text, fontWeight: 500 }}>
           Optional short message
@@ -2604,9 +2542,11 @@ function ConnectModal({ name, onClose, onSend }: { name: string; onClose: () => 
 
 export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
-  const [visible, setVisible] = useState(false);
-  const [revealOpen, setRevealOpen] = useState(false);
   const [connectUser, setConnectUser] = useState<{id: string, name: string} | null>(null);
+  // Peer ids the current user is already connected to or has a pending request with,
+  // so the Members tab can show Connected / Request sent instead of Connect.
+  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<"feed" | "members" | "events" | "resources" | "about">("feed");
   const [dbMembers, setDbMembers] = useState<any[]>([]);
   const [group, setGroup] = useState<any>(null);
@@ -2662,6 +2602,22 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         const { data: myProf } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single();
         if (myProf) setIsAdmin(myProf.is_admin || user.email?.endsWith("@christiansinpolitics.com") || false);
 
+        // Load the current user's connections to label member cards correctly.
+        const { data: conns } = await supabase.from('network_connections')
+          .select('status, requester_id, receiver_id')
+          .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+        if (conns) {
+          const accepted = new Set<string>();
+          const pending = new Set<string>();
+          for (const c of conns) {
+            const peer = c.requester_id === user.id ? c.receiver_id : c.requester_id;
+            if (c.status === 'accepted') accepted.add(peer);
+            else if (c.status === 'pending') pending.add(peer);
+          }
+          setConnectedIds(accepted);
+          setPendingIds(pending);
+        }
+
         // Only fetch actual group members
         const { data: groupMembers } = await supabase.from('group_members').select('user_id').eq('group_id', groupId);
         if (groupMembers && groupMembers.length > 0) {
@@ -2683,10 +2639,11 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const allMembers = [
     ...dbMembers.map(m => ({
       id: m.id,
-      name: `${m.first_name || 'Anonymous'} ${m.last_name || ''}`.trim(),
-      state: m.state || 'Unknown',
+      name: `${m.first_name || 'Member'} ${m.last_name || ''}`.trim(),
+      state: m.state || '',
       bio: m.bio || 'New member',
-      connected: false
+      connected: connectedIds.has(m.id),
+      pending: pendingIds.has(m.id),
     }))
   ];
 
@@ -2789,21 +2746,20 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                       <button
                         onClick={async () => {
                           if (!user || !group.created_by) return;
-                          const { data: existing } = await supabase.from('network_connections')
-                            .select('id')
-                            .or(`and(requester_id.eq.${user.id},receiver_id.eq.${group.created_by}),and(requester_id.eq.${group.created_by},receiver_id.eq.${user.id})`)
-                            .limit(1).maybeSingle();
-                          if (!existing) {
-                            await supabase.from('network_connections').insert({ requester_id: user.id, receiver_id: group.created_by, status: 'accepted' });
-                          } else {
-                            await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', existing.id);
+                          const existing = await findConnection(user.id, group.created_by);
+                          if (existing?.status === 'accepted') {
+                            localStorage.setItem('activeMessageUserId', group.created_by);
+                            navigate('messages');
+                            return;
                           }
-                          navigate('messages');
+                          if (existing?.status === 'pending') { alert('Connection request already pending.'); return; }
+                          const status = await sendConnectionRequest(user.id, group.created_by);
+                          alert(status ? 'Connection request sent. You can message once it is accepted.' : 'Could not send request.');
                         }}
                         className="px-5 py-1.5 rounded-full text-sm font-semibold inline-flex items-center gap-1.5 transition-transform hover:scale-[1.02]"
                         style={{ background: "transparent", color: NAVY, border: `1px solid ${NAVY}` }}
                       >
-                        <Send size={14} /> Message
+                        {connectedIds.has(group.created_by) ? <><Send size={14} /> Message</> : <><UserPlus size={14} /> Connect</>}
                       </button>
                     )}
                   </div>
@@ -2844,36 +2800,6 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Privacy status bar - Only for Groups, not Organisations */}
-        {group.group_type !== 'organisation' && (
-          <div
-            className="mt-4 rounded-xl p-3 flex items-center gap-3 flex-wrap mx-5"
-            style={{ background: visible ? "#ecfdf5" : "#fff7ed", border: `1px solid ${visible ? "#a7f3d0" : "#fed7aa"}` }}
-          >
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: visible ? "#10b981" : "#f59e0b" }}
-            >
-              {visible ? <Eye size={14} className="text-white" /> : <EyeOff size={14} className="text-white" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs" style={{ color: visible ? "#065f46" : "#92400e", fontWeight: 600 }}>
-                {visible ? "Visible in this group" : "Watching anonymously"}
-              </div>
-              <div className="text-[11px] mt-0.5" style={{ color: visible ? "#047857" : "#b45309" }}>
-                {visible
-                  ? "Other group members can see your selected profile details and interact with your posts."
-                  : "You are currently watching anonymously. Other members cannot see that you are in this group."}
-              </div>
-            </div>
-            {visible ? (
-              <GhostButton onClick={() => setVisible(false)}>Hide my profile</GhostButton>
-            ) : (
-              <GoldButton onClick={() => setRevealOpen(true)}>Reveal my profile to this group</GoldButton>
-            )}
           </div>
         )}
 
@@ -2922,7 +2848,6 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 return true;
               }}
               placeholder="Share something with the group..."
-              disabledClickAction={!visible ? () => setRevealOpen(true) : undefined}
             />
           </Card>
 
@@ -2960,12 +2885,8 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
-              Visible {group.group_type === 'organisation' ? 'employees' : 'members'} ({allMembers.length})
+              {group.group_type === 'organisation' ? 'Employees' : 'Members'} ({allMembers.length})
             </h3>
-            <span className="text-[11px]" style={{ color: theme.textSubtle }}>
-              <Lock size={10} className="inline mr-1" />
-              Anonymous members aren't shown here
-            </span>
           </div>
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
             {allMembers.map((m) => (
@@ -2990,17 +2911,13 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 <div className="mt-3">
                   {m.connected ? (
                     <Pill color="#d1fae5" fg="#065f46">Connected</Pill>
+                  ) : m.pending ? (
+                    <Pill color="#fef3c7" fg="#92400e">Request sent</Pill>
                   ) : (
                     <button
                       onClick={() => setConnectUser({ id: m.id, name: m.name })}
-                      disabled={!visible}
                       className="text-xs px-3 py-1.5 rounded-lg w-full inline-flex items-center justify-center gap-1.5"
-                      style={{
-                        background: visible ? NAVY : theme.cardBorder,
-                        color: visible ? "#fff" : theme.textMuted,
-                        fontWeight: 500,
-                        cursor: visible ? "pointer" : "not-allowed",
-                      }}
+                      style={{ background: NAVY, color: "#fff", fontWeight: 500, cursor: "pointer" }}
                     >
                       <UserPlus size={11} /> Connect
                     </button>
@@ -3009,14 +2926,6 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
               </div>
             ))}
           </div>
-          {!visible && (
-            <div
-              className="mt-4 px-3 py-2.5 rounded-lg text-xs flex items-center gap-2"
-              style={{ background: "#fff7ed", color: "#92400e", border: "1px solid #fed7aa" }}
-            >
-              <Lock size={12} /> Reveal your profile to connect with members.
-            </div>
-          )}
         </Card>
       )}
 
@@ -3066,21 +2975,22 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                    <button
                      onClick={async () => {
                        if (!user || !group.created_by) return;
-                       const { data: existing } = await supabase.from('network_connections')
-                         .select('id')
-                         .or(`and(requester_id.eq.${user.id},receiver_id.eq.${group.created_by}),and(requester_id.eq.${group.created_by},receiver_id.eq.${user.id})`)
-                         .limit(1).maybeSingle();
-                       if (!existing) {
-                         await supabase.from('network_connections').insert({ requester_id: user.id, receiver_id: group.created_by, status: 'accepted' });
-                       } else {
-                         await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', existing.id);
+                       const existing = await findConnection(user.id, group.created_by);
+                       if (existing?.status === 'accepted') {
+                         localStorage.setItem('activeMessageUserId', group.created_by);
+                         navigate('messages');
+                         return;
                        }
-                       navigate('messages');
+                       if (existing?.status === 'pending') { alert('Connection request already pending.'); return; }
+                       const status = await sendConnectionRequest(user.id, group.created_by);
+                       alert(status ? 'Connection request sent. You can message once it is accepted.' : 'Could not send request.');
                      }}
                      className="mt-3 px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 transition-transform hover:scale-[1.02]"
                      style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
                    >
-                     <MessageCircle size={16} /> Message Organisation
+                     {connectedIds.has(group.created_by)
+                       ? <><MessageCircle size={16} /> Message Organisation</>
+                       : <><UserPlus size={16} /> Connect with Organisation</>}
                    </button>
                  )}
                </div>
@@ -3093,7 +3003,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
               <ol className="mt-2 space-y-1.5 text-sm list-decimal pl-5" style={{ color: theme.text }}>
                 <li>Speak with charity. Disagree without contempt.</li>
                 <li>No partisan campaigning. Reflection and discussion only.</li>
-                <li>Respect anonymous members. Never try to identify them.</li>
+                <li>Respect every member's privacy and the details they choose to share.</li>
                 <li>Keep group conversations inside the group.</li>
                 <li>Report concerns to the moderators or CiP staff.</li>
               </ol>
@@ -3106,41 +3016,18 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         </Card>
       )}
 
-      {revealOpen && (
-        <RevealModal onClose={() => setRevealOpen(false)} onReveal={() => { setVisible(true); setRevealOpen(false); }} />
-      )}
       {connectUser && (
-        <ConnectModal 
-          name={connectUser.name} 
-          onClose={() => setConnectUser(null)} 
+        <ConnectModal
+          name={connectUser.name}
+          onClose={() => setConnectUser(null)}
           onSend={async () => {
-            if (user && connectUser.id.length > 10) {
-              // Don't create a duplicate connection/request if one already exists (either direction).
-              const { data: existingConn } = await supabase.from('network_connections')
-                .select('id')
-                .or(`and(requester_id.eq.${user.id},receiver_id.eq.${connectUser.id}),and(requester_id.eq.${connectUser.id},receiver_id.eq.${user.id})`)
-                .limit(1).maybeSingle();
-              if (existingConn) { setConnectUser(null); return; }
-
-              const { error: connErr } = await supabase.from('network_connections').insert({
-                requester_id: user.id,
-                receiver_id: connectUser.id,
-                status: 'pending'
-              });
-              if (connErr) { setConnectUser(null); return; }
-
-              // Notify the receiver
-              const myProfileRes = await supabase.from('profiles').select('first_name, last_name').eq('id', user.id).single();
-              const myName = myProfileRes.data ? `${myProfileRes.data.first_name || ''} ${myProfileRes.data.last_name || ''}`.trim() : 'Someone';
-              await supabase.from('notifications').insert({
-                user_id: connectUser.id,
-                type: 'connection_invite',
-                title: 'New Connection Request',
-                message: `${myName} wants to connect with you.`,
-              });
-            }
+            const target = connectUser;
             setConnectUser(null);
-          }} 
+            if (user && target.id.length > 10) {
+              const status = await sendConnectionRequest(user.id, target.id);
+              if (status === 'pending') setPendingIds(prev => new Set(prev).add(target.id));
+            }
+          }}
         />
       )}
       {editOpen && (
@@ -4471,7 +4358,7 @@ function OrganisationFormModal({ onClose, onSave, initialData }: { onClose: () =
 export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const { user, profile } = useAuth();
-  const [tab, setTab] = useState<"joined" | "discover" | "yours">("discover");
+  const [tab, setTab] = useState<"joined" | "discover" | "yours" | "">("");
   const [createOpen, setCreateOpen] = useState(false);
   const [allOrgs, setAllOrgs] = useState<any[]>([]);
   const [myMemberships, setMyMemberships] = useState<Set<string>>(new Set());
