@@ -932,7 +932,7 @@ export function PostComposer({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             disabled={disabled || posting}
-            rows={2}
+            rows={1}
             className="w-full px-4 py-2.5 rounded-2xl text-sm outline-none resize-y"
             style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text, minHeight: 44 }}
           />
