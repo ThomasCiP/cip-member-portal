@@ -52,7 +52,7 @@ function DonateModal({ onClose }: { onClose: () => void }) {
         </p>
         <button
           className="w-full mt-5 px-5 py-3 rounded-xl inline-flex items-center justify-center gap-2"
-          style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
+          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
         >
           Continue to donation page <ExternalLink size={14} />
         </button>
@@ -109,7 +109,7 @@ export function ProfileSummaryCard({ navigate, profile }: { navigate: (s: Screen
       className="rounded-2xl overflow-hidden"
       style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
     >
-      <div className="h-16" style={{ background: `linear-gradient(135deg, ${NAVY}, #4038b5)` }} />
+      <div className="h-16" style={{ background: "#f1f5f9" }} />
       <div className="px-4 pb-4 -mt-8">
         {profile?.avatar_url ? (
           <img src={profile.avatar_url} alt={fullName} className="w-16 h-16 rounded-full object-cover" style={{ border: `3px solid ${theme.cardBg}` }} />
@@ -327,7 +327,7 @@ export function SupportStatusRail({ navigate }: { navigate?: (s: Screen) => void
 export function DonateRail({ onDonate }: { onDonate: () => void }) {
   const { theme } = useTheme();
   return (
-    <div className="rounded-2xl p-5" style={{ background: NAVY, color: "#fff" }}>
+    <div className="rounded-2xl p-5" style={{ background: theme.cardBg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}>
       <div
         className="w-9 h-9 rounded-full flex items-center justify-center mb-3"
         style={{ background: GOLD }}
@@ -335,13 +335,13 @@ export function DonateRail({ onDonate }: { onDonate: () => void }) {
         <Heart size={16} style={{ color: NAVY }} />
       </div>
       <div style={{ fontWeight: 600 }}>Get Involved</div>
-      <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.95)" }}>
+      <div className="text-xs mt-1" style={{ color: theme.textMuted }}>
         Help equip Christians for faithful public life.
       </div>
       <button
         onClick={onDonate}
         className="mt-3 w-full py-2 rounded-lg text-sm"
-        style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
+        style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
       >
         Donate
       </button>
@@ -420,9 +420,9 @@ export function NotificationBell({ navigate }: { navigate?: (s: Screen) => void 
     <div className="relative" ref={dropdownRef}>
       <button 
         onClick={() => setOpen(!open)}
-        className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
+        className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
       >
-        <Bell size={16} style={{ color: "rgba(255,255,255,0.95)" }} />
+        <Bell size={16} style={{ color: NAVY }} />
         {unreadCount > 0 && (
           <span
             className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
@@ -488,21 +488,21 @@ function TopHeader({
   return (
     <header
       className="h-16 px-6 flex items-center gap-4 shrink-0 sticky top-0 z-30"
-      style={{ background: NAVY, borderBottom: `1px solid rgba(255,255,255,0.08)` }}
+      style={{ background: "#fff", borderBottom: `1px solid #e5e7eb` }}
     >
       <div className="shrink-0">
-        <CiPLogo light size={28} />
+        <CiPLogo size={28} />
       </div>
 
       <div className="hidden md:block flex-1 max-w-sm relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.95)" }} />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: NAVY }} />
         <input
           placeholder="Search groups, events, people…"
           className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm outline-none"
           style={{
-            background: "rgba(255,255,255,0.08)",
-            color: "#fff",
-            border: `1px solid rgba(255,255,255,0.12)`,
+            background: "#f1f5f9",
+            color: NAVY,
+            border: `1px solid #e5e7eb`,
           }}
         />
       </div>
@@ -517,10 +517,10 @@ function TopHeader({
               onClick={() => navigate(it.key)}
               className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-colors min-w-[64px] tour-nav-${it.key}`}
               style={{
-                color: active ? "#fff" : "rgba(255,255,255,0.65)",
+                color: active ? NAVY : "rgba(90,79,207,0.55)",
                 fontWeight: active ? 600 : 400,
-                background: active ? "rgba(201,162,39,0.15)" : "transparent",
-                borderBottom: active ? `2px solid ${GOLD}` : "2px solid transparent",
+                background: active ? "rgba(90,79,207,0.1)" : "transparent",
+                borderBottom: active ? `2px solid ${NAVY}` : "2px solid transparent",
               }}
             >
               <Icon size={16} />
@@ -535,14 +535,14 @@ function TopHeader({
         <button
           onClick={onDonate}
           className="px-3 py-1.5 rounded-lg text-sm transition-colors"
-          style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
+          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
         >
           Donate
         </button>
         <div className="relative">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-white/10 transition-colors"
+            className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-gray-100 transition-colors"
           >
             {profile?.avatar_url ? (
               <img src={profile.avatar_url} alt={initials} className="w-8 h-8 rounded-full object-cover" />
@@ -554,7 +554,7 @@ function TopHeader({
                 {initials}
               </div>
             )}
-            <ChevronDown size={12} style={{ color: "rgba(255,255,255,0.95)" }} />
+            <ChevronDown size={12} style={{ color: NAVY }} />
           </button>
           {menuOpen && (
             <div

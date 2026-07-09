@@ -662,7 +662,7 @@ export function MemberPost({
   groupId?: string | null; canModerate?: boolean; navigate: (s: Screen) => void;
   onChanged?: () => void; footer?: ReactNode;
 }) {
-  const { theme } = useTheme();
+  const { theme, dark } = useTheme();
   const { user } = useAuth();
   const isMine = !!authorId && authorId === user?.id;
   const table = postType === "global" ? "global_posts" : "group_posts";
@@ -719,7 +719,7 @@ export function MemberPost({
           {(authorName || "M").substring(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm leading-tight" style={{ color: theme.text, fontWeight: 600 }}>
+          <div className="text-sm leading-tight" style={{ color: dark ? theme.text : "#1a1a1a", fontWeight: 600 }}>
             <MemberNameLink userId={authorId} name={authorName} navigate={navigate} />
           </div>
           <div className="text-xs leading-tight mt-0.5" style={{ color: theme.textSubtle }}>{subtitle}</div>
@@ -744,7 +744,7 @@ export function MemberPost({
           </div>
         </div>
       ) : (
-        <p className="text-sm mt-1 leading-relaxed whitespace-pre-wrap" style={{ color: theme.textMuted }}>{text}</p>
+        <p className="text-sm mt-1 leading-relaxed whitespace-pre-wrap" style={{ color: dark ? theme.textMuted : "#1a1a1a" }}>{text}</p>
       )}
 
       {imageUrl && !editing && (
@@ -778,7 +778,7 @@ export function MemberPost({
 }
 
 function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Screen) => void; onChanged?: () => void }) {
-  const { theme } = useTheme();
+  const { theme, dark } = useTheme();
   const { user } = useAuth();
 
   if (item.isGroupPost || item.isGlobalPost) {
@@ -835,7 +835,7 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
           >
             CiP
           </div>
-          <div className="text-xs" style={{ color: theme.text, fontWeight: 600 }}>
+          <div className="text-xs" style={{ color: dark ? theme.text : "#1a1a1a", fontWeight: 600 }}>
             Christians in Politics
           </div>
           <span className="text-xs" style={{ color: theme.textSubtle }}>·</span>
@@ -845,11 +845,11 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
           </div>
         </div>
         {item.title && (
-          <h3 className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
+          <h3 className="text-base" style={{ color: dark ? theme.text : "#1a1a1a", fontWeight: 600 }}>
             {item.title}
           </h3>
         )}
-        <p className="text-sm mt-2 leading-relaxed" style={{ color: theme.textMuted }}>
+        <p className="text-sm mt-2 leading-relaxed" style={{ color: dark ? theme.textMuted : "#1a1a1a" }}>
           {item.body}
         </p>
         <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
