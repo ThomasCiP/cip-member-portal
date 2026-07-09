@@ -2984,7 +2984,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
             {allMembers.map((m) => (
               <div
                 key={m.id}
-                className="rounded-xl p-3"
+                className="rounded-xl p-3 flex flex-col h-full"
                 style={{ border: `1px solid ${theme.cardBorder}`, background: theme.bg }}
               >
                 <div className="flex items-center gap-3">
@@ -2996,8 +2996,8 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                     <div className="text-[11px]" style={{ color: theme.textSubtle }}>{m.state}</div>
                   </div>
                 </div>
-                <p className="text-xs mt-2 leading-snug" style={{ color: theme.textMuted }}>{m.bio}</p>
-                <div className="mt-3">
+                <p className="text-xs mt-2 leading-snug" style={{ color: theme.textMuted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: "2.75em" }}>{m.bio}</p>
+                <div className="mt-auto pt-3">
                   {m.connected ? (
                     <Pill color="#d1fae5" fg="#065f46">Connected</Pill>
                   ) : m.pending ? (
@@ -4621,7 +4621,7 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 const isConnected = connectedIds.has(m.id);
                 const isPending = outgoingIds.has(m.id);
                 return (
-                  <Card key={m.id} className="p-5">
+                  <Card key={m.id} className="p-5 flex flex-col h-full">
                     <div className="flex items-start gap-3">
                       <Initials name={name} src={m.avatar_url} />
                       <div className="flex-1 min-w-0">
@@ -4632,8 +4632,8 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                         {m.state && <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{m.state}</div>}
                       </div>
                     </div>
-                    {m.bio && <p className="text-xs mt-3 leading-snug" style={{ color: theme.textMuted }}>{m.bio}</p>}
-                    <div className="mt-4">
+                    <p className="text-xs mt-3 leading-snug" style={{ color: theme.textMuted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: "2.75em" }}>{m.bio || ""}</p>
+                    <div className="mt-auto pt-4">
                       {isConnected ? (
                         <button onClick={() => openMessage(m.id)} className="w-full px-3 py-1.5 rounded-lg text-xs inline-flex items-center justify-center gap-1.5" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
                           <Send size={11} /> Message
