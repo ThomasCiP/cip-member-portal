@@ -3010,14 +3010,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       )}
 
       {tab === "events" && (
-        <Card className="p-5">
-          <h3 className="text-sm mb-3" style={{ color: theme.text, fontWeight: 600 }}>Group events</h3>
-          <div className="space-y-3">
-            <div className="text-center py-6 text-sm" style={{ color: theme.textMuted }}>
-              No events scheduled for this group.
-            </div>
-          </div>
-        </Card>
+        <GroupEventsTab groupId={group.id} navigate={navigate} />
       )}
 
       {tab === "resources" && (
@@ -3123,27 +3116,204 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
 
 // ── Events ───────────────────────────────────────────────────────────
 
-export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
+// Events associated with a specific group/organisation, shown on its detail page.
+function GroupEventsTab({ groupId, navigate }: { groupId: string; navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadEvents() {
-      const { data } = await supabase.from("events").select("*").order("created_at", { ascending: false });
-      if (data) setEvents(data);
-      setLoading(false);
-    }
+    supabase.from('events').select('*').eq('group_id', groupId).order('created_at', { ascending: false })
+      .then(({ data }) => { setEvents(data || []); setLoading(false); });
+  }, [groupId]);
+
+  return (
+    <Card className="p-5">
+      <h3 className="text-sm mb-3" style={{ color: theme.text, fontWeight: 600 }}>Events</h3>
+      {loading ? (
+        <div className="text-center py-6 text-sm" style={{ color: theme.textMuted }}>Loading events…</div>
+      ) : events.length === 0 ? (
+        <div className="text-center py-6 text-sm" style={{ color: theme.textMuted }}>No events scheduled yet.</div>
+      ) : (
+        <div className="space-y-2">
+          {events.map((e) => (
+            <button
+              key={e.id}
+              onClick={() => { localStorage.setItem('activeEventId', e.id); navigate('event-detail'); }}
+              className="w-full flex items-center gap-3 p-3 rounded-lg text-left hover:bg-black/5 transition-colors"
+              style={{ border: `1px solid ${theme.cardBorder}` }}
+            >
+              <div className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center" style={{ background: theme.pillBg, color: NAVY }}>
+                <CalendarDays size={15} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{e.title}</div>
+                <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: theme.textMuted }}>
+                  <span className="inline-flex items-center gap-1"><Clock size={11} /> {e.date}</span>
+                  {e.location && <span className="inline-flex items-center gap-1"><MapPin size={11} /> {e.location}</span>}
+                </div>
+              </div>
+              <ChevronRight size={14} style={{ color: theme.textSubtle }} />
+            </button>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Create-event modal, open to any member. If the member owns/administers any
+// groups or organisations, they can optionally associate the event with one.
+function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () => void }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [type, setType] = useState("In person");
+  const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
+  const [groupId, setGroupId] = useState("");
+  const [ownedGroups, setOwnedGroups] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('groups')
+      .select('id, name, group_type')
+      .eq('created_by', user.id)
+      .is('deleted_at', null)
+      .is('suspended_at', null)
+      .then(({ data }) => { if (data) setOwnedGroups(data); });
+  }, [user]);
+
+  const canSave = title.trim().length > 1 && !!date && !saving;
+
+  const save = async () => {
+    if (!user) return;
+    setSaving(true);
+    const { error } = await supabase.from('events').insert({
+      title: title.trim(),
+      date,
+      type,
+      location: location.trim(),
+      description: description.trim() || null,
+      status: 'Upcoming',
+      created_by: user.id,
+      group_id: groupId || null,
+    });
+    setSaving(false);
+    if (error) { alert('Could not create event: ' + error.message); return; }
+    onSave();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl shadow-2xl" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }} onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <h3 style={{ color: theme.text, fontWeight: 600 }}>Create an event</h3>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100"><X size={16} style={{ color: theme.textMuted }} /></button>
+        </div>
+        <div className="px-6 py-5 max-h-[70vh] overflow-y-auto space-y-4">
+          <FormField label="Event title">
+            <TextInput value={title} onChange={setTitle} placeholder="e.g. Prayer breakfast" />
+          </FormField>
+          <FormField label="Date & time">
+            <input
+              type="datetime-local"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+              style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+            />
+          </FormField>
+          <FormField label="Format">
+            <SelectInput value={type} onChange={setType} options={["In person", "Virtual", "Hybrid"]} />
+          </FormField>
+          <FormField label="Location / link">
+            <TextInput value={location} onChange={setLocation} placeholder="Venue address or meeting link" />
+          </FormField>
+          <FormField label="Description">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="What's the event about?"
+              className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+              style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+            />
+          </FormField>
+          {ownedGroups.length > 0 && (
+            <FormField label="Associate with" hint="Optional — link this event to a group or organisation you manage">
+              <div className="relative">
+                <select
+                  value={groupId}
+                  onChange={(e) => setGroupId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg outline-none text-sm appearance-none"
+                  style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
+                >
+                  <option value="">None (standalone event)</option>
+                  {ownedGroups.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}{g.group_type === 'organisation' ? ' (Organisation)' : ' (Group)'}</option>
+                  ))}
+                </select>
+                <ChevronRight size={12} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" style={{ color: theme.textMuted }} />
+              </div>
+            </FormField>
+          )}
+        </div>
+        <div className="px-6 py-4 flex items-center justify-end gap-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>Cancel</button>
+          <button
+            disabled={!canSave}
+            onClick={save}
+            className="px-4 py-2 rounded-lg text-sm disabled:opacity-50"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            {saving ? "Creating…" : "Create event"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const loadEvents = async () => {
+    const { data } = await supabase
+      .from("events")
+      .select("*, groups(id, name, group_type)")
+      .order("created_at", { ascending: false });
+    if (data) setEvents(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
     loadEvents();
   }, []);
 
   return (
     <div className="space-y-4">
       <Card className="p-5">
-        <h1 style={{ color: theme.text }}>Events</h1>
-        <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
-          CiP gatherings, prayer meetings and civic forums. Open to all members.
-        </p>
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h1 style={{ color: theme.text }}>Events</h1>
+            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
+              CiP gatherings, prayer meetings and civic forums. Open to all members.
+            </p>
+          </div>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5 shrink-0"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            <Plus size={14} /> Create event
+          </button>
+        </div>
       </Card>
       <Card>
         <div className="divide-y" style={{ borderColor: theme.divider }}>
@@ -3175,6 +3345,11 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
                     <span className="inline-flex items-center gap-1"><Clock size={11} /> {e.date}</span>
                     <span className="inline-flex items-center gap-1"><MapPin size={11} /> {e.location}</span>
                   </div>
+                  {e.groups && (
+                    <div className="mt-1 text-[11px] inline-flex items-center gap-1" style={{ color: NAVY, fontWeight: 500 }}>
+                      <Users size={10} /> {e.groups.name}
+                    </div>
+                  )}
                 </div>
                 <Pill color={e.type === "Online" ? "#dbeafe" : "#fef3c7"}>{e.type}</Pill>
                 <ChevronRight size={14} style={{ color: theme.textSubtle }} />
@@ -3183,6 +3358,13 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
           )}
         </div>
       </Card>
+
+      {createOpen && (
+        <EventFormModal
+          onClose={() => setCreateOpen(false)}
+          onSave={() => { setCreateOpen(false); setLoading(true); loadEvents(); }}
+        />
+      )}
     </div>
   );
 }
@@ -3199,7 +3381,7 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
         navigate('events');
         return;
       }
-      const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
+      const { data } = await supabase.from('events').select('*, groups(id, name, group_type)').eq('id', eventId).single();
       if (data) setEvent(data);
       setLoading(false);
     }
@@ -3227,6 +3409,20 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
             <span className="inline-flex items-center gap-1.5"><Clock size={14} /> {event.date}</span>
             <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> {event.location}</span>
           </div>
+          {event.groups && (
+            <button
+              onClick={() => {
+                localStorage.setItem('activeGroupId', event.groups.id);
+                localStorage.setItem('isOrgDetail', event.groups.group_type === 'organisation' ? 'true' : 'false');
+                navigate('group-detail');
+              }}
+              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs hover:underline"
+              style={{ background: theme.pillBg, color: NAVY, fontWeight: 500 }}
+            >
+              <Users size={12} /> Hosted by {event.groups.name}
+              <span style={{ color: theme.textMuted }}>· {event.groups.group_type === 'organisation' ? 'Organisation' : 'Group'}</span>
+            </button>
+          )}
           <p className="text-sm mt-4 leading-relaxed" style={{ color: theme.text }}>
             {event.description || "No description provided."}
           </p>
