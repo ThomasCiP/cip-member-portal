@@ -3599,6 +3599,7 @@ const NOTIFICATION_PREF_KEYS = [
 ] as const;
 
 const DEFAULT_NOTIFICATION_PREFS: Record<string, boolean> = {
+  email_enabled: true,
   announcements: true,
   group_activity: true,
   connection_requests: true,
@@ -3606,48 +3607,151 @@ const DEFAULT_NOTIFICATION_PREFS: Record<string, boolean> = {
   donation_reminders: false,
 };
 
-export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) {
-  const { theme, dark, toggle } = useTheme();
+function PrefToggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-9 h-5 rounded-full relative transition-colors shrink-0"
+      style={{ background: on ? NAVY : "#d1d5db" }}
+      aria-label={`Toggle ${label}`}
+    >
+      <div className="w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all" style={{ left: on ? 18 : 2 }} />
+    </button>
+  );
+}
+
+// Shared notification-preferences editor — the single writer of
+// profiles.notification_preferences (master email toggle + per-type toggles).
+export function NotificationPreferences() {
+  const { theme } = useTheme();
   const { user } = useAuth();
-  const [isDeleting, setIsDeleting] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(DEFAULT_NOTIFICATION_PREFS);
   const [notifLoading, setNotifLoading] = useState(true);
   const [notifSaved, setNotifSaved] = useState(false);
 
-  // Load notification preferences from profiles table
   useEffect(() => {
     async function loadPrefs() {
       if (!user) return;
-      const { data } = await supabase
-        .from("profiles")
-        .select("notification_preferences")
-        .eq("id", user.id)
-        .single();
-      if (data?.notification_preferences) {
-        setNotifPrefs({ ...DEFAULT_NOTIFICATION_PREFS, ...data.notification_preferences });
-      }
+      const { data } = await supabase.from("profiles").select("notification_preferences").eq("id", user.id).single();
+      if (data?.notification_preferences) setNotifPrefs({ ...DEFAULT_NOTIFICATION_PREFS, ...data.notification_preferences });
       setNotifLoading(false);
     }
     loadPrefs();
   }, [user]);
 
-  // Save a single preference toggle
   const togglePref = async (key: string) => {
     if (!user) return;
     const updated = { ...notifPrefs, [key]: !notifPrefs[key] };
     setNotifPrefs(updated);
     setNotifSaved(false);
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ notification_preferences: updated })
-      .eq("id", user.id);
-
-    if (!error) {
-      setNotifSaved(true);
-      setTimeout(() => setNotifSaved(false), 2000);
-    }
+    const { error } = await supabase.from("profiles").update({ notification_preferences: updated }).eq("id", user.id);
+    if (!error) { setNotifSaved(true); setTimeout(() => setNotifSaved(false), 2000); }
   };
+
+  const emailEnabled = notifPrefs.email_enabled !== false;
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Notifications</h3>
+        {notifSaved && (
+          <span className="text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: "#d1fae5", color: "#065f46", fontWeight: 500 }}>
+            <CheckCircle2 size={10} /> Saved
+          </span>
+        )}
+      </div>
+      {notifLoading ? (
+        <div className="text-xs py-2 mt-3" style={{ color: theme.textSubtle }}>Loading preferences…</div>
+      ) : (
+        <div className="mt-3">
+          <div className="flex items-center justify-between pb-3 mb-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+            <div className="pr-4">
+              <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Email me about notifications</div>
+              <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>Sends to {user?.email || "your account email"}. In-app alerts stay on regardless.</div>
+            </div>
+            <PrefToggle on={emailEnabled} onClick={() => togglePref("email_enabled")} label="Email notifications" />
+          </div>
+          <div className="space-y-3" style={{ opacity: emailEnabled ? 1 : 0.45 }}>
+            {NOTIFICATION_PREF_KEYS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between text-sm" style={{ color: theme.text }}>
+                <span>{label}</span>
+                <PrefToggle on={!!notifPrefs[key]} onClick={() => togglePref(key)} label={label} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export function NotificationsScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      if (!user) return;
+      const { data } = await supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50);
+      if (data) setItems(data);
+      setLoading(false);
+    }
+    load();
+  }, [user]);
+
+  const markAllRead = async () => {
+    if (!user) return;
+    setItems(prev => prev.map(n => ({ ...n, read: true })));
+    await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
+  };
+
+  const unread = items.filter(n => !n.read).length;
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 style={{ color: theme.text }}>Notifications</h1>
+            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>Your recent activity and email preferences.</p>
+          </div>
+          {unread > 0 && <GhostButton onClick={markAllRead}>Mark all read</GhostButton>}
+        </div>
+      </Card>
+
+      <NotificationPreferences />
+
+      <Card className="p-0 overflow-hidden">
+        <div className="px-5 py-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Recent</h3>
+        </div>
+        {loading ? (
+          <div className="p-6 text-sm text-center" style={{ color: theme.textMuted }}>Loading…</div>
+        ) : items.length === 0 ? (
+          <div className="p-6 text-sm text-center" style={{ color: theme.textMuted }}>No notifications yet.</div>
+        ) : (
+          items.map(n => (
+            <div key={n.id} className="px-5 py-3 flex items-start gap-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+              <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: n.read ? "transparent" : GOLD }} />
+              <div className="min-w-0">
+                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{n.title}</div>
+                <div className="text-sm" style={{ color: theme.textMuted }}>{n.message}</div>
+                <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{new Date(n.created_at).toLocaleString()}</div>
+              </div>
+            </div>
+          ))
+        )}
+      </Card>
+    </div>
+  );
+}
+
+export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { theme, dark, toggle } = useTheme();
+  const { user } = useAuth();
+  const [isDeleting, setIsDeleting] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -3679,37 +3783,11 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
 
       <Card className="p-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Notifications</h3>
-          {notifSaved && (
-            <span
-              className="text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1"
-              style={{ background: "#d1fae5", color: "#065f46", fontWeight: 500 }}
-            >
-              <CheckCircle2 size={10} /> Saved
-            </span>
-          )}
-        </div>
-        <div className="space-y-3 mt-3">
-          {notifLoading ? (
-            <div className="text-xs py-2" style={{ color: theme.textSubtle }}>Loading preferences…</div>
-          ) : (
-            NOTIFICATION_PREF_KEYS.map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between text-sm" style={{ color: theme.text }}>
-                <span>{label}</span>
-                <button
-                  onClick={() => togglePref(key)}
-                  className="w-9 h-5 rounded-full relative transition-colors"
-                  style={{ background: notifPrefs[key] ? NAVY : "#d1d5db" }}
-                  aria-label={`Toggle ${label}`}
-                >
-                  <div
-                    className="w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all"
-                    style={{ left: notifPrefs[key] ? 18 : 2 }}
-                  />
-                </button>
-              </div>
-            ))
-          )}
+          <div>
+            <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Notifications</h3>
+            <p className="text-xs mt-1" style={{ color: theme.textMuted }}>Manage in-app and email notification preferences.</p>
+          </div>
+          <GhostButton onClick={() => navigate("notifications")}>Manage notifications</GhostButton>
         </div>
       </Card>
 

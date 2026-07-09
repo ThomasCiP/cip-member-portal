@@ -12,7 +12,7 @@ import { MemberShell } from "./components/cip/MemberShell";
 import {
   Dashboard, ProfileScreen, MemberProfileScreen, NetworkHub, GroupDetailScreen,
   EventsScreen, EventDetail, MessagesScreen, SupportScreen,
-  DonateScreen, SettingsScreen, PrivacyScreen,
+  DonateScreen, SettingsScreen, PrivacyScreen, NotificationsScreen,
 } from "./components/cip/MemberScreens";
 import {
   AdminShell, AdminOverview, AdminMembers, AdminSupport, AdminSupportDetail,
@@ -209,6 +209,7 @@ export default function App() {
       case "donate":       return <DonateScreen />;
       case "privacy":      return <PrivacyScreen navigate={navigate} />;
       case "settings":     return <SettingsScreen navigate={navigate} />;
+      case "notifications": return <NotificationsScreen navigate={navigate} />;
       default:             return <Dashboard navigate={navigate} onboarded={onboarded ?? true} setOnboarded={setOnboarded} />;
     }
   })();

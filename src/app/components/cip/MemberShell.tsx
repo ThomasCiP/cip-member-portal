@@ -358,35 +358,15 @@ export function NotificationBell({ navigate }: { navigate?: (s: Screen) => void 
 
   useEffect(() => {
     async function loadNotifications() {
-      const [notifRes, annRes] = await Promise.all([
-        supabase.from('notifications')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(10),
-        supabase.from('announcements')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(3)
-      ]);
-
-      const mixed = [...(notifRes.data || [])];
-      
-      if (annRes.data) {
-        annRes.data.forEach(ann => {
-          mixed.push({
-            id: ann.id, // using announcement id, we won't mark this read in db
-            title: 'New Announcement',
-            message: ann.title,
-            created_at: ann.created_at,
-            read: true, // For simplicity, announcements are marked read or don't have a read dot
-            isAnnouncement: true
-          });
-        });
-      }
-
-      mixed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setNotifications(mixed.slice(0, 10));
+      if (!user) return;
+      // Announcements now arrive as real notification rows (fanned out on publish),
+      // so a single notifications query is the whole feed.
+      const { data } = await supabase.from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setNotifications(data || []);
     }
     loadNotifications();
 
@@ -566,6 +546,7 @@ function TopHeader({
               {[
                 { l: "Profile",   k: "profile" as Screen,         icon: UserCircle2 },
                 { l: "Settings",  k: "settings" as Screen,        icon: Settings },
+                { l: "Notifications", k: "notifications" as Screen, icon: Bell },
                 { l: "Privacy",   k: "privacy" as Screen,         icon: Lock },
                 ...(user?.email?.endsWith("@christiansinpolitics.com") ? [{ l: "Admin", k: "admin-overview" as Screen, icon: ShieldCheck }] : []),
               ].map((it) => {

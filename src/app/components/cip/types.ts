@@ -23,6 +23,7 @@ export type Screen =
   | "donate"
   | "settings"
   | "privacy"
+  | "notifications"
   // Admin
   | "admin-overview"
   | "admin-members"
