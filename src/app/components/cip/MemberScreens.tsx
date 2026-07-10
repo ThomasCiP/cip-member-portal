@@ -3554,6 +3554,7 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
   useEffect(() => {
     loadEvents();
+    localStorage.setItem('eventsLastSeen', new Date().toISOString());
   }, []);
 
   return (
@@ -4755,6 +4756,7 @@ export function useNotificationBadges() {
   const [orgIds, setOrgIds] = useState<Set<string>>(new Set());
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set());
   const [unreadMessages, setUnreadMessages] = useState(false);
+  const [hasNewEvents, setHasNewEvents] = useState(false);
 
   const reload = useCallback(async () => {
     if (!user) { setOrgIds(new Set()); setGroupIds(new Set()); setUnreadMessages(false); return; }
@@ -4766,6 +4768,10 @@ export function useNotificationBadges() {
       .in('type', ['group_post', 'direct_message']);
     if (!data) return;
     setUnreadMessages(data.some((n: any) => n.type === 'direct_message'));
+    let lastSeen = localStorage.getItem('eventsLastSeen');
+    if (!lastSeen) { lastSeen = new Date().toISOString(); localStorage.setItem('eventsLastSeen', lastSeen); }
+    const { data: newEv } = await supabase.from('events').select('id').eq('visibility', 'public').gt('created_at', lastSeen).limit(1);
+    setHasNewEvents(!!(newEv && newEv.length));
     const gids = Array.from(new Set(
       data.filter((n: any) => n.type === 'group_post' && n.data?.group_id).map((n: any) => n.data.group_id as string)
     ));
@@ -4786,7 +4792,7 @@ export function useNotificationBadges() {
     return () => { clearInterval(iv); window.removeEventListener('focus', onFocus); };
   }, [reload]);
 
-  return { orgIds, groupIds, unreadMessages, hasNetworkPosts: orgIds.size + groupIds.size > 0, reload };
+  return { orgIds, groupIds, unreadMessages, hasNewEvents, hasNetworkPosts: orgIds.size + groupIds.size > 0, reload };
 }
 
 export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => void; initialTab?: 'people' | 'orgs' | 'groups' }) {

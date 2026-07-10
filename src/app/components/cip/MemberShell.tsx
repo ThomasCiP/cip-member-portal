@@ -503,7 +503,7 @@ function TopHeader({
               }}
             >
               <Icon size={16} strokeWidth={2.5} />
-              {((it.key === "network" && (incomingCount > 0 || badges.hasNetworkPosts)) || (it.key === "messages" && badges.unreadMessages)) && (
+              {((it.key === "network" && (incomingCount > 0 || badges.hasNetworkPosts)) || (it.key === "messages" && badges.unreadMessages) || (it.key === "events" && badges.hasNewEvents)) && (
                 <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full" style={{ background: NAVY }} />
               )}
               <span className="text-[10px] mt-0.5">{it.label}</span>
