@@ -135,6 +135,19 @@ export default function App() {
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [profileStatus, setProfileStatus] = useState<{ suspended_at?: string | null, deleted_at?: string | null } | null>(null);
 
+  // Email confirmation / auth-callback landings carry the session in the URL
+  // hash. Hold a "finishing sign-in" state (rather than flashing the signup
+  // form) until Supabase establishes the session, so a just-verified user goes
+  // straight into onboarding instead of being bounced to sign-in. Falls back
+  // after a timeout if the one-time token never yields a session.
+  const isAuthCallback = useRef(typeof window !== "undefined" && /access_token=/.test(window.location.hash));
+  const [authWaitDone, setAuthWaitDone] = useState(false);
+  useEffect(() => {
+    if (!isAuthCallback.current) return;
+    const t = setTimeout(() => setAuthWaitDone(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     async function checkProfile() {
       if (user) {
@@ -184,8 +197,8 @@ export default function App() {
     }
   }, [user, loading, screen, profileStatus, replace]);
 
-  if (loading || (user && onboarded === null)) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (loading || (user && onboarded === null) || (isAuthCallback.current && !user && !authWaitDone)) {
+    return <div className="min-h-screen flex items-center justify-center">Finishing sign-in…</div>;
   }
 
 
