@@ -2124,10 +2124,11 @@ export function ProfileScreen() {
 }
 
 // ── Groups discovery ─────────────────────────────────────────────────
-function GroupCard({ g, navigate, onJoin }: { g: any; navigate: (s: Screen) => void; onJoin?: (id: string) => void }) {
+function GroupCard({ g, navigate, onJoin, hasUnread }: { g: any; navigate: (s: Screen) => void; onJoin?: (id: string) => void; hasUnread?: boolean }) {
   const { theme } = useTheme();
   return (
-    <Card className="p-4">
+    <Card className="p-4 relative">
+      {hasUnread && <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full" style={{ background: NAVY }} />}
       <div className="flex items-start gap-3">
         {g.image_url ? (
           <img src={g.image_url} alt={g.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
@@ -2480,6 +2481,7 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
 
 export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const badges = useNotificationBadges();
   const { user } = useAuth();
   const [tab, setTab] = useState<"joined" | "discover" | "yours">("joined");
   const [createOpen, setCreateOpen] = useState(false);
@@ -2657,7 +2659,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
         <Card className="p-10 text-center text-sm text-gray-500">Loading groups...</Card>
       ) : list.length > 0 ? (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
-          {list.map((g) => <GroupCard key={g.id} g={g} navigate={navigate} onJoin={handleJoin} />)}
+          {list.map((g) => <GroupCard key={g.id} g={g} navigate={navigate} onJoin={handleJoin} hasUnread={badges.groupIds.has(g.id)} />)}
         </div>
       ) : (
         <Card className="p-10 text-center">
@@ -2773,6 +2775,9 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         navigate('groups');
         return;
       }
+      supabase.from('notifications').update({ read: true })
+        .eq('type', 'group_post').eq('read', false)
+        .contains('data', { group_id: groupId }).then(() => {});
       const { data } = await supabase.from('groups').select('*').eq('id', groupId).single();
       if (data) {
         setGroup(data);
@@ -3742,6 +3747,12 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
   // Ensures the incoming deep-link is consumed exactly once (survives the
   // StrictMode dev double-mount).
   const deepLinkHandledRef = useRef(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('notifications').update({ read: true })
+      .eq('user_id', user.id).eq('type', 'direct_message').eq('read', false).then(() => {});
+  }, [user]);
 
   const loadNetwork = async () => {
     if (!user) return;
@@ -4738,10 +4749,51 @@ export function useIncomingRequests() {
   return { requests, count: requests.length, accept, reload };
 }
 
+// ── Unread group/org posts + messages: shared badge source ───────────
+export function useNotificationBadges() {
+  const { user } = useAuth();
+  const [orgIds, setOrgIds] = useState<Set<string>>(new Set());
+  const [groupIds, setGroupIds] = useState<Set<string>>(new Set());
+  const [unreadMessages, setUnreadMessages] = useState(false);
+
+  const reload = useCallback(async () => {
+    if (!user) { setOrgIds(new Set()); setGroupIds(new Set()); setUnreadMessages(false); return; }
+    const { data } = await supabase
+      .from('notifications')
+      .select('type, data')
+      .eq('user_id', user.id)
+      .eq('read', false)
+      .in('type', ['group_post', 'direct_message']);
+    if (!data) return;
+    setUnreadMessages(data.some((n: any) => n.type === 'direct_message'));
+    const gids = Array.from(new Set(
+      data.filter((n: any) => n.type === 'group_post' && n.data?.group_id).map((n: any) => n.data.group_id as string)
+    ));
+    if (gids.length === 0) { setOrgIds(new Set()); setGroupIds(new Set()); return; }
+    const { data: groups } = await supabase.from('groups').select('id, group_type').in('id', gids);
+    const orgs = new Set<string>();
+    const grps = new Set<string>();
+    (groups || []).forEach((g: any) => { (g.group_type === 'organisation' ? orgs : grps).add(g.id); });
+    setOrgIds(orgs);
+    setGroupIds(grps);
+  }, [user]);
+
+  useEffect(() => {
+    reload();
+    const iv = setInterval(reload, 20000);
+    const onFocus = () => reload();
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(iv); window.removeEventListener('focus', onFocus); };
+  }, [reload]);
+
+  return { orgIds, groupIds, unreadMessages, hasNetworkPosts: orgIds.size + groupIds.size > 0, reload };
+}
+
 export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => void; initialTab?: 'people' | 'orgs' | 'groups' }) {
   const { theme } = useTheme();
   const [tab, setTab] = useState<'people' | 'orgs' | 'groups'>(initialTab ?? 'people');
   const incoming = useIncomingRequests();
+  const badges = useNotificationBadges();
 
   const HubTab = ({ id, label, dot }: { id: 'people' | 'orgs' | 'groups'; label: string; dot?: boolean }) => (
     <button
@@ -4764,8 +4816,8 @@ export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => 
       <Card className="p-5 pb-0">
         <div className="flex gap-1 overflow-x-auto" style={{ borderBottom: `1px solid ${theme.divider}` }}>
           <HubTab id="people" label="People" dot={incoming.count > 0} />
-          <HubTab id="orgs" label="Organisations" />
-          <HubTab id="groups" label="Groups" />
+          <HubTab id="orgs" label="Organisations" dot={badges.orgIds.size > 0} />
+          <HubTab id="groups" label="Groups" dot={badges.groupIds.size > 0} />
         </div>
       </Card>
 
@@ -5563,6 +5615,7 @@ function OrganisationFormModal({ onClose, onSave, initialData }: { onClose: () =
 export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const { user, profile } = useAuth();
+  const badges = useNotificationBadges();
   const [tab, setTab] = useState<"joined" | "discover" | "yours" | "">("");
   const [createOpen, setCreateOpen] = useState(false);
   const [allOrgs, setAllOrgs] = useState<any[]>([]);
@@ -5719,7 +5772,8 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
       ) : list.length > 0 ? (
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
           {list.map(o => (
-            <Card key={o.id} className="p-5 flex flex-col cursor-pointer hover:shadow-md transition-shadow" onClick={() => { localStorage.setItem("activeGroupId", o.id); localStorage.setItem("isOrgDetail", "true"); navigate("group-detail"); }}>
+            <Card key={o.id} className="p-5 flex flex-col relative cursor-pointer hover:shadow-md transition-shadow" onClick={() => { localStorage.setItem("activeGroupId", o.id); localStorage.setItem("isOrgDetail", "true"); navigate("group-detail"); }}>
+              {badges.orgIds.has(o.id) && <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full" style={{ background: NAVY }} />}
               <div className="flex items-start gap-3">
                 {o.image_url ? (
                   <img src={o.image_url} alt={o.name} className="w-12 h-12 rounded-lg object-cover shrink-0" style={{ border: `1px solid ${theme.cardBorder}` }} />
