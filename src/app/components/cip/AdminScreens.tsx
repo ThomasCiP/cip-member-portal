@@ -10,7 +10,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
 import { useAuth } from "./AuthContext";
-import { PARTIES, TRADITIONS, MemberNameLink } from "./MemberScreens";
+import { PARTIES, TRADITIONS, MemberNameLink, createEventFeedPost } from "./MemberScreens";
 import { FEDERAL_ELECTORATES } from "./electorates";
 import { AutocompleteInput } from "./AutocompleteInput";
 
@@ -1097,9 +1097,17 @@ export function AdminEvents() {
       registration_url: registrationUrl.trim() || null,
       contact_email: contactEmail.trim() || null,
     };
-    const { error } = editingId
-      ? await supabase.from("events").update(payload).eq("id", editingId)
-      : await supabase.from("events").insert({ ...payload, status: "Upcoming", visibility: "public", created_by: user?.id });
+    let error;
+    if (editingId) {
+      ({ error } = await supabase.from("events").update(payload).eq("id", editingId));
+    } else {
+      const res = await supabase.from("events")
+        .insert({ ...payload, status: "Upcoming", visibility: "public", created_by: user?.id })
+        .select().single();
+      error = res.error;
+      // Admin events are public: auto-publish to the home feed with a Register button.
+      if (!error && res.data && user?.id) await createEventFeedPost(res.data, user.id);
+    }
     setSaving(false);
     if (error) {
       alert("Error saving event: " + error.message);

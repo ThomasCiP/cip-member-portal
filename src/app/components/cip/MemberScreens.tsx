@@ -99,6 +99,93 @@ async function declineConnection(connId: string): Promise<boolean> {
   return !error;
 }
 
+// ── Event registration ─────────────────────────────────────────────────
+function formatEventDate(raw?: string): string {
+  if (!raw) return '';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  return d.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+}
+
+// Register the current user for an event: records attendance (idempotent) and
+// creates a confirmation notification, which fires the confirmation email.
+async function registerForEvent(userId: string, eventId: string, event?: { title?: string; date?: string }): Promise<boolean> {
+  const { error } = await supabase.from('event_attendees').insert({ event_id: eventId, user_id: userId });
+  // Duplicate PK = already registered; treat as success.
+  if (error && !/duplicate|unique|already/i.test(error.message)) {
+    alert('Could not register: ' + error.message);
+    return false;
+  }
+  await supabase.from('notifications').insert({
+    user_id: userId,
+    type: 'event_registration',
+    title: `You're registered${event?.title ? ' for ' + event.title : ' for the event'}`,
+    message: `Thanks for registering${event?.title ? ' for ' + event.title : ''}${event?.date ? ' on ' + formatEventDate(event.date) : ''}. We look forward to seeing you — you'll get a reminder the day before.`,
+    data: { event_id: eventId },
+  });
+  return true;
+}
+
+// Auto-create a feed post for a newly-created event, carrying event_id so the
+// post renders a Register button. Public events post to the global (home) feed;
+// private group events post to that group's feed.
+export async function createEventFeedPost(event: any, userId: string): Promise<void> {
+  const dateStr = formatEventDate(event.date);
+  const meta = [dateStr, event.location].filter(Boolean).join(' · ');
+  const parts = [`📅 ${event.title}`];
+  if (meta) parts.push('', meta);
+  if (event.description) {
+    const short = event.description.length > 280 ? event.description.slice(0, 280).trim() + '…' : event.description;
+    parts.push('', short);
+  }
+  parts.push('', 'Register below to attend.');
+  const base: any = {
+    user_id: userId,
+    content: parts.join('\n'),
+    image_url: event.image_url || null,
+    event_id: event.id,
+    comment_policy: 'anyone',
+  };
+  if (event.visibility === 'group' && event.group_id) {
+    await supabase.from('group_posts').insert({ ...base, group_id: event.group_id });
+  } else {
+    await supabase.from('global_posts').insert(base);
+  }
+}
+
+// Reusable Register / Registered control (feed posts + event page).
+function EventRegisterButton({ eventId, event, initialRegistered, size = 'sm' }: {
+  eventId: string;
+  event?: { title?: string; date?: string };
+  initialRegistered?: boolean;
+  size?: 'sm' | 'lg';
+}) {
+  const { user } = useAuth();
+  const [registered, setRegistered] = useState(!!initialRegistered);
+  const [busy, setBusy] = useState(false);
+  // Sync to "registered" once the parent confirms it (async load); never flips back.
+  useEffect(() => { if (initialRegistered) setRegistered(true); }, [initialRegistered]);
+  if (!user) return null;
+  const pad = size === 'lg' ? 'px-4 py-2.5 text-sm' : 'px-3 py-1.5 text-xs';
+  if (registered) {
+    return (
+      <span className={`inline-flex items-center gap-1.5 ${pad} rounded-lg`} style={{ background: '#d1fae5', color: '#065f46', fontWeight: 600 }}>
+        <CheckCircle2 size={13} /> Registered
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={async () => { if (busy) return; setBusy(true); const ok = await registerForEvent(user.id, eventId, event); setBusy(false); if (ok) setRegistered(true); }}
+      disabled={busy}
+      className={`inline-flex items-center gap-1.5 ${pad} rounded-lg disabled:opacity-50`}
+      style={{ background: GOLD, color: '#fff', fontWeight: 600 }}
+    >
+      <Ticket size={13} /> {busy ? 'Registering…' : 'Register'}
+    </button>
+  );
+}
+
 // ── Shared primitives ─────────────────────────────────────────────────
 function Card({ children, className = "", onClick }: { children: ReactNode; className?: string; onClick?: MouseEventHandler<HTMLDivElement> }) {
   const { theme } = useTheme();
@@ -864,6 +951,13 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
         onChanged={onChanged}
         footer={
           <>
+            {item.eventId && (
+              <EventRegisterButton
+                eventId={item.eventId}
+                event={{ title: item.event?.title, date: item.event?.date }}
+                initialRegistered={item.registered}
+              />
+            )}
             {!isGlobal && (
               <GhostButton onClick={() => {
                 localStorage.setItem('activeGroupId', item.groupId);
@@ -1464,7 +1558,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
       let groupPosts: any[] = [];
       if (myGroupIds.length > 0) {
         const { data: posts } = await supabase.from('group_posts')
-          .select('*, groups(name, id, group_type)')
+          .select('*, groups(name, id, group_type), events(id, title, date)')
           .in('group_id', myGroupIds)
           .is('removed_at', null)
           .order('created_at', { ascending: false })
@@ -1473,11 +1567,16 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
       }
 
       const { data: globalPostsData } = await supabase.from('global_posts')
-        .select('*')
+        .select('*, events(id, title, date)')
         .is('removed_at', null)
         .order('created_at', { ascending: false })
         .limit(100);
       const globalPosts = globalPostsData || [];
+
+      // Which events has the current user already registered for (for the
+      // Register button state on event posts).
+      const { data: myRegs } = await supabase.from('event_attendees').select('event_id').eq('user_id', user.id);
+      const registeredIds = new Set((myRegs || []).map((r: any) => r.event_id));
 
       // Resolve author names via the safe directory (peers aren't readable on the
       // base profiles table anymore).
@@ -1515,6 +1614,9 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         body: p.content,
         image_url: p.image_url,
         comment_policy: p.comment_policy,
+        eventId: p.event_id || null,
+        event: p.events || null,
+        registered: p.event_id ? registeredIds.has(p.event_id) : false,
         date: new Date(p.created_at).toLocaleDateString(),
         created_at: p.created_at
       }));
@@ -1529,6 +1631,9 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         body: p.content,
         image_url: p.image_url,
         comment_policy: p.comment_policy,
+        eventId: p.event_id || null,
+        event: p.events || null,
+        registered: p.event_id ? registeredIds.has(p.event_id) : false,
         date: new Date(p.created_at).toLocaleDateString(),
         created_at: p.created_at
       }));
@@ -2637,6 +2742,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   // so the Members tab can show Connected / Request sent instead of Connect.
   const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [registeredEventIds, setRegisteredEventIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<"feed" | "members" | "events" | "resources" | "about">("feed");
   const [dbMembers, setDbMembers] = useState<any[]>([]);
   const [group, setGroup] = useState<any>(null);
@@ -2654,7 +2760,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const refreshGroupPosts = async () => {
     if (!group) return;
     const { data } = await supabase.from('group_posts')
-      .select('*')
+      .select('*, events(id, title, date)')
       .eq('group_id', group.id)
       .is('removed_at', null)
       .order('created_at', { ascending: false });
@@ -2681,7 +2787,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       }
       
       const { data: postsData } = await supabase.from('group_posts')
-        .select('*')
+        .select('*, events(id, title, date)')
         .eq('group_id', groupId)
         .is('removed_at', null)
         .order('created_at', { ascending: false });
@@ -2707,6 +2813,10 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
           setConnectedIds(accepted);
           setPendingIds(pending);
         }
+
+        // Events this user has registered for (for the Register button state).
+        const { data: regs } = await supabase.from('event_attendees').select('event_id').eq('user_id', user.id);
+        if (regs) setRegisteredEventIds(new Set(regs.map((r: any) => r.event_id)));
 
         // Only fetch actual group members
         const { data: groupMembers } = await supabase.from('group_members').select('user_id').eq('group_id', groupId);
@@ -2961,7 +3071,18 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                   canModerate={isAdmin || group.created_by === user?.id}
                   navigate={navigate}
                   onChanged={refreshGroupPosts}
-                  footer={post.user_id !== user?.id ? <MessageAuthorButton targetUserId={post.user_id} navigate={navigate} /> : null}
+                  footer={
+                    <>
+                      {post.event_id && (
+                        <EventRegisterButton
+                          eventId={post.event_id}
+                          event={{ title: post.events?.title, date: post.events?.date }}
+                          initialRegistered={registeredEventIds.has(post.event_id)}
+                        />
+                      )}
+                      {post.user_id !== user?.id && <MessageAuthorButton targetUserId={post.user_id} navigate={navigate} />}
+                    </>
+                  }
                 />
               );
             })
@@ -3227,7 +3348,7 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
   const save = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = await supabase.from('events').insert({
+    const { data: created, error } = await supabase.from('events').insert({
       title: title.trim(),
       date,
       end_date: endDate || null,
@@ -3244,9 +3365,11 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
       status: 'Upcoming',
       created_by: user.id,
       group_id: groupId || null,
-    });
+    }).select().single();
+    if (error) { setSaving(false); alert('Could not create event: ' + error.message); return; }
+    // Auto-publish the event to the relevant feed with a Register button.
+    if (created) await createEventFeedPost(created, user.id);
     setSaving(false);
-    if (error) { alert('Could not create event: ' + error.message); return; }
     onSave();
   };
 
@@ -3503,8 +3626,10 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
 export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [registered, setRegistered] = useState(false);
 
   useEffect(() => {
     async function loadEvent() {
@@ -3515,10 +3640,15 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
       }
       const { data } = await supabase.from('events').select('*, groups(id, name, group_type)').eq('id', eventId).single();
       if (data) setEvent(data);
+      if (user && eventId) {
+        const { data: att } = await supabase.from('event_attendees')
+          .select('event_id').eq('event_id', eventId).eq('user_id', user.id).maybeSingle();
+        if (att) setRegistered(true);
+      }
       setLoading(false);
     }
     loadEvent();
-  }, [navigate]);
+  }, [navigate, user]);
 
   if (loading) {
     return <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>Loading event...</div>;
@@ -3575,13 +3705,12 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
               <Mail size={14} /> <a href={`mailto:${event.contact_email}`} className="hover:underline" style={{ color: NAVY }}>{event.contact_email}</a>
             </div>
           )}
-          <div className="flex items-center gap-2 mt-5">
-            {event.registration_url ? (
-              <GoldButton onClick={() => window.open(event.registration_url.startsWith('http') ? event.registration_url : `https://${event.registration_url}`, '_blank')}>
-                {event.ticketed ? 'Get tickets' : 'Register'}
-              </GoldButton>
-            ) : (
-              <GoldButton>Register</GoldButton>
+          <div className="flex items-center gap-2 mt-5 flex-wrap">
+            <EventRegisterButton eventId={event.id} event={{ title: event.title, date: event.date }} initialRegistered={registered} size="lg" />
+            {event.registration_url && (
+              <GhostButton onClick={() => window.open(event.registration_url.startsWith('http') ? event.registration_url : `https://${event.registration_url}`, '_blank')}>
+                {event.ticketed ? 'Tickets' : 'External registration'}
+              </GhostButton>
             )}
             <GhostButton>Add to calendar</GhostButton>
           </div>
@@ -3979,6 +4108,7 @@ export function DonateScreen() {
 
 const NOTIFICATION_PREF_KEYS = [
   { key: "announcements", label: "CiP announcements and events" },
+  { key: "event_reminders", label: "Event confirmations and reminders" },
   { key: "group_activity", label: "Group activity in groups I've joined" },
   { key: "connection_requests", label: "New connection requests" },
   { key: "direct_messages", label: "Direct messages" },
@@ -3988,6 +4118,7 @@ const NOTIFICATION_PREF_KEYS = [
 const DEFAULT_NOTIFICATION_PREFS: Record<string, boolean> = {
   email_enabled: true,
   announcements: true,
+  event_reminders: true,
   group_activity: true,
   connection_requests: true,
   direct_messages: true,
