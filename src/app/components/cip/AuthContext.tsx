@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "../../../lib/supabase";
+import { supabase, initialAuthHash } from "../../../lib/supabase";
 
 type AuthContextType = {
   user: User | null;
@@ -47,12 +47,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    (async () => {
+      let session = (await supabase.auth.getSession()).data.session;
+      // A verify/recovery email link carries the session in the URL hash. If the
+      // client's automatic detection didn't establish it, set it explicitly so
+      // the user isn't bounced to sign-in after confirming their email.
+      if (!session && initialAuthHash.includes("access_token")) {
+        const p = new URLSearchParams(initialAuthHash.replace(/^#/, ""));
+        const access_token = p.get("access_token");
+        const refresh_token = p.get("refresh_token");
+        if (access_token && refresh_token) {
+          session = (await supabase.auth.setSession({ access_token, refresh_token })).data.session;
+          if (typeof window !== "undefined") {
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          }
+        }
+      }
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user);
       setLoading(false);
-    });
+    })();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
