@@ -493,7 +493,7 @@ export function SignInScreen({ navigate }: { navigate: (s: Screen) => void }) {
     
     // Redirect back to members site to update password
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + "/?reset=true",
+      redirectTo: "https://network.christiansinpolitics.com/?reset=true",
     });
     
     if (error) {
@@ -789,7 +789,7 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: "https://network.christiansinpolitics.com",
         data: {
           first_name: firstName,
           last_name: lastName,
