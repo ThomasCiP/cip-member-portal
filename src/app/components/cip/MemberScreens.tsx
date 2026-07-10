@@ -5,6 +5,7 @@ import { Screen } from "./types";
 import { NAVY, GOLD, useTheme } from "./brand";
 import { AutocompleteInput } from "./AutocompleteInput";
 import { FEDERAL_ELECTORATES, STATE_ELECTORATES } from "./electorates";
+import { useIsMobile } from "../ui/use-mobile";
 import {
   CalendarDays, Clock, MapPin, Lock, ShieldCheck, Users,
   ChevronRight, ExternalLink, Heart, Sun, Moon, Eye, EyeOff,
@@ -1098,12 +1099,12 @@ export function PostComposer({
       <div className="flex items-center gap-2 pt-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
         <GhostButton onClick={disabled ? disabledClickAction : () => fileRef.current?.click()}>
-          <ImageIcon size={12} className="inline mr-1" /> {uploading ? "Uploading…" : "Image"}
+          <ImageIcon size={12} className="inline sm:mr-1" /> <span className="hidden sm:inline">{uploading ? "Uploading…" : "Image"}</span>
         </GhostButton>
 
         <div className="relative">
           <GhostButton onClick={disabled ? disabledClickAction : () => setPolicyOpen((o) => !o)}>
-            <MessageCircle size={12} className="inline mr-1" /> {POLICY_LABEL[commentPolicy]}
+            <MessageCircle size={12} className="inline sm:mr-1" /> <span className="hidden sm:inline">{POLICY_LABEL[commentPolicy]}</span>
           </GhostButton>
           {policyOpen && !disabled && (
             <>
@@ -3414,7 +3415,7 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
           <FormField label="Event title">
             <TextInput value={title} onChange={setTitle} placeholder="e.g. Prayer breakfast" />
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Starts">
               <input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} style={inputStyle} />
             </FormField>
@@ -3454,7 +3455,7 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
               </button>
             </label>
             {ticketed && (
-              <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                 <FormField label="Number of tickets" hint="Capacity">
                   <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="e.g. 100" className={inputCls} style={inputStyle} />
                 </FormField>
@@ -3601,10 +3602,10 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
                   <CalendarDays size={16} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{e.title}</div>
-                  <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: theme.textMuted }}>
-                    <span className="inline-flex items-center gap-1"><Clock size={11} /> {e.date}</span>
-                    <span className="inline-flex items-center gap-1"><MapPin size={11} /> {e.location}</span>
+                  <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{e.title}</div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs" style={{ color: theme.textMuted }}>
+                    <span className="inline-flex items-center gap-1 min-w-0"><Clock size={11} className="shrink-0" /> <span className="truncate">{e.date}</span></span>
+                    <span className="inline-flex items-center gap-1 min-w-0"><MapPin size={11} className="shrink-0" /> <span className="truncate">{e.location}</span></span>
                   </div>
                   {e.groups && (
                     <div className="mt-1 text-[11px] inline-flex items-center gap-1" style={{ color: NAVY, fontWeight: 500 }}>
@@ -3612,8 +3613,8 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
                     </div>
                   )}
                 </div>
-                <Pill color={e.type === "Online" ? "#dbeafe" : "#fef3c7"}>{e.type}</Pill>
-                <ChevronRight size={14} style={{ color: theme.textSubtle }} />
+                <span className="shrink-0"><Pill color={e.type === "Online" ? "#dbeafe" : "#fef3c7"}>{e.type}</Pill></span>
+                <ChevronRight size={14} className="shrink-0" style={{ color: theme.textSubtle }} />
               </button>
             ))
           )}
@@ -3729,6 +3730,7 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
 export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [active, setActive] = useState<any>(null);
   const [search, setSearch] = useState("");
 
@@ -3906,9 +3908,11 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
   );
 
   return (
-    <div className="h-full flex flex-col" style={{ background: theme.bg }}>
+    <div className="h-full flex flex-col pb-16 md:pb-0" style={{ background: theme.bg }}>
+      {/* On mobile, hide the intro header once a conversation is open so the
+          chat gets the full screen (drill-in view). */}
       <div
-        className="px-8 py-5 shrink-0"
+        className={`px-4 md:px-8 py-4 md:py-5 shrink-0 ${isMobile && active ? "hidden" : "block"}`}
         style={{ background: theme.headerBg, borderBottom: `1px solid ${theme.divider}` }}
       >
         <h1 style={{ color: theme.text }}>Messaging</h1>
@@ -3917,14 +3921,15 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 px-8 py-6">
+      <div className="flex-1 min-h-0 px-4 md:px-8 py-4 md:py-6">
         <div
           className="h-full rounded-2xl overflow-hidden flex"
           style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
         >
-          {/* Left pane */}
+          {/* Left pane (conversation list). On mobile it takes the full width
+              and is replaced by the chat pane once a conversation is opened. */}
           <div
-            className="w-[340px] shrink-0 flex flex-col min-h-0"
+            className={`${isMobile ? (active ? "hidden" : "flex w-full") : "flex w-[340px]"} shrink-0 flex-col min-h-0`}
             style={{ borderRight: `1px solid ${theme.divider}` }}
           >
             <div className="px-5 py-4 shrink-0" style={{ borderBottom: `1px solid ${theme.divider}` }}>
@@ -3976,14 +3981,24 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
             </div>
           </div>
 
-          {/* Right pane */}
-          <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          {/* Right pane (chat). On mobile it is hidden until a conversation is
+              selected, then fills the screen with a back button to the list. */}
+          <div className={`${isMobile && !active ? "hidden" : "flex"} flex-1 flex-col min-w-0 min-h-0`}>
             {active ? (
               <>
                 <div
-                  className="px-6 py-4 flex items-center gap-3 shrink-0 relative"
+                  className="px-4 md:px-6 py-4 flex items-center gap-3 shrink-0 relative"
                   style={{ borderBottom: `1px solid ${theme.divider}` }}
                 >
+                  {isMobile && (
+                    <button
+                      onClick={() => setActive(null)}
+                      className="p-1 -ml-1 shrink-0 rounded-md hover:bg-black/5"
+                      aria-label="Back to conversations"
+                    >
+                      <ArrowLeft size={20} style={{ color: NAVY }} />
+                    </button>
+                  )}
                   <Avatar src={active.avatar} name={active.name} size={44} bg={NAVY} />
                   <div className="flex-1 min-w-0">
                     <div className="text-base" style={{ color: theme.text, fontWeight: 600 }}>
@@ -3992,7 +4007,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-3 min-h-0">
+                <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6 space-y-3 min-h-0">
                   {messages.length === 0 && (
                     <div className="text-center text-[11px]" style={{ color: theme.textSubtle }}>
                       This is the beginning of your conversation with {active.name}.
@@ -4002,7 +4017,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                     const mine = m.from === "me";
                     return (
                       <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"} gap-2`}>
-                        <div className="max-w-[60%]">
+                        <div className="max-w-[85%] md:max-w-[60%]">
                           <div
                             className="rounded-2xl px-4 py-2.5"
                             style={{
@@ -4028,7 +4043,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="px-6 py-4 shrink-0" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                <div className="px-4 md:px-6 py-4 shrink-0" style={{ borderTop: `1px solid ${theme.divider}` }}>
                   {composerLocked && (
                     <div className="mb-2 text-[11px] leading-relaxed flex items-center gap-1.5" style={{ color: theme.textSubtle }}>
                       <Lock size={11} /> You can send one message until {active.name} accepts your connection request or replies.

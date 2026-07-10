@@ -410,7 +410,7 @@ export function NotificationBell({ navigate }: { navigate?: (s: Screen) => void 
 
       {open && (
         <div 
-          className="absolute right-0 mt-2 w-80 rounded-xl shadow-xl z-50 overflow-hidden"
+          className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl shadow-xl z-50 overflow-hidden"
           style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}
         >
           <div className="p-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
@@ -456,8 +456,20 @@ function TopHeader({
   const { theme } = useTheme();
   const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { count: incomingCount } = useIncomingRequests();
   const badges = useNotificationBadges();
+
+  // Close the profile menu when clicking outside it (mirrors NotificationBell).
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const firstName = profile?.first_name || "Member";
   const lastName = profile?.last_name || "";
@@ -486,7 +498,7 @@ function TopHeader({
         />
       </div>
 
-      <nav className="flex items-center gap-1 ml-auto md:ml-0">
+      <nav className="hidden md:flex items-center gap-1 ml-auto md:ml-0">
         {TOP_NAV.map((it) => {
           const Icon = it.icon;
           const active = current === it.key;
@@ -521,7 +533,7 @@ function TopHeader({
         >
           Donate
         </button>
-        <div className="relative">
+        <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-gray-100 transition-colors"
@@ -540,7 +552,7 @@ function TopHeader({
           </button>
           {menuOpen && (
             <div
-              className="absolute right-0 top-12 w-56 rounded-xl shadow-xl overflow-hidden z-40"
+              className="absolute right-0 top-12 w-56 max-w-[calc(100vw-1rem)] rounded-xl shadow-xl overflow-hidden z-40"
               style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
             >
               <div className="px-4 py-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
@@ -553,14 +565,14 @@ function TopHeader({
                 { l: "Notifications", k: "notifications" as Screen, icon: Bell },
                 { l: "Your support requests", k: "support" as Screen, icon: LifeBuoy },
                 { l: "Privacy",   k: "privacy" as Screen,         icon: Lock },
-                ...(user?.email?.endsWith("@christiansinpolitics.com") ? [{ l: "Admin", k: "admin-overview" as Screen, icon: ShieldCheck }] : []),
-              ].map((it) => {
+                ...(user?.email?.endsWith("@christiansinpolitics.com") ? [{ l: "Admin", k: "admin-overview" as Screen, icon: ShieldCheck, desktopOnly: true }] : []),
+              ].map((it: any) => {
                 const I = it.icon;
                 return (
                   <button
                     key={it.l}
                     onClick={() => { setMenuOpen(false); navigate(it.k); }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"
+                    className={`w-full items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50 ${it.desktopOnly ? "hidden lg:flex" : "flex"}`}
                     style={{ color: theme.text }}
                   >
                     <I size={13} style={{ color: theme.textMuted }} />
@@ -581,6 +593,43 @@ function TopHeader({
         </div>
       </div>
     </header>
+  );
+}
+
+// ── Mobile bottom tab bar ─────────────────────────────────────────────────
+// Reuses the exact TOP_NAV array + navigate + normalized `current` so it stays
+// at route/badge parity with the desktop header nav. Hidden from `md` up.
+function BottomNav({ current, navigate }: { current: Screen; navigate: (s: Screen) => void }) {
+  const { count: incomingCount } = useIncomingRequests();
+  const badges = useNotificationBadges();
+  return (
+    <nav
+      className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch"
+      style={{ background: "#fff", borderTop: "1px solid #e5e7eb", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {TOP_NAV.map((it) => {
+        const Icon = it.icon;
+        const active = current === it.key;
+        const showDot =
+          (it.key === "network" && (incomingCount > 0 || badges.hasNetworkPosts)) ||
+          (it.key === "messages" && badges.unreadMessages) ||
+          (it.key === "events" && badges.hasNewEvents);
+        return (
+          <button
+            key={it.key}
+            onClick={() => navigate(it.key)}
+            className="relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
+            style={{ color: active ? NAVY : "rgba(90,79,207,0.9)", fontWeight: active ? 600 : 400 }}
+          >
+            <Icon size={20} strokeWidth={2.5} />
+            {showDot && (
+              <span className="absolute top-1.5 right-[calc(50%-16px)] w-2 h-2 rounded-full" style={{ background: NAVY }} />
+            )}
+            <span className="text-[10px]">{it.label}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -608,8 +657,10 @@ export function MemberShell({
   const prevOnboarded = useRef(profile?.onboarded);
 
   useEffect(() => {
-    // If they just transitioned from not onboarded to onboarded, run the tour
-    if (profile?.onboarded === true && prevOnboarded.current === false) {
+    // If they just transitioned from not onboarded to onboarded, run the tour.
+    // Desktop only: the tour targets (.tour-profile, .tour-nav-*) are display:none
+    // on mobile, where the nav lives in the bottom bar instead.
+    if (profile?.onboarded === true && prevOnboarded.current === false && window.innerWidth >= 768) {
       setRunTour(true);
     }
     prevOnboarded.current = profile?.onboarded;
@@ -666,8 +717,7 @@ export function MemberShell({
         ) : (
           <div className="h-full overflow-y-auto">
             <div
-              className="max-w-[1400px] mx-auto p-6 grid gap-6"
-              style={{ gridTemplateColumns: "260px minmax(0,1fr) 300px" }}
+              className="max-w-[1400px] mx-auto p-4 md:p-6 pb-24 lg:pb-6 grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_300px]"
             >
               <div className="hidden lg:block">{leftRail ?? defaultLeft}</div>
               <div className="min-w-0">{children}</div>
@@ -676,6 +726,8 @@ export function MemberShell({
           </div>
         )}
       </main>
+
+      <BottomNav current={current} navigate={navigate} />
 
       {donateOpen && <DonateModal onClose={() => setDonateOpen(false)} />}
     </div>

@@ -42,7 +42,30 @@ export function AdminShell({
     : current;
 
   return (
-    <div className="flex h-screen w-full" style={{ background: theme.bg }}>
+    <>
+      {/* Admin is desktop-only. Below lg, show a friendly notice instead of the
+          fixed-sidebar layout (which is not designed for narrow screens). */}
+      <div
+        className="flex lg:hidden h-screen w-full flex-col items-center justify-center text-center px-8 gap-4"
+        style={{ background: theme.bg }}
+      >
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "#0a1f3a" }}>
+          <ShieldCheck size={26} style={{ color: GOLD }} />
+        </div>
+        <div className="text-lg" style={{ color: theme.text, fontWeight: 700 }}>Admin is desktop-only</div>
+        <p className="text-sm max-w-xs" style={{ color: theme.textMuted }}>
+          The admin console needs a larger screen. Please open it on a desktop or laptop.
+        </p>
+        <button
+          onClick={exitAdmin}
+          className="mt-1 px-4 py-2 rounded-lg text-sm inline-flex items-center gap-1.5"
+          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+        >
+          <ArrowLeft size={14} /> Back to member view
+        </button>
+      </div>
+
+      <div className="hidden lg:flex h-screen w-full" style={{ background: theme.bg }}>
       {/* Sidebar */}
       <aside className="w-52 shrink-0 flex flex-col" style={{ background: "#0a1f3a" }}>
         <div className="px-4 py-5 mb-1">
@@ -117,7 +140,8 @@ export function AdminShell({
         </header>
         <main id="admin-scroll" className="flex-1 overflow-y-auto p-8">{children}</main>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
