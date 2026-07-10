@@ -4694,14 +4694,59 @@ function Initials({ name, src }: { name: string; src?: string | null }) {
 
 // Top-level "Network" container: hosts People / Orgs / Groups as sub-tabs.
 // Each child screen keeps its own header + controls beneath the hub tab bar.
+// ── Incoming connection requests: shared source for badges + accept ───
+export function useIncomingRequests() {
+  const { user } = useAuth();
+  const [requests, setRequests] = useState<any[]>([]);
+
+  const reload = useCallback(async () => {
+    if (!user) { setRequests([]); return; }
+    const { data } = await supabase
+      .from('network_connections')
+      .select('id, requester_id, created_at')
+      .eq('receiver_id', user.id)
+      .eq('status', 'pending');
+    if (!data || data.length === 0) { setRequests([]); return; }
+    const dir = await fetchAuthorMap(data.map((c: any) => c.requester_id));
+    setRequests(data.map((c: any) => {
+      const p = dir.get(c.requester_id);
+      return {
+        id: c.id,
+        requesterId: c.requester_id,
+        name: `${p?.first_name || 'Member'} ${p?.last_name || ''}`.trim(),
+        avatar: p?.avatar_url || null,
+        title: p?.job_title || 'Member',
+      };
+    }));
+  }, [user]);
+
+  useEffect(() => {
+    reload();
+    const iv = setInterval(reload, 20000);
+    const onFocus = () => reload();
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(iv); window.removeEventListener('focus', onFocus); };
+  }, [reload]);
+
+  const accept = useCallback(async (req: any) => {
+    const myName = `${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim();
+    const ok = await acceptConnection(req.id, req.requesterId, myName);
+    if (ok) setRequests((prev) => prev.filter((r) => r.id !== req.id));
+    return ok;
+  }, [user]);
+
+  return { requests, count: requests.length, accept, reload };
+}
+
 export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => void; initialTab?: 'people' | 'orgs' | 'groups' }) {
   const { theme } = useTheme();
   const [tab, setTab] = useState<'people' | 'orgs' | 'groups'>(initialTab ?? 'people');
+  const incoming = useIncomingRequests();
 
-  const HubTab = ({ id, label }: { id: 'people' | 'orgs' | 'groups'; label: string }) => (
+  const HubTab = ({ id, label, dot }: { id: 'people' | 'orgs' | 'groups'; label: string; dot?: boolean }) => (
     <button
       onClick={() => setTab(id)}
-      className="px-4 py-2.5 text-sm whitespace-nowrap"
+      className="px-4 py-2.5 text-sm whitespace-nowrap relative"
       style={{
         color: tab === id ? NAVY : theme.textMuted,
         fontWeight: tab === id ? 600 : 400,
@@ -4710,6 +4755,7 @@ export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => 
       }}
     >
       {label}
+      {dot && <span className="inline-block w-2 h-2 rounded-full ml-1.5 align-middle" style={{ background: NAVY }} />}
     </button>
   );
 
@@ -4717,12 +4763,32 @@ export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => 
     <div className="space-y-4">
       <Card className="p-5 pb-0">
         <div className="flex gap-1 overflow-x-auto" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-          <HubTab id="people" label="People" />
+          <HubTab id="people" label="People" dot={incoming.count > 0} />
           <HubTab id="orgs" label="Organisations" />
           <HubTab id="groups" label="Groups" />
         </div>
       </Card>
 
+      {tab === 'people' && incoming.requests.length > 0 && (
+        <div className="space-y-2">
+          {incoming.requests.map((r: any) => (
+            <Card key={r.id} className="p-4 flex items-center gap-3">
+              <Avatar src={r.avatar} name={r.name} size={40} bg={NAVY} />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{r.name}</div>
+                <div className="text-xs" style={{ color: theme.textMuted }}>wants to connect with you</div>
+              </div>
+              <button
+                onClick={() => incoming.accept(r)}
+                className="px-4 py-2 rounded-lg text-sm shrink-0"
+                style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+              >
+                Accept
+              </button>
+            </Card>
+          ))}
+        </div>
+      )}
       {tab === 'people' && <NetworkScreen navigate={navigate} />}
       {tab === 'orgs' && <OrganisationsScreen navigate={navigate} />}
       {tab === 'groups' && <GroupsScreen navigate={navigate} />}

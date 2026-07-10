@@ -9,7 +9,7 @@ import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
-import { SUPPORT_PATHWAYS, NewSupportRequestModal } from "./MemberScreens";
+import { SUPPORT_PATHWAYS, NewSupportRequestModal, useIncomingRequests } from "./MemberScreens";
 
 const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "dashboard", label: "Home",     icon: Home },
@@ -456,6 +456,7 @@ function TopHeader({
   const { theme } = useTheme();
   const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { count: incomingCount } = useIncomingRequests();
 
   const firstName = profile?.first_name || "Member";
   const lastName = profile?.last_name || "";
@@ -492,7 +493,7 @@ function TopHeader({
             <button
               key={it.key}
               onClick={() => navigate(it.key)}
-              className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-colors min-w-[64px] tour-nav-${it.key}`}
+              className={`relative flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-colors min-w-[64px] tour-nav-${it.key}`}
               style={{
                 color: active ? NAVY : "rgba(90,79,207,0.9)",
                 fontWeight: active ? 600 : 400,
@@ -501,6 +502,9 @@ function TopHeader({
               }}
             >
               <Icon size={16} strokeWidth={2.5} />
+              {it.key === "network" && incomingCount > 0 && (
+                <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full" style={{ background: NAVY }} />
+              )}
               <span className="text-[10px] mt-0.5">{it.label}</span>
             </button>
           );
