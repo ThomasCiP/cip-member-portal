@@ -8,7 +8,7 @@ import { FEDERAL_ELECTORATES, STATE_ELECTORATES } from "./electorates";
 import { useIsMobile } from "../ui/use-mobile";
 import {
   CalendarDays, Clock, MapPin, Lock, ShieldCheck, Users,
-  ChevronRight, ExternalLink, Heart, Sun, Moon, Eye, EyeOff,
+  ChevronRight, ChevronDown, ExternalLink, Heart, Sun, Moon, Eye, EyeOff,
   Pin, MessageCircle, MessageSquare, ThumbsUp, Send, MoreHorizontal, X,
   FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
   Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
@@ -1217,10 +1217,35 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
         </button>
       </div>
 
-      {/* Author */}
+      {/* Author + comment-control dropdown (who can comment on this post) */}
       <div className="px-4 pt-4 flex items-center gap-3 shrink-0">
         <Avatar src={profile?.avatar_url} name={authorName} size={40} bg={NAVY} />
-        <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{authorName}</div>
+        <div className="min-w-0">
+          <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{authorName}</div>
+          <div className="relative">
+            <button
+              onClick={() => setPolicyOpen(o => !o)}
+              className="mt-0.5 inline-flex items-center gap-1 text-xs"
+              style={{ color: theme.textMuted }}
+            >
+              <MessageCircle size={12} /> {POLICY_LABEL[commentPolicy]}
+              <ChevronDown size={12} />
+            </button>
+            {policyOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setPolicyOpen(false)} />
+                <div className="absolute left-0 top-full mt-1 w-56 rounded-xl shadow-xl z-50 overflow-hidden py-1" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}>
+                  <div className="px-3 py-2 text-[11px] uppercase tracking-wide" style={{ color: theme.textSubtle, fontWeight: 600 }}>Who can comment</div>
+                  {([["anyone", "Anyone"], ["connections", "Connections only"], ["none", "No one"]] as const).map(([val, lbl]) => (
+                    <button key={val} onClick={() => { setCommentPolicy(val); setPolicyOpen(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 flex items-center gap-2" style={{ color: commentPolicy === val ? NAVY : theme.text, fontWeight: commentPolicy === val ? 600 : 400 }}>
+                      {commentPolicy === val ? <CheckCircle2 size={14} /> : <Circle size={14} />} {lbl}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Body */}
@@ -1252,23 +1277,6 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
         <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 rounded-lg text-xs inline-flex items-center gap-1" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>
           <ImageIcon size={14} /> {uploading ? "Uploading…" : "Photo"}
         </button>
-        <div className="relative">
-          <button onClick={() => setPolicyOpen(o => !o)} className="px-3 py-1.5 rounded-lg text-xs inline-flex items-center gap-1" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>
-            <MessageCircle size={14} /> {POLICY_LABEL[commentPolicy]}
-          </button>
-          {policyOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setPolicyOpen(false)} />
-              <div className="absolute left-0 bottom-full mb-1 w-48 rounded-xl shadow-xl z-50 overflow-hidden py-1" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}>
-                {([["anyone", "Anyone"], ["connections", "Connections only"], ["none", "No one"]] as const).map(([val, lbl]) => (
-                  <button key={val} onClick={() => { setCommentPolicy(val); setPolicyOpen(false); }} className="w-full text-left px-3 py-2 text-xs hover:bg-black/5 flex items-center gap-2" style={{ color: commentPolicy === val ? NAVY : theme.text, fontWeight: commentPolicy === val ? 600 : 400 }}>
-                    {commentPolicy === val ? <CheckCircle2 size={13} /> : <Circle size={13} />} {lbl}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -1809,7 +1817,10 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
       {onboarded === false && setOnboarded && (
         <GettingStartedWidget setOnboarded={setOnboarded} />
       )}
-      <PostComposer onPost={handleCreateGlobalPost} placeholder="Share something with the whole community..." />
+      {/* Inline composer is desktop-only; on mobile you post via the bottom-bar "+". */}
+      <div className="hidden md:block">
+        <PostComposer onPost={handleCreateGlobalPost} placeholder="Share something with the whole community..." />
+      </div>
 
       {loading ? (
         <div className="p-12 text-center text-sm" style={{ color: theme.textMuted }}>
@@ -4443,7 +4454,11 @@ export function NotificationsScreen({ navigate }: { navigate: (s: Screen) => voi
             <h1 style={{ color: theme.text }}>Notifications</h1>
             <p className="text-sm mt-1" style={{ color: theme.textMuted }}>Your recent activity and email preferences.</p>
           </div>
-          {unread > 0 && <GhostButton onClick={markAllRead}>Mark all read</GhostButton>}
+          {unread > 0 && (
+            <div className="hidden md:block">
+              <GhostButton onClick={markAllRead}>Mark all read</GhostButton>
+            </div>
+          )}
         </div>
       </Card>
 
