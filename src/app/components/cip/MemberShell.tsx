@@ -9,7 +9,7 @@ import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
-import { SUPPORT_PATHWAYS, NewSupportRequestModal, useIncomingRequests, useNotificationBadges } from "./MemberScreens";
+import { SUPPORT_PATHWAYS, NewSupportRequestModal, useIncomingRequests, useNotificationBadges, ComposeOverlay } from "./MemberScreens";
 
 const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "dashboard", label: "Home",     icon: Home },
@@ -449,16 +449,16 @@ export function NotificationBell({ navigate }: { navigate?: (s: Screen) => void 
   );
 }
 
-// ── Top header ────────────────────────────────────────────────────────
-function TopHeader({
-  current, navigate, onDonate, profile
-}: { current: Screen; navigate: (s: Screen) => void; onDonate: () => void; profile: any }) {
+// ── Profile dropdown menu (avatar) ─────────────────────────────────────────
+// Extracted so it can render top-left on mobile and top-right on desktop
+// without duplicating the menu logic.
+function ProfileMenu({
+  navigate, profile, onDonate, align = "right",
+}: { navigate: (s: Screen) => void; profile: any; onDonate: () => void; align?: "left" | "right" }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { count: incomingCount } = useIncomingRequests();
-  const badges = useNotificationBadges();
 
   // Close the profile menu when clicking outside it (mirrors NotificationBell).
   useEffect(() => {
@@ -476,15 +476,104 @@ function TopHeader({
   const initials = (firstName[0] || "") + (lastName ? (lastName[0] || "") : "");
   const fullName = `${firstName} ${lastName}`.trim();
   const subtitle = [profile?.job_title, profile?.state].filter(Boolean).join(" · ") || "Member";
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-gray-100 transition-colors"
+      >
+        {profile?.avatar_url ? (
+          <img src={profile.avatar_url} alt={initials} className="w-8 h-8 rounded-full object-cover" />
+        ) : (
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs"
+            style={{ background: GOLD, color: "#fff", fontWeight: 700 }}
+          >
+            {initials}
+          </div>
+        )}
+        <ChevronDown size={12} strokeWidth={2.5} style={{ color: NAVY }} />
+      </button>
+      {menuOpen && (
+        <div
+          className={`absolute ${align === "left" ? "left-0" : "right-0"} top-12 w-56 max-w-[calc(100vw-1rem)] rounded-xl shadow-xl overflow-hidden z-40`}
+          style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+        >
+          <div className="px-4 py-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+            <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{fullName}</div>
+            <div className="text-[11px]" style={{ color: theme.textMuted }}>{subtitle}</div>
+          </div>
+          {[
+            { l: "Profile",   k: "profile" as Screen,         icon: UserCircle2 },
+            { l: "Settings",  k: "settings" as Screen,        icon: Settings },
+            { l: "Notifications", k: "notifications" as Screen, icon: Bell },
+            { l: "Your support requests", k: "support" as Screen, icon: LifeBuoy },
+            { l: "Privacy",   k: "privacy" as Screen,         icon: Lock },
+            ...(user?.email?.endsWith("@christiansinpolitics.com") ? [{ l: "Admin", k: "admin-overview" as Screen, icon: ShieldCheck, desktopOnly: true }] : []),
+          ].map((it: any) => {
+            const I = it.icon;
+            return (
+              <button
+                key={it.l}
+                onClick={() => { setMenuOpen(false); navigate(it.k); }}
+                className={`w-full items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50 ${it.desktopOnly ? "hidden lg:flex" : "flex"}`}
+                style={{ color: theme.text }}
+              >
+                <I size={13} style={{ color: theme.textMuted }} />
+                {it.l}
+              </button>
+            );
+          })}
+          {/* Donate — mobile only (desktop keeps the standalone header Donate button). */}
+          <button
+            onClick={() => { setMenuOpen(false); onDonate(); }}
+            className="w-full md:hidden flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"
+            style={{ color: theme.text }}
+          >
+            <Heart size={13} style={{ color: theme.textMuted }} />
+            Donate
+          </button>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"
+            style={{ color: theme.text, borderTop: `1px solid ${theme.divider}` }}
+          >
+            <LogOut size={13} style={{ color: theme.textMuted }} />
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Top header ────────────────────────────────────────────────────────
+// Two breakpoint-gated layouts: the desktop layout (hidden md:flex) is the
+// original header verbatim; the mobile layout (md:hidden) is LinkedIn-style —
+// profile avatar top-left, Messages top-right, no logo/bell/Donate button.
+function TopHeader({
+  current, navigate, onDonate, profile
+}: { current: Screen; navigate: (s: Screen) => void; onDonate: () => void; profile: any }) {
+  const { count: incomingCount } = useIncomingRequests();
+  const badges = useNotificationBadges();
+
   return (
     <header
-      className="h-16 px-6 flex items-center gap-4 shrink-0 sticky top-0 z-30"
+      className="h-16 px-4 md:px-6 flex items-center gap-4 shrink-0 sticky top-0 z-30"
       style={{ background: "#fff", borderBottom: `1px solid #e5e7eb` }}
     >
-      <div className="shrink-0">
+      {/* Mobile: profile avatar top-left */}
+      <div className="md:hidden">
+        <ProfileMenu navigate={navigate} profile={profile} onDonate={onDonate} align="left" />
+      </div>
+
+      {/* Desktop: CiP logo */}
+      <div className="hidden md:block shrink-0">
         <CiPLogo size={28} />
       </div>
 
+      {/* Desktop: search */}
       <div className="hidden md:block flex-1 max-w-sm relative">
         <Search size={14} strokeWidth={2.5} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: NAVY }} />
         <input
@@ -498,7 +587,8 @@ function TopHeader({
         />
       </div>
 
-      <nav className="hidden md:flex items-center gap-1 ml-auto md:ml-0">
+      {/* Desktop: nav */}
+      <nav className="hidden md:flex items-center gap-1 md:ml-0">
         {TOP_NAV.map((it) => {
           const Icon = it.icon;
           const active = current === it.key;
@@ -524,7 +614,8 @@ function TopHeader({
         })}
       </nav>
 
-      <div className="flex items-center gap-2 ml-auto">
+      {/* Desktop: right cluster (bell + Donate + avatar) */}
+      <div className="hidden md:flex items-center gap-2 ml-auto">
         <NotificationBell navigate={navigate} />
         <button
           onClick={onDonate}
@@ -533,102 +624,83 @@ function TopHeader({
         >
           Donate
         </button>
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-gray-100 transition-colors"
-          >
-            {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt={initials} className="w-8 h-8 rounded-full object-cover" />
-            ) : (
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs"
-                style={{ background: GOLD, color: "#fff", fontWeight: 700 }}
-              >
-                {initials}
-              </div>
-            )}
-            <ChevronDown size={12} strokeWidth={2.5} style={{ color: NAVY }} />
-          </button>
-          {menuOpen && (
-            <div
-              className="absolute right-0 top-12 w-56 max-w-[calc(100vw-1rem)] rounded-xl shadow-xl overflow-hidden z-40"
-              style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
-            >
-              <div className="px-4 py-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{fullName}</div>
-                <div className="text-[11px]" style={{ color: theme.textMuted }}>{subtitle}</div>
-              </div>
-              {[
-                { l: "Profile",   k: "profile" as Screen,         icon: UserCircle2 },
-                { l: "Settings",  k: "settings" as Screen,        icon: Settings },
-                { l: "Notifications", k: "notifications" as Screen, icon: Bell },
-                { l: "Your support requests", k: "support" as Screen, icon: LifeBuoy },
-                { l: "Privacy",   k: "privacy" as Screen,         icon: Lock },
-                ...(user?.email?.endsWith("@christiansinpolitics.com") ? [{ l: "Admin", k: "admin-overview" as Screen, icon: ShieldCheck, desktopOnly: true }] : []),
-              ].map((it: any) => {
-                const I = it.icon;
-                return (
-                  <button
-                    key={it.l}
-                    onClick={() => { setMenuOpen(false); navigate(it.k); }}
-                    className={`w-full items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50 ${it.desktopOnly ? "hidden lg:flex" : "flex"}`}
-                    style={{ color: theme.text }}
-                  >
-                    <I size={13} style={{ color: theme.textMuted }} />
-                    {it.l}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => supabase.auth.signOut()}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"
-                style={{ color: theme.text, borderTop: `1px solid ${theme.divider}` }}
-              >
-                <LogOut size={13} style={{ color: theme.textMuted }} />
-                Sign out
-              </button>
-            </div>
-          )}
-        </div>
+        <ProfileMenu navigate={navigate} profile={profile} onDonate={onDonate} align="right" />
       </div>
+
+      {/* Mobile: Messages top-right */}
+      <button
+        onClick={() => navigate("messages")}
+        className="md:hidden ml-auto relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+        aria-label="Messages"
+      >
+        <MessageSquare size={22} strokeWidth={2.5} style={{ color: NAVY }} />
+        {badges.unreadMessages && (
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: NAVY }} />
+        )}
+      </button>
     </header>
   );
 }
 
 // ── Mobile bottom tab bar ─────────────────────────────────────────────────
-// Reuses the exact TOP_NAV array + navigate + normalized `current` so it stays
-// at route/badge parity with the desktop header nav. Hidden from `md` up.
-function BottomNav({ current, navigate }: { current: Screen; navigate: (s: Screen) => void }) {
+// LinkedIn-style: Home · Network · + (center compose) · Events · Alerts.
+// Messages lives in the top-right header instead. Hidden from `md` up.
+const BOTTOM_NAV: { key: Screen; label: string; icon: any }[] = [
+  { key: "dashboard",     label: "Home",    icon: Home },
+  { key: "network",       label: "Network", icon: Network },
+  { key: "events",        label: "Events",  icon: CalendarDays },
+  { key: "notifications", label: "Alerts",  icon: Bell },
+];
+
+function BottomNav({ current, navigate, onCompose }: { current: Screen; navigate: (s: Screen) => void; onCompose: () => void }) {
   const { count: incomingCount } = useIncomingRequests();
   const badges = useNotificationBadges();
+
+  const dot = (key: Screen) =>
+    (key === "network" && (incomingCount > 0 || badges.hasNetworkPosts)) ||
+    (key === "events" && badges.hasNewEvents);
+
+  const tab = (it: { key: Screen; label: string; icon: any }) => {
+    const Icon = it.icon;
+    const active = current === it.key;
+    return (
+      <button
+        key={it.key}
+        onClick={() => navigate(it.key)}
+        className="relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
+        style={{ color: active ? NAVY : "rgba(90,79,207,0.9)", fontWeight: active ? 600 : 400 }}
+      >
+        <Icon size={20} strokeWidth={2.5} />
+        {dot(it.key) && (
+          <span className="absolute top-1.5 right-[calc(50%-16px)] w-2 h-2 rounded-full" style={{ background: NAVY }} />
+        )}
+        <span className="text-[10px]">{it.label}</span>
+      </button>
+    );
+  };
+
   return (
     <nav
       className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch"
       style={{ background: "#fff", borderTop: "1px solid #e5e7eb", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {TOP_NAV.map((it) => {
-        const Icon = it.icon;
-        const active = current === it.key;
-        const showDot =
-          (it.key === "network" && (incomingCount > 0 || badges.hasNetworkPosts)) ||
-          (it.key === "messages" && badges.unreadMessages) ||
-          (it.key === "events" && badges.hasNewEvents);
-        return (
-          <button
-            key={it.key}
-            onClick={() => navigate(it.key)}
-            className="relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
-            style={{ color: active ? NAVY : "rgba(90,79,207,0.9)", fontWeight: active ? 600 : 400 }}
-          >
-            <Icon size={20} strokeWidth={2.5} />
-            {showDot && (
-              <span className="absolute top-1.5 right-[calc(50%-16px)] w-2 h-2 rounded-full" style={{ background: NAVY }} />
-            )}
-            <span className="text-[10px]">{it.label}</span>
-          </button>
-        );
-      })}
+      {tab(BOTTOM_NAV[0])}
+      {tab(BOTTOM_NAV[1])}
+      {/* Center compose button */}
+      <button
+        onClick={onCompose}
+        className="flex-1 flex items-center justify-center py-1.5"
+        aria-label="Create post"
+      >
+        <span
+          className="flex items-center justify-center w-12 h-9 rounded-xl"
+          style={{ background: NAVY }}
+        >
+          <Plus size={22} strokeWidth={2.75} style={{ color: "#fff" }} />
+        </span>
+      </button>
+      {tab(BOTTOM_NAV[2])}
+      {tab(BOTTOM_NAV[3])}
     </nav>
   );
 }
@@ -641,6 +713,7 @@ export function MemberShell({
   rightRail,
   leftRail,
   fullWidth = false,
+  flushMobile = false,
 }: {
   current: Screen;
   navigate: (s: Screen) => void;
@@ -648,10 +721,12 @@ export function MemberShell({
   rightRail?: ReactNode;
   leftRail?: ReactNode;
   fullWidth?: boolean;
+  flushMobile?: boolean;
 }) {
   const { theme } = useTheme();
   const { user, profile } = useAuth();
   const [donateOpen, setDonateOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
   const [runTour, setRunTour] = useState(false);
 
   const prevOnboarded = useRef(profile?.onboarded);
@@ -717,7 +792,7 @@ export function MemberShell({
         ) : (
           <div className="h-full overflow-y-auto">
             <div
-              className="max-w-[1400px] mx-auto p-4 md:p-6 pb-24 lg:pb-6 grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_300px]"
+              className={`max-w-[1400px] mx-auto ${flushMobile ? "px-0 py-4" : "p-4"} md:p-6 pb-24 lg:pb-6 grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_300px]`}
             >
               <div className="hidden lg:block">{leftRail ?? defaultLeft}</div>
               <div className="min-w-0">{children}</div>
@@ -727,8 +802,9 @@ export function MemberShell({
         )}
       </main>
 
-      <BottomNav current={current} navigate={navigate} />
+      <BottomNav current={current} navigate={navigate} onCompose={() => setComposeOpen(true)} />
 
+      {composeOpen && <ComposeOverlay navigate={navigate} onClose={() => setComposeOpen(false)} />}
       {donateOpen && <DonateModal onClose={() => setDonateOpen(false)} />}
     </div>
   );

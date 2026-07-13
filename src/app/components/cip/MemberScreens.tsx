@@ -12,7 +12,7 @@ import {
   Pin, MessageCircle, MessageSquare, ThumbsUp, Send, MoreHorizontal, X,
   FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
   Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
-  Plus, LifeBuoy, ArrowRight, ArrowLeft, Search, Filter, Activity, ArrowUpRight,
+  Plus, LifeBuoy, ArrowRight, ArrowLeft, Search, Filter, Activity, ArrowUpRight, Bell,
   PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2, Ticket, Mail
 } from "lucide-react";
 
@@ -865,7 +865,10 @@ export function MemberPost({
   if (removed) return null;
 
   return (
-    <Card className="overflow-hidden mb-4 p-5">
+    <div
+      className="overflow-hidden p-4 md:p-5 md:border md:rounded-2xl md:mb-4"
+      style={{ background: theme.cardBg, borderColor: theme.cardBorder }}
+    >
       <div className="flex items-start gap-2 mb-2.5">
         <Avatar src={authorAvatar} name={authorName} size={32} bg={GOLD} />
         <div className="min-w-0 flex-1">
@@ -923,7 +926,7 @@ export function MemberPost({
       {report && (
         <ReportModal target={report} postType={postType} groupId={groupId} onClose={() => { setReport(null); loadCount(); }} />
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -978,7 +981,10 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
   }
 
   return (
-    <Card className="overflow-hidden mb-4">
+    <div
+      className="overflow-hidden md:border md:rounded-2xl md:mb-4"
+      style={{ background: theme.cardBg, borderColor: theme.cardBorder }}
+    >
       {item.image && (
         <div
           className="h-44 w-full"
@@ -1023,7 +1029,7 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
           </span>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -1069,7 +1075,7 @@ export function PostComposer({
   };
 
   return (
-    <div className="p-4 rounded-xl space-y-3" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}>
+    <div className="p-4 md:rounded-xl space-y-3 md:border" style={{ background: theme.cardBg, borderColor: theme.cardBorder }}>
       <div className="flex gap-3">
         <Avatar src={profile?.avatar_url} name={composerName || "U"} size={36} bg={NAVY} />
         <div className="flex-1 relative">
@@ -1139,6 +1145,129 @@ export function PostComposer({
           >
             {posting ? "Posting..." : "Post"}
           </PrimaryButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Full-screen post composer, opened from the mobile bottom-nav "+" button.
+// Reuses the same post-images upload + global_posts insert as PostComposer,
+// then signals the feed to refresh and returns Home.
+export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) => void; onClose: () => void }) {
+  const { theme } = useTheme();
+  const { user, profile } = useAuth();
+  const [content, setContent] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [commentPolicy, setCommentPolicy] = useState("anyone");
+  const [policyOpen, setPolicyOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const authorName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || "You";
+
+  const handleFile = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploading(true);
+    const ext = file.name.split(".").pop();
+    const name = `${user.id}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("post-images").upload(name, file);
+    if (error) { setUploading(false); alert("Image upload failed: " + error.message); return; }
+    const { data } = supabase.storage.from("post-images").getPublicUrl(name);
+    setImageUrl(data.publicUrl);
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const submit = async () => {
+    if (!user || (!content.trim() && !imageUrl)) return;
+    setPosting(true);
+    const { error } = await supabase.from('global_posts').insert({
+      user_id: user.id,
+      content,
+      image_url: imageUrl,
+      comment_policy: commentPolicy,
+    });
+    setPosting(false);
+    if (error) { alert("Failed to post: " + error.message); return; }
+    window.dispatchEvent(new Event('cip:feed-refresh'));
+    onClose();
+    navigate("dashboard");
+  };
+
+  const canPost = !posting && !uploading && (!!content.trim() || !!imageUrl);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: theme.bg }}>
+      {/* Top bar */}
+      <div
+        className="h-14 px-4 flex items-center justify-between shrink-0"
+        style={{ borderBottom: `1px solid ${theme.divider}`, background: theme.cardBg }}
+      >
+        <button onClick={onClose} className="text-sm px-2 py-1 rounded-md" style={{ color: theme.textMuted }}>Cancel</button>
+        <button
+          onClick={submit}
+          disabled={!canPost}
+          className="px-4 py-1.5 rounded-full text-sm disabled:opacity-50"
+          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+        >
+          {posting ? "Posting…" : "Post"}
+        </button>
+      </div>
+
+      {/* Author */}
+      <div className="px-4 pt-4 flex items-center gap-3 shrink-0">
+        <Avatar src={profile?.avatar_url} name={authorName} size={40} bg={NAVY} />
+        <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{authorName}</div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        <textarea
+          autoFocus
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Share something with the whole community…"
+          className="w-full min-h-[160px] text-base outline-none resize-none bg-transparent"
+          style={{ color: theme.text }}
+        />
+        {imageUrl && (
+          <div className="relative rounded-xl overflow-hidden mt-2" style={{ border: `1px solid ${theme.cardBorder}` }}>
+            <img src={imageUrl} alt="Attachment preview" className="w-full max-h-80 object-cover" />
+            <button onClick={() => setImageUrl(null)} className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>
+              <X size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom toolbar */}
+      <div
+        className="px-4 py-3 flex items-center gap-2 shrink-0"
+        style={{ borderTop: `1px solid ${theme.divider}`, background: theme.cardBg, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      >
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+        <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 rounded-lg text-xs inline-flex items-center gap-1" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>
+          <ImageIcon size={14} /> {uploading ? "Uploading…" : "Photo"}
+        </button>
+        <div className="relative">
+          <button onClick={() => setPolicyOpen(o => !o)} className="px-3 py-1.5 rounded-lg text-xs inline-flex items-center gap-1" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>
+            <MessageCircle size={14} /> {POLICY_LABEL[commentPolicy]}
+          </button>
+          {policyOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setPolicyOpen(false)} />
+              <div className="absolute left-0 bottom-full mb-1 w-48 rounded-xl shadow-xl z-50 overflow-hidden py-1" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}>
+                {([["anyone", "Anyone"], ["connections", "Connections only"], ["none", "No one"]] as const).map(([val, lbl]) => (
+                  <button key={val} onClick={() => { setCommentPolicy(val); setPolicyOpen(false); }} className="w-full text-left px-3 py-2 text-xs hover:bg-black/5 flex items-center gap-2" style={{ color: commentPolicy === val ? NAVY : theme.text, fontWeight: commentPolicy === val ? 600 : 400 }}>
+                    {commentPolicy === val ? <CheckCircle2 size={13} /> : <Circle size={13} />} {lbl}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1651,6 +1780,14 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
     fetchFeed();
   }, [fetchFeed]);
 
+  // Refresh when a post is created from the global "+" composer (bottom nav),
+  // which lives in the shell and can't call fetchFeed directly.
+  useEffect(() => {
+    const onRefresh = () => fetchFeed();
+    window.addEventListener('cip:feed-refresh', onRefresh);
+    return () => window.removeEventListener('cip:feed-refresh', onRefresh);
+  }, [fetchFeed]);
+
   const handleCreateGlobalPost = async (content: string, opts?: { imageUrl?: string | null; commentPolicy?: string }) => {
     if (!user) return false;
     const { error } = await supabase.from('global_posts').insert({
@@ -1668,7 +1805,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2 md:space-y-4">
       {onboarded === false && setOnboarded && (
         <GettingStartedWidget setOnboarded={setOnboarded} />
       )}
@@ -2127,10 +2264,15 @@ export function ProfileScreen() {
 // ── Groups discovery ─────────────────────────────────────────────────
 function GroupCard({ g, navigate, onJoin, hasUnread }: { g: any; navigate: (s: Screen) => void; onJoin?: (id: string) => void; hasUnread?: boolean }) {
   const { theme } = useTheme();
+  const openGroup = () => {
+    localStorage.setItem('activeGroupId', g.id);
+    localStorage.removeItem('isOrgDetail'); // ensure it opens in group (not org) mode
+    navigate("group-detail");
+  };
   return (
-    <Card className="p-4 relative">
+    <Card className="p-3 md:p-4 relative flex flex-col items-center text-center md:items-stretch md:text-left">
       {hasUnread && <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full" style={{ background: NAVY }} />}
-      <div className="flex items-start gap-3">
+      <div className="flex flex-col items-center gap-2 md:flex-row md:items-start md:gap-3 w-full">
         {g.image_url ? (
           <img src={g.image_url} alt={g.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
         ) : (
@@ -2141,14 +2283,11 @@ function GroupCard({ g, navigate, onJoin, hasUnread }: { g: any; navigate: (s: S
             {(g.name || "").split(" ").map((w: string) => w[0] || "").slice(0, 2).join("")}
           </div>
         )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-0 w-full">
+          <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
             <button
-              onClick={() => {
-                localStorage.setItem('activeGroupId', g.id);
-                navigate("group-detail");
-              }}
-              className="text-sm hover:underline text-left"
+              onClick={openGroup}
+              className="text-sm hover:underline text-center md:text-left truncate max-w-full"
               style={{ color: theme.text, fontWeight: 600 }}
             >
               {g.name}
@@ -2160,16 +2299,13 @@ function GroupCard({ g, navigate, onJoin, hasUnread }: { g: any; navigate: (s: S
               <Pill color="#d1fae5" fg="#065f46"><Eye size={10} /> Visible</Pill>
             )}
           </div>
-          <p className="text-xs mt-1 leading-relaxed" style={{ color: theme.textMuted }}>
+          <p className="hidden md:block text-xs mt-1 leading-relaxed" style={{ color: theme.textMuted }}>
             {g.desc}
           </p>
-          <div className={`flex items-start sm:items-center mt-3 ${g.joined ? "justify-between" : "justify-end"}`}>
-            {g.joined && <span className="text-xs shrink-0 mt-1 sm:mt-0" style={{ color: theme.textSubtle }}>{g.members} members</span>}
+          <div className={`flex flex-col md:flex-row items-center mt-3 gap-2 w-full ${g.joined ? "md:justify-between" : "md:justify-end"}`}>
+            {g.joined && <span className="hidden md:block text-xs shrink-0" style={{ color: theme.textSubtle }}>{g.members} members</span>}
             {g.joined ? (
-              <GhostButton onClick={() => {
-                localStorage.setItem('activeGroupId', g.id);
-                navigate("group-detail");
-              }}>Open</GhostButton>
+              <GhostButton onClick={openGroup}>Open</GhostButton>
             ) : g.allowed === false ? (
               <div className="text-[11px] flex items-start gap-1.5 max-w-full text-left" style={{ color: "#92400e", background: "#fff7ed", padding: "6px 10px", borderRadius: "6px" }}>
                 <Lock size={12} className="shrink-0 mt-0.5" /> 
@@ -2627,7 +2763,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
           </div>
           <button
             onClick={() => setCreateOpen(true)}
-            className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5 shrink-0"
+            className="hidden px-3 py-2 rounded-lg text-sm md:inline-flex items-center gap-1.5 shrink-0"
             style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
           >
             <Plus size={14} /> Create group
@@ -2659,7 +2795,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
       {loading ? (
         <Card className="p-10 text-center text-sm text-gray-500">Loading groups...</Card>
       ) : list.length > 0 ? (
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+        <div className="grid grid-cols-2 gap-3 md:[grid-template-columns:repeat(auto-fill,minmax(320px,1fr))]">
           {list.map((g) => <GroupCard key={g.id} g={g} navigate={navigate} onJoin={handleJoin} hasUnread={badges.groupIds.has(g.id)} />)}
         </div>
       ) : (
@@ -2678,7 +2814,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
           </p>
           <button
             onClick={() => setCreateOpen(true)}
-            className="mt-4 px-4 py-2 rounded-lg text-sm inline-flex items-center gap-1.5"
+            className="mt-4 hidden px-4 py-2 rounded-lg text-sm md:inline-flex items-center gap-1.5"
             style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
           >
             <Plus size={13} /> Create your first group
@@ -4230,11 +4366,23 @@ export function NotificationPreferences() {
   );
 }
 
+// LinkedIn-style relative time (now / 5m / 3h / 2d, then a date).
+function relTime(iso: string) {
+  const then = new Date(iso).getTime();
+  const s = Math.floor((Date.now() - then) / 1000);
+  if (s < 60) return "now";
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24); if (d < 7) return `${d}d`;
+  return new Date(iso).toLocaleDateString();
+}
+
 export function NotificationsScreen({ navigate }: { navigate: (s: Screen) => void }) {
-  const { theme } = useTheme();
+  const { theme, dark } = useTheme();
   const { user } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "unread">("all");
 
   useEffect(() => {
     async function load() {
@@ -4252,7 +4400,40 @@ export function NotificationsScreen({ navigate }: { navigate: (s: Screen) => voi
     await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
   };
 
+  const handleClick = async (n: any) => {
+    if (!n.read) {
+      setItems(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
+      if (!n.isAnnouncement) await supabase.from("notifications").update({ read: true }).eq("id", n.id);
+    }
+    if (n.type === "connection_invite") { localStorage.setItem("activeNetworkTab", "network"); navigate("network"); }
+    else if (n.type === "direct_message") navigate("messages");
+  };
+
+  const typeMeta = (type: string): { Icon: any; bg: string; fg: string } => {
+    switch (type) {
+      case "direct_message":    return { Icon: MessageCircle, bg: "#e0e7ff", fg: NAVY };
+      case "connection_invite": return { Icon: UserPlus,      bg: "#dcfce7", fg: "#065f46" };
+      default:                  return { Icon: Bell,          bg: theme.pillBg, fg: NAVY };
+    }
+  };
+
   const unread = items.filter(n => !n.read).length;
+  const shown = filter === "unread" ? items.filter(n => !n.read) : items;
+
+  const Chip = ({ id, label }: { id: "all" | "unread"; label: string }) => (
+    <button
+      onClick={() => setFilter(id)}
+      className="px-3 py-1 rounded-full text-xs whitespace-nowrap"
+      style={{
+        background: filter === id ? NAVY : "transparent",
+        color: filter === id ? "#fff" : theme.textMuted,
+        border: `1px solid ${filter === id ? NAVY : theme.cardBorder}`,
+        fontWeight: filter === id ? 600 : 400,
+      }}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="space-y-4">
@@ -4266,27 +4447,43 @@ export function NotificationsScreen({ navigate }: { navigate: (s: Screen) => voi
         </div>
       </Card>
 
-      <NotificationPreferences />
+      {/* Preferences are a desktop concern; on mobile keep the Alerts feed clean. */}
+      <div className="hidden md:block">
+        <NotificationPreferences />
+      </div>
 
       <Card className="p-0 overflow-hidden">
-        <div className="px-5 py-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-          <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Recent</h3>
+        <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <Chip id="all" label="All" />
+          <Chip id="unread" label={unread > 0 ? `Unread (${unread})` : "Unread"} />
         </div>
         {loading ? (
           <div className="p-6 text-sm text-center" style={{ color: theme.textMuted }}>Loading…</div>
-        ) : items.length === 0 ? (
-          <div className="p-6 text-sm text-center" style={{ color: theme.textMuted }}>No notifications yet.</div>
+        ) : shown.length === 0 ? (
+          <div className="p-6 text-sm text-center" style={{ color: theme.textMuted }}>
+            {filter === "unread" ? "You're all caught up." : "No notifications yet."}
+          </div>
         ) : (
-          items.map(n => (
-            <div key={n.id} className="px-5 py-3 flex items-start gap-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-              <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: n.read ? "transparent" : GOLD }} />
-              <div className="min-w-0">
-                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{n.title}</div>
-                <div className="text-sm" style={{ color: theme.textMuted }}>{n.message}</div>
-                <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{new Date(n.created_at).toLocaleString()}</div>
-              </div>
-            </div>
-          ))
+          shown.map(n => {
+            const { Icon, bg, fg } = typeMeta(n.type);
+            return (
+              <button
+                key={n.id}
+                onClick={() => handleClick(n)}
+                className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-black/5 transition-colors"
+                style={{ borderBottom: `1px solid ${theme.divider}`, background: n.read ? "transparent" : (dark ? "rgba(90,79,207,0.12)" : "rgba(90,79,207,0.05)") }}
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: bg }}>
+                  <Icon size={18} style={{ color: fg }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm" style={{ color: theme.text, fontWeight: n.read ? 500 : 700 }}>{n.title}</div>
+                  <div className="text-sm line-clamp-2" style={{ color: theme.textMuted }}>{n.message}</div>
+                </div>
+                <div className="text-[11px] shrink-0 whitespace-nowrap mt-0.5" style={{ color: theme.textSubtle }}>{relTime(n.created_at)}</div>
+              </button>
+            );
+          })
         )}
       </Card>
     </div>
@@ -4297,6 +4494,8 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
   const { theme, dark, toggle } = useTheme();
   const { user } = useAuth();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [createOrgOpen, setCreateOrgOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -4336,6 +4535,34 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
         </div>
       </Card>
 
+      {/* Mobile-only: creating groups/organisations lives here (moved out of the
+          Network tab on phones). */}
+      <Card className="p-5 md:hidden">
+        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Groups & organisations</h3>
+        <p className="text-xs mt-1" style={{ color: theme.textMuted }}>Start a new group or organisation in the CiP network.</p>
+        <div className="flex flex-col gap-2 mt-4">
+          <button
+            onClick={() => setCreateGroupOpen(true)}
+            className="w-full px-3 py-2 rounded-lg text-sm inline-flex items-center justify-center gap-1.5"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          >
+            <Plus size={14} /> Create a group
+          </button>
+          <button
+            onClick={() => setCreateOrgOpen(true)}
+            className="w-full px-3 py-2 rounded-lg text-sm inline-flex items-center justify-center gap-1.5"
+            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          >
+            <Plus size={14} /> Create an organisation
+          </button>
+        </div>
+      </Card>
+
+      {/* Mobile-only: message preferences. */}
+      <div className="md:hidden">
+        <MessagingSettingsCard />
+      </div>
+
       <Card className="p-5">
         <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Account</h3>
         <div className="mt-3 space-y-2 text-sm">
@@ -4373,7 +4600,67 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
           {isDeleting ? "Deleting..." : "Delete account"}
         </button>
       </Card>
+
+      {createGroupOpen && (
+        <CreateGroupModal
+          onClose={() => setCreateGroupOpen(false)}
+          onCreate={() => { setCreateGroupOpen(false); navigate("groups"); }}
+        />
+      )}
+      {createOrgOpen && (
+        <OrganisationFormModal
+          onClose={() => setCreateOrgOpen(false)}
+          onSave={() => { setCreateOrgOpen(false); navigate("organisations"); }}
+        />
+      )}
     </div>
+  );
+}
+
+// Mobile-only message preferences card, surfaced under Settings. Writes the same
+// profiles.privacy_preferences fields (allow_messages / allow_connection_requests)
+// as the Privacy screen, so there's a single source of truth.
+function MessagingSettingsCard() {
+  const { theme } = useTheme();
+  const { user, updateProfileLocally } = useAuth();
+  const [prefs, setPrefs] = useState<Record<string, boolean>>(DEFAULT_PRIVACY_PREFS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("profiles").select("privacy_preferences").eq("id", user.id).single().then(({ data }) => {
+      if (data?.privacy_preferences) setPrefs({ ...DEFAULT_PRIVACY_PREFS, ...data.privacy_preferences });
+      setLoading(false);
+    });
+  }, [user]);
+
+  const togglePref = async (key: string) => {
+    if (!user) return;
+    const updated = { ...prefs, [key]: !prefs[key] };
+    setPrefs(updated);
+    const { error } = await supabase.from("profiles").update({ privacy_preferences: updated }).eq("id", user.id);
+    if (!error) updateProfileLocally({ privacy_preferences: updated });
+  };
+
+  return (
+    <Card className="p-5">
+      <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Messaging</h3>
+      <p className="text-xs mt-1" style={{ color: theme.textMuted }}>Control who can reach you.</p>
+      {loading ? (
+        <div className="text-xs mt-3" style={{ color: theme.textSubtle }}>Loading…</div>
+      ) : (
+        <div className="space-y-3 mt-4">
+          <div className="flex items-center justify-between text-sm gap-3" style={{ color: theme.text }}>
+            <span>Allow direct messages from connections</span>
+            <PrivacyToggle on={!!prefs.allow_messages} onClick={() => togglePref("allow_messages")} label="Allow messages" />
+          </div>
+          <div className="flex items-center justify-between text-sm gap-3" style={{ color: theme.text }}>
+            <span>Allow new connection requests</span>
+            <PrivacyToggle on={!!prefs.allow_connection_requests} onClick={() => togglePref("allow_connection_requests")} label="Allow connection requests" />
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -5031,16 +5318,16 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
           {loadingDisc ? (
             <Card className="p-10 text-center"><div className="text-sm" style={{ color: theme.textMuted }}>Searching…</div></Card>
           ) : discResults.length > 0 ? (
-            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+            <div className="grid grid-cols-2 gap-3 md:[grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
               {discResults.map((m) => {
                 const name = `${m.first_name || 'Member'} ${m.last_name || ''}`.trim();
                 const isConnected = connectedIds.has(m.id);
                 const isPending = outgoingIds.has(m.id);
                 return (
-                  <Card key={m.id} className="p-5 flex flex-col h-full">
-                    <div className="flex items-start gap-3">
+                  <Card key={m.id} className="p-3 md:p-5 flex flex-col h-full items-center text-center md:items-stretch md:text-left">
+                    <div className="flex flex-col items-center gap-2 md:flex-row md:items-start md:gap-3 w-full">
                       <Initials name={name} src={m.avatar_url} />
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 w-full">
                         <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
                           <MemberNameLink userId={m.id} name={name} navigate={navigate} />
                         </div>
@@ -5048,8 +5335,8 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                         {m.state && <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{m.state}</div>}
                       </div>
                     </div>
-                    <p className="text-xs mt-3 leading-snug" style={{ color: theme.textMuted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: "2.75em" }}>{m.bio || ""}</p>
-                    <div className="mt-auto pt-4">
+                    <p className="hidden md:line-clamp-2 text-xs mt-3 leading-snug" style={{ color: theme.textMuted, minHeight: "2.75em" }}>{m.bio || ""}</p>
+                    <div className="mt-auto pt-3 md:pt-4 w-full">
                       {isConnected ? (
                         <button onClick={() => openMessage(m.id)} className="w-full px-3 py-1.5 rounded-lg text-xs inline-flex items-center justify-center gap-1.5" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
                           <Send size={11} /> Message
@@ -5126,12 +5413,12 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
           {loadingNet ? (
             <Card className="p-10 text-center"><div className="text-sm" style={{ color: theme.textMuted }}>Loading…</div></Card>
           ) : filteredConnections.length > 0 ? (
-            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+            <div className="grid grid-cols-2 gap-3 md:[grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
               {filteredConnections.map((n) => (
-                <Card key={n.id} className="p-5">
-                  <div className="flex items-start gap-3">
+                <Card key={n.id} className="p-3 md:p-5 flex flex-col h-full items-center text-center md:items-stretch md:text-left">
+                  <div className="flex flex-col items-center gap-2 md:flex-row md:items-start md:gap-3 w-full">
                     <Initials name={n.name} src={n.avatar} />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 w-full">
                       <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
                         <MemberNameLink userId={n.peerId} name={n.name} navigate={navigate} />
                       </div>
@@ -5139,10 +5426,10 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
                       {n.state && <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>{n.state}</div>}
                     </div>
                   </div>
-                  <div className="text-[11px] mt-3" style={{ color: theme.textSubtle }}>
+                  <div className="hidden md:block text-[11px] mt-3" style={{ color: theme.textSubtle }}>
                     <span style={{ color: theme.textMuted, fontWeight: 500 }}>Connected</span> · {n.since}
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-auto pt-3 md:pt-4 w-full">
                     <button
                       onClick={() => openMessage(n.peerId)}
                       className="w-full px-3 py-1.5 rounded-lg text-xs inline-flex items-center justify-center gap-1.5"
@@ -5736,7 +6023,7 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
           </div>
           <button
             onClick={() => setCreateOpen(true)}
-            className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5 shrink-0"
+            className="hidden px-3 py-2 rounded-lg text-sm md:inline-flex items-center gap-1.5 shrink-0"
             style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
           >
             <Plus size={14} /> Create organisation
@@ -5791,11 +6078,11 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
       {loading ? (
         <Card className="p-10 text-center text-sm text-gray-500">Loading organisations...</Card>
       ) : list.length > 0 ? (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+        <div className="grid grid-cols-2 gap-3 md:gap-4 md:[grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]">
           {list.map(o => (
-            <Card key={o.id} className="p-5 flex flex-col relative cursor-pointer hover:shadow-md transition-shadow" onClick={() => { localStorage.setItem("activeGroupId", o.id); localStorage.setItem("isOrgDetail", "true"); navigate("group-detail"); }}>
+            <Card key={o.id} className="p-3 md:p-5 flex flex-col relative cursor-pointer hover:shadow-md transition-shadow items-center text-center md:items-stretch md:text-left" onClick={() => { localStorage.setItem("activeGroupId", o.id); localStorage.setItem("isOrgDetail", "true"); navigate("group-detail"); }}>
               {badges.orgIds.has(o.id) && <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full" style={{ background: NAVY }} />}
-              <div className="flex items-start gap-3">
+              <div className="flex flex-col items-center gap-2 md:flex-row md:items-start md:gap-3 w-full">
                 {o.image_url ? (
                   <img src={o.image_url} alt={o.name} className="w-12 h-12 rounded-lg object-cover shrink-0" style={{ border: `1px solid ${theme.cardBorder}` }} />
                 ) : (
@@ -5803,19 +6090,19 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
                     {o.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
                   </div>
                 )}
-                <div className="flex-1 min-w-0">
-                  <div className="text-base truncate" style={{ color: theme.text, fontWeight: 600 }}>{o.name}</div>
+                <div className="flex-1 min-w-0 w-full">
+                  <div className="text-sm md:text-base truncate" style={{ color: theme.text, fontWeight: 600 }}>{o.name}</div>
                 </div>
               </div>
-              <p className="text-sm mt-3 line-clamp-2" style={{ color: theme.textMuted, flex: 1 }}>{o.desc}</p>
-              <div className="mt-4 pt-4 flex items-center justify-between" style={{ borderTop: `1px solid ${theme.divider}` }}>
-                <span className="text-xs" style={{ color: theme.textSubtle }}>Organisation</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={(e) => { e.stopPropagation(); localStorage.setItem("activeGroupId", o.id); localStorage.setItem("isOrgDetail", "true"); navigate("group-detail"); }} className="px-3 py-1.5 rounded-lg text-xs hover:underline" style={{ color: NAVY, fontWeight: 600 }}>
+              <p className="hidden md:line-clamp-2 text-sm mt-3" style={{ color: theme.textMuted, flex: 1 }}>{o.desc}</p>
+              <div className="mt-auto pt-3 md:pt-4 md:border-t w-full flex flex-col md:flex-row md:items-center md:justify-between gap-1.5" style={{ borderColor: theme.divider }}>
+                <span className="hidden md:block text-xs" style={{ color: theme.textSubtle }}>Organisation</span>
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <button onClick={(e) => { e.stopPropagation(); localStorage.setItem("activeGroupId", o.id); localStorage.setItem("isOrgDetail", "true"); navigate("group-detail"); }} className="hidden md:inline px-3 py-1.5 rounded-lg text-xs hover:underline" style={{ color: NAVY, fontWeight: 600 }}>
                     View Profile
                   </button>
                   {!o.joined && o.allowed && (
-                    <button onClick={(e) => { e.stopPropagation(); handleJoin(o.id); }} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
+                    <button onClick={(e) => { e.stopPropagation(); handleJoin(o.id); }} className="flex-1 md:flex-none px-3 py-1.5 rounded-lg text-xs" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
                       Follow
                     </button>
                   )}

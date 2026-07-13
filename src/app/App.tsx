@@ -268,6 +268,7 @@ export default function App() {
             current={normalizeMember(screen)}
             navigate={navigate}
             fullWidth={screen === "messages"}
+            flushMobile={screen === "dashboard"}
           >
             <ErrorBoundary>
               {memberContent}
