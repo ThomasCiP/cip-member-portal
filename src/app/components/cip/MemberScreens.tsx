@@ -2192,7 +2192,7 @@ export function ProfileScreen() {
             <FormField label="Political party affiliation" hint='Pick "No affiliation" if you prefer.'>
               <SelectInput value={draft.party} onChange={(v) => setDraft({ ...draft, party: v })} options={PARTIES} />
             </FormField>
-            <FormField label="Christian tradition" hint="Set during sign-up. You can refine here.">
+            <FormField label="Christian tradition" hint="Set during onboarding. You can refine here.">
               <SelectInput value={draft.tradition} onChange={(v) => setDraft({ ...draft, tradition: v })} options={TRADITIONS} />
             </FormField>
           </div>

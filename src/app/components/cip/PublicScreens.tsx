@@ -638,7 +638,11 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
           <Field label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <Field label="Mobile number (optional)" value={mobile} onChange={(e) => setMobile(e.target.value)} />
           <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          {password.length > 0 && <PasswordStrength password={password} />}
           <Field label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+          {confirmPassword.length > 0 && confirmPassword !== password && (
+            <div className="text-xs text-red-600 -mt-2">Passwords do not match.</div>
+          )}
 
           {error && <div className="text-sm text-red-600">{error}</div>}
 
@@ -714,6 +718,34 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
   );
 }
 
+// Live password strength — shown immediately as the user types so a weak
+// password is flagged on the spot rather than only when they try to continue.
+function scorePassword(pw: string): { filled: number; label: string; color: string } {
+  if (pw.length < 8) return { filled: 1, label: "Too weak — use at least 8 characters", color: "#dc2626" };
+  let score = 1;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+  if (/\d/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  const labels = ["Weak", "Fair", "Good", "Strong"];
+  const colors = ["#dc2626", "#f59e0b", "#16a34a", "#16a34a"];
+  const idx = Math.min(score - 1, 3);
+  return { filled: score, label: labels[idx], color: colors[idx] };
+}
+
+function PasswordStrength({ password }: { password: string }) {
+  const { filled, label, color } = scorePassword(password);
+  return (
+    <div className="-mt-2">
+      <div className="flex gap-1">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-1 flex-1 rounded-full" style={{ background: i < filled ? color : "#e5e7eb" }} />
+        ))}
+      </div>
+      <div className="text-xs mt-1" style={{ color }}>{label}</div>
+    </div>
+  );
+}
+
 function Field({ label, type = "text", value, onChange, required }: { label: string; type?: string; value?: string; onChange?: (e: any) => void; required?: boolean }) {
   return (
     <div>
@@ -742,25 +774,6 @@ For us and for our salvation he came down from heaven, was incarnate of the Holy
 We believe in the Holy Spirit, the Lord, the giver of life, who proceeds from the Father (and the Son), who with the Father and the Son is worshiped and glorified, who has spoken through the prophets.
 
 We believe in one holy catholic and apostolic Church. We acknowledge one baptism for the forgiveness of sins. We look for the resurrection of the dead, and the life of the world to come. Amen.`;
-
-const DENOMINATIONS = [
-  "Anglican",
-  "Baptist",
-  "Catholic",
-  "Churches of Christ",
-  "Eastern Orthodox",
-  "Oriental Orthodox (including Coptic Orthodox)",
-  "Lutheran",
-  "Pentecostal / Charismatic",
-  "Presbyterian / Reformed",
-  "Salvation Army",
-  "Seventh-day Adventist",
-  "Uniting Church",
-  "Independent / Non-denominational",
-  "Maronite Catholic",
-  "Assyrian / Chaldean",
-  "Other recognised Christian tradition",
-];
 
 export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [affirm, setAffirm] = useState(false);
@@ -894,27 +907,7 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
           </span>
         </label>
 
-        {/* Denomination dropdown */}
-        <div className="mt-5">
-          <label className="text-xs block mb-1.5" style={{ color: NAVY, fontWeight: 500 }}>
-            Christian tradition or church family <span className="text-gray-400 font-normal">(optional)</span>
-          </label>
-          <div className="relative">
-            <select
-              className="w-full px-3 py-2.5 rounded-lg outline-none text-sm appearance-none"
-              style={{ border: "1px solid #d1d5db", background: "#fff", color: "#374151" }}
-            >
-              <option value="">Select your tradition…</option>
-              {DENOMINATIONS.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
-          </div>
-          <p className="text-xs text-gray-400 mt-1">
-            This is optional and is used only to provide better tailored support.
-          </p>
-        </div>
+        {/* Christian tradition is collected later, during post-verification onboarding. */}
 
         {error && <div className="mt-4 text-red-600 text-sm">{error}</div>}
 

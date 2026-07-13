@@ -4,7 +4,6 @@ import {
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
   Network, Activity, LogOut, ArrowUpRight, Plus, LifeBuoy
 } from "lucide-react";
-import { Joyride, Step } from "react-joyride";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
@@ -596,7 +595,7 @@ function TopHeader({
             <button
               key={it.key}
               onClick={() => navigate(it.key)}
-              className={`relative flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-colors min-w-[64px] tour-nav-${it.key}`}
+              className="relative flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-colors min-w-[64px]"
               style={{
                 color: active ? NAVY : "rgba(90,79,207,0.9)",
                 fontWeight: active ? 600 : 400,
@@ -727,39 +726,10 @@ export function MemberShell({
   const { user, profile } = useAuth();
   const [donateOpen, setDonateOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [runTour, setRunTour] = useState(false);
-
-  const prevOnboarded = useRef(profile?.onboarded);
-
-  useEffect(() => {
-    // If they just transitioned from not onboarded to onboarded, run the tour.
-    // Desktop only: the tour targets (.tour-profile, .tour-nav-*) are display:none
-    // on mobile, where the nav lives in the bottom bar instead.
-    if (profile?.onboarded === true && prevOnboarded.current === false && window.innerWidth >= 768) {
-      setRunTour(true);
-    }
-    prevOnboarded.current = profile?.onboarded;
-  }, [profile?.onboarded]);
-
-  const tourSteps: Step[] = [
-    { target: ".tour-profile", content: "This is your profile card. Keep your details up to date to help others connect with you.", placement: "right", disableBeacon: true },
-    { target: ".tour-nav-home", content: "Your Home feed is where you'll see updates from your groups.", placement: "right" },
-    { target: ".tour-nav-network", content: "Find and connect with people, organisations, and groups — all under Network.", placement: "right" },
-    { target: ".tour-nav-events", content: "Stay updated on upcoming briefings, forums, and prayer meetings.", placement: "right" }
-  ];
-
-  const handleJoyrideCallback = (data: any) => {
-    const { status } = data;
-    if (status === "finished" || status === "skipped") {
-      setRunTour(false);
-    }
-  };
 
   const defaultLeft = (
     <div className="space-y-4">
-      <div className="tour-profile">
-        <ProfileSummaryCard navigate={navigate} profile={profile} />
-      </div>
+      <ProfileSummaryCard navigate={navigate} profile={profile} />
       <DonateRail onDonate={() => setDonateOpen(true)} />
     </div>
   );
@@ -773,17 +743,6 @@ export function MemberShell({
 
   return (
     <div className="flex flex-col h-screen w-full" style={{ background: theme.bg }}>
-      <Joyride
-        steps={tourSteps}
-        run={runTour}
-        continuous
-        showProgress
-        showSkipButton
-        callback={handleJoyrideCallback}
-        styles={{
-          options: { primaryColor: NAVY, textColor: theme.text, backgroundColor: theme.cardBg, overlayColor: 'rgba(0, 0, 0, 0.6)' }
-        }}
-      />
       <TopHeader current={current} navigate={navigate} onDonate={() => setDonateOpen(true)} profile={profile} />
 
       <main className="flex-1 overflow-hidden">
