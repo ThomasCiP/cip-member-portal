@@ -4,8 +4,10 @@ import { useAuth } from "./AuthContext";
 import { Screen } from "./types";
 import { NAVY, GOLD, useTheme } from "./brand";
 import { AutocompleteInput } from "./AutocompleteInput";
+import { MentionText, MentionTextarea, notifyMentions } from "./mentions";
 import { FEDERAL_ELECTORATES, STATE_ELECTORATES } from "./electorates";
 import { useIsMobile } from "../ui/use-mobile";
+import { openExternal } from "../../../lib/native";
 import {
   CalendarDays, Clock, MapPin, Lock, ShieldCheck, Users,
   ChevronRight, ChevronDown, ExternalLink, Heart, Sun, Moon, Eye, EyeOff,
@@ -13,7 +15,7 @@ import {
   FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
   Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
   Plus, LifeBuoy, ArrowRight, ArrowLeft, Search, Filter, Activity, ArrowUpRight, Bell,
-  PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2, Ticket, Mail
+  PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2, Ticket, Mail, AtSign
 } from "lucide-react";
 
 // ── Peer profile lookups ───────────────────────────────────────────────
@@ -349,8 +351,8 @@ function AutoGrowTextarea({
 
 // ── Text clamped to N lines with a "…more"/"…less" toggle ─────────────
 function ClampText({
-  text, lines = 2, className, style,
-}: { text: string; lines?: number; className?: string; style?: CSSProperties }) {
+  text, lines = 2, className, style, navigate,
+}: { text: string; lines?: number; className?: string; style?: CSSProperties; navigate?: (s: Screen) => void }) {
   const ref = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
@@ -364,7 +366,9 @@ function ClampText({
   };
   return (
     <>
-      <p ref={ref} className={className} style={{ ...style, ...clampStyle }}>{text}</p>
+      <p ref={ref} className={className} style={{ ...style, ...clampStyle }}>
+        {navigate ? <MentionText text={text} navigate={navigate} /> : text}
+      </p>
       {(overflowing || expanded) && (
         <button type="button" onClick={() => setExpanded((e) => !e)}
           className="text-xs mt-0.5" style={{ color: NAVY, fontWeight: 600, cursor: "pointer" }}>
@@ -405,8 +409,8 @@ function PostContent({ table, postId, body, isMine, onChanged, textColor }: {
   if (editing) {
     return (
       <div className="mt-2 space-y-2">
-        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4}
-          className="w-full px-3 py-2 rounded-lg text-sm border outline-none resize-y"
+        <MentionTextarea initialValue={draft} onContentChange={setDraft} minHeight={90}
+          className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
           style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
         <div className="flex gap-2">
           <PrimaryButton onClick={save} disabled={busy || !draft.trim()}>{busy ? "Saving…" : "Save"}</PrimaryButton>
@@ -418,7 +422,7 @@ function PostContent({ table, postId, body, isMine, onChanged, textColor }: {
 
   return (
     <>
-      <p className="text-sm mt-2 leading-relaxed whitespace-pre-wrap" style={{ color: textColor }}>{body}</p>
+      <p className="text-sm mt-2 leading-relaxed whitespace-pre-wrap" style={{ color: textColor }}><MentionText text={body} /></p>
       {isMine && (
         <div className="flex gap-2 mt-2">
           <GhostButton onClick={() => { setDraft(body); setEditing(true); }}>Edit</GhostButton>
@@ -550,8 +554,8 @@ function CommentItem({ c, canModerate, navigate, onReport, onChanged }: {
           </div>
           {editing ? (
             <div className="mt-1 space-y-2">
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2}
-                className="w-full px-2 py-1 rounded-lg text-sm border outline-none resize-y"
+              <MentionTextarea initialValue={draft} onContentChange={setDraft} minHeight={48}
+                className="w-full px-2 py-1 rounded-lg text-sm border outline-none"
                 style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
               <div className="flex gap-2">
                 <PrimaryButton onClick={save} disabled={busy || !draft.trim()}>{busy ? "Saving…" : "Save"}</PrimaryButton>
@@ -559,7 +563,7 @@ function CommentItem({ c, canModerate, navigate, onReport, onChanged }: {
               </div>
             </div>
           ) : (
-            <ClampText text={c.content} className="text-sm mt-0.5 whitespace-pre-wrap" style={{ color: theme.textMuted }} />
+            <ClampText text={c.content} navigate={navigate} className="text-sm mt-0.5 whitespace-pre-wrap" style={{ color: theme.textMuted }} />
           )}
         </div>
         {!editing && (
@@ -581,9 +585,10 @@ function CommentSection({ postType, postId, authorId, groupId, commentPolicy, ca
   onReport: (t: { type: "comment"; id: string }) => void; onChanged?: () => void;
 }) {
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [comments, setComments] = useState<any[]>([]);
   const [text, setText] = useState("");
+  const [composerKey, setComposerKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [allowed, setAllowed] = useState(false);
 
@@ -622,7 +627,15 @@ function CommentSection({ postType, postId, authorId, groupId, commentPolicy, ca
     setBusy(false);
     if (error) { alert("Could not post comment: " + error.message); return; }
     setText("");
+    setComposerKey((k) => k + 1);
     reload();
+    // Notify tagged individuals (in-app + email) and members of tagged groups/orgs.
+    const actorName = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "Someone";
+    notifyMentions({
+      content: body,
+      actor: { id: user.id, name: actorName },
+      context: { postType, postId, commentId: data?.id, surface: "comment", groupId: groupId ?? null },
+    });
     // Fire-and-forget AI moderation; never blocks the user or surfaces errors.
     supabase.functions.invoke("moderate-comment", {
       body: { commentId: data?.id, postType, postId, authorId, groupId: groupId ?? null, content: body },
@@ -639,14 +652,17 @@ function CommentSection({ postType, postId, authorId, groupId, commentPolicy, ca
         </div>
       ) : allowed ? (
         <div className="flex gap-2 items-end">
-          <AutoGrowTextarea
-            value={text} onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); add(); } }}
-            placeholder="Add a comment…"
-            minHeight={38}
-            className="flex-1 px-3 py-2 rounded-2xl text-sm outline-none"
-            style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-          />
+          <div className="flex-1">
+            <MentionTextarea
+              resetSignal={composerKey}
+              onContentChange={setText}
+              onSubmit={add}
+              placeholder="Add a comment…"
+              minHeight={38}
+              className="w-full px-3 py-2 rounded-2xl text-sm outline-none"
+              style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+            />
+          </div>
           <button onClick={add} disabled={busy || !text.trim()}
             className="px-3 rounded-full text-xs flex items-center"
             style={{ background: NAVY, color: "#fff", fontWeight: 600, opacity: busy || !text.trim() ? 0.6 : 1 }}>
@@ -888,8 +904,8 @@ export function MemberPost({
 
       {editing ? (
         <div className="mt-1 space-y-2">
-          <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4}
-            className="w-full px-3 py-2 rounded-lg text-sm border outline-none resize-y"
+          <MentionTextarea initialValue={draft} onContentChange={setDraft} minHeight={90}
+            className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
             style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
           <div className="flex gap-2">
             <PrimaryButton onClick={saveEdit} disabled={busy || !draft.trim()}>{busy ? "Saving…" : "Save"}</PrimaryButton>
@@ -897,7 +913,7 @@ export function MemberPost({
           </div>
         </div>
       ) : (
-        <ClampText text={text} className="text-sm mt-1 leading-relaxed whitespace-pre-wrap" style={{ color: dark ? theme.textMuted : "#1a1a1a" }} />
+        <ClampText text={text} navigate={navigate} className="text-sm mt-1 leading-relaxed whitespace-pre-wrap" style={{ color: dark ? theme.textMuted : "#1a1a1a" }} />
       )}
 
       {imageUrl && !editing && (
@@ -1054,6 +1070,7 @@ export function PostComposer({
   const [uploading, setUploading] = useState(false);
   const [commentPolicy, setCommentPolicy] = useState("anyone");
   const [policyOpen, setPolicyOpen] = useState(false);
+  const [composerKey, setComposerKey] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const composerName = `${profile?.first_name || user?.user_metadata?.first_name || ''} ${profile?.last_name || user?.user_metadata?.last_name || ''}`.trim();
@@ -1082,10 +1099,10 @@ export function PostComposer({
           {disabled && (
             <div className="absolute inset-0 z-10 cursor-pointer" onClick={disabledClickAction} />
           )}
-          <AutoGrowTextarea
+          <MentionTextarea
             placeholder={placeholder}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
+            resetSignal={composerKey}
+            onContentChange={setContent}
             disabled={disabled || posting}
             className="w-full px-4 py-2.5 rounded-2xl text-sm outline-none"
             style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
@@ -1139,7 +1156,7 @@ export function PostComposer({
               setPosting(true);
               const ok = await onPost(content, { imageUrl, commentPolicy });
               // Keep the draft if the post failed so the user doesn't lose it.
-              if (ok !== false) { setContent(""); setImageUrl(null); }
+              if (ok !== false) { setContent(""); setImageUrl(null); setComposerKey((k) => k + 1); }
               setPosting(false);
             }}
           >
@@ -1184,14 +1201,19 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
   const submit = async () => {
     if (!user || (!content.trim() && !imageUrl)) return;
     setPosting(true);
-    const { error } = await supabase.from('global_posts').insert({
+    const { data, error } = await supabase.from('global_posts').insert({
       user_id: user.id,
       content,
       image_url: imageUrl,
       comment_policy: commentPolicy,
-    });
+    }).select("id").single();
     setPosting(false);
     if (error) { alert("Failed to post: " + error.message); return; }
+    notifyMentions({
+      content,
+      actor: { id: user.id, name: authorName },
+      context: { postType: "global", postId: data?.id, surface: "post" },
+    });
     window.dispatchEvent(new Event('cip:feed-refresh'));
     onClose();
     navigate("dashboard");
@@ -1250,12 +1272,12 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
-        <textarea
+        <MentionTextarea
           autoFocus
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onContentChange={setContent}
           placeholder="Share something with the whole community…"
-          className="w-full min-h-[160px] text-base outline-none resize-none bg-transparent"
+          minHeight={160}
+          className="w-full text-base outline-none resize-none bg-transparent"
           style={{ color: theme.text }}
         />
         {imageUrl && (
@@ -1798,16 +1820,18 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
 
   const handleCreateGlobalPost = async (content: string, opts?: { imageUrl?: string | null; commentPolicy?: string }) => {
     if (!user) return false;
-    const { error } = await supabase.from('global_posts').insert({
+    const { data, error } = await supabase.from('global_posts').insert({
       user_id: user.id,
       content,
       image_url: opts?.imageUrl ?? null,
       comment_policy: opts?.commentPolicy ?? 'anyone',
-    });
+    }).select("id").single();
     if (error) {
       console.error("Failed to create post:", error);
       return false;
     }
+    const actorName = `${user.user_metadata?.first_name || ""} ${user.user_metadata?.last_name || ""}`.trim() || "Someone";
+    notifyMentions({ content, actor: { id: user.id, name: actorName }, context: { postType: "global", postId: data?.id, surface: "post" } });
     await fetchFeed();
     return true;
   };
@@ -3190,14 +3214,16 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
             <PostComposer
               onPost={async (content, opts) => {
                 if (!group || !user) return false;
-                const { error } = await supabase.from('group_posts').insert({
+                const { data, error } = await supabase.from('group_posts').insert({
                   group_id: group.id,
                   user_id: user.id,
                   content,
                   image_url: opts?.imageUrl ?? null,
                   comment_policy: opts?.commentPolicy ?? 'anyone',
-                });
+                }).select("id").single();
                 if (error) return false;
+                const actorName = `${user.user_metadata?.first_name || ""} ${user.user_metadata?.last_name || ""}`.trim() || "Someone";
+                notifyMentions({ content, actor: { id: user.id, name: actorName }, context: { postType: "group", postId: data?.id, surface: "post", groupId: group.id } });
                 await refreshGroupPosts();
                 return true;
               }}
@@ -3862,7 +3888,7 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
           <div className="flex items-center gap-2 mt-5 flex-wrap">
             <EventRegisterButton eventId={event.id} event={{ title: event.title, date: event.date }} initialRegistered={registered} size="lg" />
             {event.registration_url && (
-              <GhostButton onClick={() => window.open(event.registration_url.startsWith('http') ? event.registration_url : `https://${event.registration_url}`, '_blank')}>
+              <GhostButton onClick={() => openExternal(event.registration_url.startsWith('http') ? event.registration_url : `https://${event.registration_url}`)}>
                 {event.ticketed ? 'Tickets' : 'External registration'}
               </GhostButton>
             )}
@@ -4286,6 +4312,7 @@ const NOTIFICATION_PREF_KEYS = [
   { key: "group_activity", label: "Group activity in groups I've joined" },
   { key: "connection_requests", label: "New connection requests" },
   { key: "direct_messages", label: "Direct messages" },
+  { key: "mentions", label: "When someone tags me" },
   { key: "donation_reminders", label: "Donation reminders" },
 ] as const;
 
@@ -4296,6 +4323,7 @@ const DEFAULT_NOTIFICATION_PREFS: Record<string, boolean> = {
   group_activity: true,
   connection_requests: true,
   direct_messages: true,
+  mentions: true,
   donation_reminders: false,
 };
 
@@ -4418,12 +4446,22 @@ export function NotificationsScreen({ navigate }: { navigate: (s: Screen) => voi
     }
     if (n.type === "connection_invite") { localStorage.setItem("activeNetworkTab", "network"); navigate("network"); }
     else if (n.type === "direct_message") navigate("messages");
+    else if (n.type === "mention" || n.type === "group_mention") {
+      const d = n.data || {};
+      if (d.post_type === "group" && d.group_id) {
+        localStorage.setItem("activeGroupId", d.group_id);
+        localStorage.removeItem("isOrgDetail");
+        navigate("group-detail");
+      } else navigate("dashboard");
+    }
   };
 
   const typeMeta = (type: string): { Icon: any; bg: string; fg: string } => {
     switch (type) {
       case "direct_message":    return { Icon: MessageCircle, bg: "#e0e7ff", fg: NAVY };
       case "connection_invite": return { Icon: UserPlus,      bg: "#dcfce7", fg: "#065f46" };
+      case "mention":
+      case "group_mention":     return { Icon: AtSign,        bg: "#ede9fe", fg: "#7c3aed" };
       default:                  return { Icon: Bell,          bg: theme.pillBg, fg: NAVY };
     }
   };
