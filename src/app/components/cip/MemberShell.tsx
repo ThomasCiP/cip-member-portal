@@ -390,6 +390,14 @@ export function NotificationBell({ navigate }: { navigate?: (s: Screen) => void 
       localStorage.setItem('activeNetworkTab', 'network');
       setOpen(false);
       navigate('network');
+    } else if ((n.type === 'mention' || n.type === 'group_mention') && navigate) {
+      const d = n.data || {};
+      setOpen(false);
+      if (d.post_type === 'group' && d.group_id) {
+        localStorage.setItem('activeGroupId', d.group_id);
+        localStorage.removeItem('isOrgDetail');
+        navigate('group-detail');
+      } else navigate('dashboard');
     }
   };
   return (
@@ -559,8 +567,8 @@ function TopHeader({
 
   return (
     <header
-      className="h-16 px-4 md:px-6 flex items-center gap-4 shrink-0 sticky top-0 z-30"
-      style={{ background: "#fff", borderBottom: `1px solid #e5e7eb` }}
+      className="min-h-16 px-4 md:px-6 flex items-center gap-4 shrink-0 sticky top-0 z-30"
+      style={{ background: "#fff", borderBottom: `1px solid #e5e7eb`, paddingTop: "env(safe-area-inset-top)" }}
     >
       {/* Mobile: profile avatar top-left */}
       <div className="md:hidden">
