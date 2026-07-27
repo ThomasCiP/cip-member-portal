@@ -174,6 +174,14 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // On native, a password-reset deep link is handled in lib/native (it can't
+  // rely on the URL being present at load), which dispatches this event.
+  useEffect(() => {
+    const onRecovery = () => replace("update-password");
+    window.addEventListener("cip:password-recovery", onRecovery);
+    return () => window.removeEventListener("cip:password-recovery", onRecovery);
+  }, [replace]);
+
   useEffect(() => {
     if (loading) return;
     // Suspended/deleted users must never reach the member area — not even by

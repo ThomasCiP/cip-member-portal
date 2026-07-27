@@ -7,7 +7,7 @@ import { AutocompleteInput } from "./AutocompleteInput";
 import { MentionText, MentionTextarea, notifyMentions } from "./mentions";
 import { FEDERAL_ELECTORATES, STATE_ELECTORATES } from "./electorates";
 import { useIsMobile } from "../ui/use-mobile";
-import { openExternal } from "../../../lib/native";
+import { openExternal, pickImageFile, pickDocumentFile } from "../../../lib/native";
 import {
   CalendarDays, Clock, MapPin, Lock, ShieldCheck, Users,
   ChevronRight, ChevronDown, ExternalLink, Heart, Sun, Moon, Eye, EyeOff,
@@ -15,7 +15,8 @@ import {
   FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
   Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
   Plus, LifeBuoy, ArrowRight, ArrowLeft, Search, Filter, Activity, ArrowUpRight, Bell,
-  PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2, Ticket, Mail, AtSign
+  PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2, Ticket, Mail, AtSign,
+  BarChart3, Download
 } from "lucide-react";
 
 // ── Peer profile lookups ───────────────────────────────────────────────
@@ -822,13 +823,14 @@ function PostMenu({ isMine, canModerate, onEdit, onDelete, onRemove, onReport, p
 // ── Unified member post (feed + group), LinkedIn-style ─────────────────
 export function MemberPost({
   postType, postId, authorId, authorName, authorAvatar, subtitle, body, imageUrl, commentPolicy,
-  groupId, canModerate, navigate, onChanged, footer,
+  groupId, canModerate, navigate, onChanged, footer, documentUrl, documentName, poll,
 }: {
   postType: "global" | "group"; postId: string; authorId?: string; authorName: string;
   authorAvatar?: string | null;
   subtitle: string; body: string; imageUrl?: string | null; commentPolicy?: string;
   groupId?: string | null; canModerate?: boolean; navigate: (s: Screen) => void;
   onChanged?: () => void; footer?: ReactNode;
+  documentUrl?: string | null; documentName?: string | null; poll?: any | null;
 }) {
   const { theme, dark } = useTheme();
   const { user } = useAuth();
@@ -922,6 +924,10 @@ export function MemberPost({
         </div>
       )}
 
+      {poll && !editing && <PollCard poll={poll} />}
+
+      {documentUrl && !editing && <PostDocument url={documentUrl} name={documentName} />}
+
       <div className="flex items-center gap-1 mt-3 pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
         <ReactionBar postType={postType} postId={postId} />
         <button onClick={() => setShowComments((s) => !s)}
@@ -964,6 +970,9 @@ function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Scre
         subtitle={isGlobal ? `Community Post · ${item.date}` : `Posted in ${item.groupName} · ${item.date}`}
         body={item.body}
         imageUrl={item.image_url}
+        documentUrl={item.document_url}
+        documentName={item.document_name}
+        poll={item.poll}
         commentPolicy={item.comment_policy}
         groupId={isGlobal ? null : item.groupId}
         canModerate={isAdmin}
@@ -1120,8 +1129,7 @@ export function PostComposer({
       )}
 
       <div className="flex items-center gap-2 pt-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-        <GhostButton onClick={disabled ? disabledClickAction : () => fileRef.current?.click()}>
+        <GhostButton onClick={disabled ? disabledClickAction : async () => { const f = await pickImageFile(); if (f) handleFile({ target: { files: [f] } } as any); }}>
           <ImageIcon size={12} className="inline sm:mr-1" /> <span className="hidden sm:inline">{uploading ? "Uploading…" : "Image"}</span>
         </GhostButton>
 
@@ -1168,6 +1176,211 @@ export function PostComposer({
   );
 }
 
+// ── Compose attachments: polls & documents ────────────────────────────────
+
+// On phones the software keyboard covers the bottom of a `fixed inset-0`
+// overlay, hiding its toolbar. visualViewport reports the *visible* area, so
+// sizing the overlay to it keeps the toolbar sitting just above the keyboard
+// (works in both the native WebView and mobile browsers). Falls back to full
+// height where visualViewport isn't available.
+function useViewportHeight(): number | undefined {
+  const [height, setHeight] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const update = () => setHeight(vv.height);
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
+  return height;
+}
+
+const POLL_DURATIONS: { label: string; days: number }[] = [
+  { label: "1 day", days: 1 },
+  { label: "3 days", days: 3 },
+  { label: "1 week", days: 7 },
+  { label: "2 weeks", days: 14 },
+];
+
+export type DraftPoll = { question: string; options: string[]; days: number };
+
+// Poll builder — question + 2–4 options + how long it runs.
+function PollComposerModal({ initial, onClose, onSave }: {
+  initial?: DraftPoll | null; onClose: () => void; onSave: (p: DraftPoll) => void;
+}) {
+  const { theme } = useTheme();
+  const [question, setQuestion] = useState(initial?.question || "");
+  const [options, setOptions] = useState<string[]>(initial?.options?.length ? initial.options : ["", ""]);
+  const [days, setDays] = useState(initial?.days ?? 7);
+
+  const setOption = (i: number, v: string) => setOptions(o => o.map((x, idx) => (idx === i ? v : x)));
+  const filled = options.map(o => o.trim()).filter(Boolean);
+  const canSave = question.trim().length > 2 && filled.length >= 2;
+
+  const inputStyle = { border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text } as const;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto" style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }} onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <h3 style={{ color: theme.text, fontWeight: 600 }}>Create a poll</h3>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-black/5"><X size={16} style={{ color: theme.textMuted }} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs block mb-1" style={{ color: theme.textMuted, fontWeight: 600 }}>Your question*</label>
+            <input value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={140}
+              placeholder="e.g. What should we focus on next?"
+              className="w-full px-3 py-2 rounded-lg outline-none text-sm" style={inputStyle} />
+          </div>
+          {options.map((opt, i) => (
+            <div key={i}>
+              <label className="text-xs block mb-1" style={{ color: theme.textMuted, fontWeight: 600 }}>
+                Option {i + 1}{i < 2 ? "*" : ""}
+              </label>
+              <div className="flex items-center gap-2">
+                <input value={opt} onChange={(e) => setOption(i, e.target.value)} maxLength={60}
+                  placeholder={`Option ${i + 1}`}
+                  className="flex-1 px-3 py-2 rounded-lg outline-none text-sm" style={inputStyle} />
+                {options.length > 2 && (
+                  <button onClick={() => setOptions(o => o.filter((_, idx) => idx !== i))}
+                    className="p-2 rounded-lg hover:bg-black/5" aria-label={`Remove option ${i + 1}`}>
+                    <Trash2 size={14} style={{ color: theme.textMuted }} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          {options.length < 4 && (
+            <button onClick={() => setOptions(o => [...o, ""])}
+              className="text-xs inline-flex items-center gap-1" style={{ color: NAVY, fontWeight: 600 }}>
+              <Plus size={13} /> Add option
+            </button>
+          )}
+          <div>
+            <label className="text-xs block mb-1" style={{ color: theme.textMuted, fontWeight: 600 }}>Poll duration</label>
+            <select value={days} onChange={(e) => setDays(parseInt(e.target.value, 10))}
+              className="w-full px-3 py-2 rounded-lg outline-none text-sm" style={inputStyle}>
+              {POLL_DURATIONS.map(d => <option key={d.days} value={d.days}>{d.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="px-5 py-4 flex justify-end gap-2" style={{ borderTop: `1px solid ${theme.divider}` }}>
+          <GhostButton onClick={onClose}>Cancel</GhostButton>
+          <button onClick={() => onSave({ question: question.trim(), options: filled, days })} disabled={!canSave}
+            className="px-4 py-2 rounded-lg text-sm disabled:opacity-50" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function pollClosed(endsAt?: string | null) {
+  return !!endsAt && new Date(endsAt).getTime() < Date.now();
+}
+
+// Poll shown on a feed post. One vote per member (enforced by a unique index on
+// poll_votes); results reveal once you've voted or the poll has closed.
+function PollCard({ poll }: { poll: any }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const options: string[] = Array.isArray(poll?.options) ? poll.options : [];
+  const [votes, setVotes] = useState<{ option_index: number; user_id: string }[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    const { data } = await supabase.from("poll_votes").select("option_index, user_id").eq("poll_id", poll.id);
+    setVotes(data || []);
+    setLoaded(true);
+  }, [poll?.id]);
+
+  useEffect(() => { if (poll?.id) load(); }, [poll?.id, load]);
+
+  const myVote = votes.find(v => v.user_id === user?.id)?.option_index;
+  const closed = pollClosed(poll?.ends_at);
+  const showResults = myVote !== undefined || closed;
+  const total = votes.length;
+
+  const vote = async (index: number) => {
+    if (!user || myVote !== undefined || closed || busy) return;
+    setBusy(true);
+    // Optimistic: reflect the vote immediately, then reconcile with the server.
+    setVotes(v => [...v, { option_index: index, user_id: user.id }]);
+    const { error } = await supabase.from("poll_votes").insert({ poll_id: poll.id, user_id: user.id, option_index: index });
+    if (error) await load();
+    setBusy(false);
+  };
+
+  const endsLabel = closed
+    ? "Final results"
+    : poll?.ends_at
+      ? `Closes ${new Date(poll.ends_at).toLocaleDateString()}`
+      : "";
+
+  return (
+    <div className="mt-3 rounded-xl p-3" style={{ border: `1px solid ${theme.cardBorder}`, background: theme.bg }}>
+      <div className="text-sm mb-2" style={{ color: theme.text, fontWeight: 600 }}>{poll?.question}</div>
+      <div className="space-y-2">
+        {options.map((opt, i) => {
+          const count = votes.filter(v => v.option_index === i).length;
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+          const mine = myVote === i;
+          if (!showResults) {
+            return (
+              <button key={i} onClick={() => vote(i)} disabled={busy}
+                className="w-full text-left px-3 py-2 rounded-full text-sm transition-colors hover:bg-black/5 disabled:opacity-60"
+                style={{ border: `1px solid ${NAVY}`, color: NAVY, fontWeight: 600 }}>
+                {opt}
+              </button>
+            );
+          }
+          return (
+            <div key={i} className="relative rounded-lg overflow-hidden" style={{ border: `1px solid ${mine ? NAVY : theme.cardBorder}` }}>
+              <div className="absolute inset-y-0 left-0" style={{ width: `${pct}%`, background: mine ? "rgba(90,79,207,0.18)" : "rgba(0,0,0,0.05)" }} />
+              <div className="relative flex items-center justify-between px-3 py-2 text-sm">
+                <span className="inline-flex items-center gap-1.5" style={{ color: theme.text, fontWeight: mine ? 600 : 400 }}>
+                  {mine && <CheckCircle2 size={13} style={{ color: NAVY }} />}{opt}
+                </span>
+                <span style={{ color: theme.textMuted, fontWeight: 600 }}>{pct}%</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 text-[11px]" style={{ color: theme.textSubtle }}>
+        {loaded ? `${total} vote${total === 1 ? "" : "s"}` : "…"}{endsLabel ? ` · ${endsLabel}` : ""}
+      </div>
+    </div>
+  );
+}
+
+// Document attached to a post — opens in the in-app browser on device.
+function PostDocument({ url, name }: { url: string; name?: string | null }) {
+  const { theme } = useTheme();
+  return (
+    <button onClick={() => openExternal(url)}
+      className="mt-3 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-black/5 transition-colors"
+      style={{ border: `1px solid ${theme.cardBorder}`, background: theme.bg }}>
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(90,79,207,0.1)" }}>
+        <FileText size={16} style={{ color: NAVY }} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{name || "Attachment"}</div>
+        <div className="text-[11px]" style={{ color: theme.textMuted }}>Tap to open</div>
+      </div>
+      <Download size={15} style={{ color: theme.textMuted }} />
+    </button>
+  );
+}
+
 // Full-screen post composer, opened from the mobile bottom-nav "+" button.
 // Reuses the same post-images upload + global_posts insert as PostComposer,
 // then signals the feed to refresh and returns Home.
@@ -1181,6 +1394,14 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
   const [commentPolicy, setCommentPolicy] = useState("anyone");
   const [policyOpen, setPolicyOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Attachments: a document and/or a poll can ride along with the post.
+  const [doc, setDoc] = useState<{ url: string; name: string } | null>(null);
+  const [poll, setPoll] = useState<DraftPoll | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);   // the "+" add-to-post sheet
+  const [pollOpen, setPollOpen] = useState(false);
+  const [eventOpen, setEventOpen] = useState(false);
+  const viewportHeight = useViewportHeight();
 
   const authorName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || "You";
 
@@ -1198,14 +1419,45 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
     if (fileRef.current) fileRef.current.value = "";
   };
 
+  const handleDocument = async () => {
+    const file = await pickDocumentFile();
+    if (!file || !user) return;
+    setUploading(true);
+    const safe = file.name.replace(/[^\w.\-]+/g, "_");
+    const path = `${user.id}-${Date.now()}-${safe}`;
+    const { error } = await supabase.storage.from("post-documents").upload(path, file);
+    if (error) { setUploading(false); alert("Document upload failed: " + error.message); return; }
+    const { data } = supabase.storage.from("post-documents").getPublicUrl(path);
+    setDoc({ url: data.publicUrl, name: file.name });
+    setUploading(false);
+  };
+
   const submit = async () => {
-    if (!user || (!content.trim() && !imageUrl)) return;
+    if (!user || (!content.trim() && !imageUrl && !doc && !poll)) return;
     setPosting(true);
+
+    // A poll lives in its own table; create it first so the post can point at it.
+    let pollId: string | null = null;
+    if (poll) {
+      const endsAt = new Date(Date.now() + poll.days * 86400000).toISOString();
+      const { data: created, error: pollError } = await supabase.from("post_polls").insert({
+        question: poll.question,
+        options: poll.options,
+        created_by: user.id,
+        ends_at: endsAt,
+      }).select("id").single();
+      if (pollError) { setPosting(false); alert("Failed to create poll: " + pollError.message); return; }
+      pollId = created?.id ?? null;
+    }
+
     const { data, error } = await supabase.from('global_posts').insert({
       user_id: user.id,
       content,
       image_url: imageUrl,
       comment_policy: commentPolicy,
+      document_url: doc?.url ?? null,
+      document_name: doc?.name ?? null,
+      poll_id: pollId,
     }).select("id").single();
     setPosting(false);
     if (error) { alert("Failed to post: " + error.message); return; }
@@ -1219,14 +1471,21 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
     navigate("dashboard");
   };
 
-  const canPost = !posting && !uploading && (!!content.trim() || !!imageUrl);
+  const canPost = !posting && !uploading && (!!content.trim() || !!imageUrl || !!doc || !!poll);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: theme.bg }}>
-      {/* Top bar */}
+    // The outer layer always covers the whole screen so nothing behind the
+    // composer shows through; the inner panel is sized to the *visible*
+    // viewport so the toolbar sits above the keyboard rather than behind it.
+    <div className="fixed inset-0 z-50" style={{ background: theme.bg }}>
+    <div
+      className="flex flex-col"
+      style={{ height: viewportHeight ? `${viewportHeight}px` : "100%" }}
+    >
+      {/* Top bar (pads for the status bar / notch on native) */}
       <div
-        className="h-14 px-4 flex items-center justify-between shrink-0"
-        style={{ borderBottom: `1px solid ${theme.divider}`, background: theme.cardBg }}
+        className="min-h-14 px-4 flex items-center justify-between shrink-0"
+        style={{ borderBottom: `1px solid ${theme.divider}`, background: theme.cardBg, paddingTop: "env(safe-area-inset-top)" }}
       >
         <button onClick={onClose} className="text-sm px-2 py-1 rounded-md" style={{ color: theme.textMuted }}>Cancel</button>
         <button
@@ -1288,17 +1547,146 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
             </button>
           </div>
         )}
+
+        {doc && (
+          <div className="relative mt-2 flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${theme.cardBorder}` }}>
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(90,79,207,0.1)" }}>
+              <FileText size={16} style={{ color: NAVY }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{doc.name}</div>
+              <div className="text-[11px]" style={{ color: theme.textMuted }}>Attached document</div>
+            </div>
+            <button onClick={() => setDoc(null)} className="p-1.5 rounded-full hover:bg-black/5" aria-label="Remove document">
+              <X size={14} style={{ color: theme.textMuted }} />
+            </button>
+          </div>
+        )}
+
+        {poll && (
+          <div className="relative mt-2 px-3 py-3 rounded-xl" style={{ border: `1px solid ${theme.cardBorder}` }}>
+            <div className="flex items-start gap-2">
+              <BarChart3 size={15} style={{ color: NAVY }} className="mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{poll.question}</div>
+                <div className="mt-1 space-y-1">
+                  {poll.options.map((o, i) => (
+                    <div key={i} className="text-xs px-2 py-1 rounded-md" style={{ background: theme.bg, color: theme.textMuted }}>{o}</div>
+                  ))}
+                </div>
+                <div className="mt-1.5 text-[11px]" style={{ color: theme.textSubtle }}>
+                  Runs for {POLL_DURATIONS.find(d => d.days === poll.days)?.label || `${poll.days} days`}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => setPollOpen(true)} className="p-1.5 rounded-full hover:bg-black/5" aria-label="Edit poll">
+                  <Pencil size={13} style={{ color: theme.textMuted }} />
+                </button>
+                <button onClick={() => setPoll(null)} className="p-1.5 rounded-full hover:bg-black/5" aria-label="Remove poll">
+                  <X size={14} style={{ color: theme.textMuted }} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Bottom toolbar */}
+      {/* Bottom toolbar — media · event · add more (LinkedIn-style) */}
       <div
-        className="px-4 py-3 flex items-center gap-2 shrink-0"
-        style={{ borderTop: `1px solid ${theme.divider}`, background: theme.cardBg, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+        className="px-4 py-2.5 flex items-center gap-1 shrink-0"
+        style={{ borderTop: `1px solid ${theme.divider}`, background: theme.cardBg, paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}
       >
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-        <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 rounded-lg text-xs inline-flex items-center gap-1" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>
-          <ImageIcon size={14} /> {uploading ? "Uploading…" : "Photo"}
+        <button
+          onClick={async () => { const f = await pickImageFile(); if (f) handleFile({ target: { files: [f] } } as any); }}
+          disabled={uploading}
+          className="p-2.5 rounded-lg hover:bg-black/5 disabled:opacity-50" aria-label="Add a photo" title="Photo"
+        >
+          <ImageIcon size={20} style={{ color: theme.textMuted }} />
         </button>
+        <button
+          onClick={() => setEventOpen(true)}
+          className="p-2.5 rounded-lg hover:bg-black/5" aria-label="Create an event" title="Event"
+        >
+          <CalendarDays size={20} style={{ color: theme.textMuted }} />
+        </button>
+        <button
+          onClick={() => setSheetOpen(true)}
+          className="p-2.5 rounded-lg hover:bg-black/5" aria-label="Add to your post" title="Add to your post"
+        >
+          <Plus size={20} style={{ color: theme.textMuted }} />
+        </button>
+        {uploading && <span className="ml-1 text-xs" style={{ color: theme.textMuted }}>Uploading…</span>}
+      </div>
+
+      {/* "+" sheet — everything you can attach to a post */}
+      {sheetOpen && (
+        <AddToPostSheet
+          onClose={() => setSheetOpen(false)}
+          onMedia={async () => { setSheetOpen(false); const f = await pickImageFile(); if (f) handleFile({ target: { files: [f] } } as any); }}
+          onEvent={() => { setSheetOpen(false); setEventOpen(true); }}
+          onDocument={() => { setSheetOpen(false); handleDocument(); }}
+          onPoll={() => { setSheetOpen(false); setPollOpen(true); }}
+        />
+      )}
+
+      {pollOpen && (
+        <PollComposerModal
+          initial={poll}
+          onClose={() => setPollOpen(false)}
+          onSave={(p) => { setPoll(p); setPollOpen(false); }}
+        />
+      )}
+
+      {/* Events are first-class records, so this reuses the existing event
+          form — it creates the event and auto-publishes its own feed post. */}
+      {eventOpen && (
+        <EventFormModal
+          onClose={() => setEventOpen(false)}
+          onSave={() => {
+            setEventOpen(false);
+            window.dispatchEvent(new Event('cip:feed-refresh'));
+            onClose();
+            navigate("dashboard");
+          }}
+        />
+      )}
+    </div>
+    </div>
+  );
+}
+
+// Bottom sheet listing what can be added to a post (mirrors LinkedIn's "+").
+function AddToPostSheet({ onClose, onMedia, onEvent, onDocument, onPoll }: {
+  onClose: () => void; onMedia: () => void; onEvent: () => void; onDocument: () => void; onPoll: () => void;
+}) {
+  const { theme } = useTheme();
+  const items: { key: string; label: string; icon: any; onClick: () => void }[] = [
+    { key: "media", label: "Media", icon: ImageIcon, onClick: onMedia },
+    { key: "event", label: "Event", icon: CalendarDays, onClick: onEvent },
+    { key: "document", label: "Document", icon: FileText, onClick: onDocument },
+    { key: "poll", label: "Poll", icon: BarChart3, onClick: onPoll },
+  ];
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
+      <div
+        className="rounded-t-2xl px-6 pt-5"
+        style={{ background: theme.cardBg, paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Add to your post</div>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-black/5"><X size={16} style={{ color: theme.textMuted }} /></button>
+        </div>
+        <div className="grid grid-cols-3 gap-y-5 pb-2">
+          {items.map(({ key, label, icon: Icon, onClick }) => (
+            <button key={key} onClick={onClick} className="flex flex-col items-center gap-2">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}>
+                <Icon size={22} style={{ color: theme.text }} />
+              </div>
+              <span className="text-xs" style={{ color: theme.text }}>{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1718,7 +2106,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
       let groupPosts: any[] = [];
       if (myGroupIds.length > 0) {
         const { data: posts } = await supabase.from('group_posts')
-          .select('*, groups(name, id, group_type), events(id, title, date)')
+          .select('*, groups(name, id, group_type), events(id, title, date), post_polls(*)')
           .in('group_id', myGroupIds)
           .is('removed_at', null)
           .order('created_at', { ascending: false })
@@ -1727,7 +2115,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
       }
 
       const { data: globalPostsData } = await supabase.from('global_posts')
-        .select('*, events(id, title, date)')
+        .select('*, events(id, title, date), post_polls(*)')
         .is('removed_at', null)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -1773,6 +2161,9 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         authorId: p.user_id,
         body: p.content,
         image_url: p.image_url,
+        document_url: p.document_url,
+        document_name: p.document_name,
+        poll: p.post_polls || null,
         comment_policy: p.comment_policy,
         eventId: p.event_id || null,
         event: p.events || null,
@@ -1790,6 +2181,9 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         authorId: p.user_id,
         body: p.content,
         image_url: p.image_url,
+        document_url: p.document_url,
+        document_name: p.document_name,
+        poll: p.post_polls || null,
         comment_policy: p.comment_policy,
         eventId: p.event_id || null,
         event: p.events || null,
@@ -2184,10 +2578,9 @@ export function ProfileScreen() {
                   <div className="w-16 h-16 rounded-full flex items-center justify-center text-white" style={{ background: NAVY }}>{initials}</div>
                 )}
                 <div>
-                  <input type="file" accept="image/*" id="avatarUpload" className="hidden" onChange={uploadAvatar} disabled={loading} />
-                  <label htmlFor="avatarUpload" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                  <button type="button" disabled={loading} onClick={async () => { const f = await pickImageFile(); if (f) uploadAvatar({ target: { files: [f] } } as any); }} className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block disabled:opacity-50" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
                     {loading ? "Uploading..." : "Upload new image"}
-                  </label>
+                  </button>
                 </div>
               </div>
             </div>
@@ -2449,10 +2842,9 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
                     </div>
                   )}
                   <div>
-                    <input type="file" accept="image/*" id="groupImageUpload" className="hidden" onChange={uploadImage} disabled={uploadingImage} />
-                    <label htmlFor="groupImageUpload" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                    <button type="button" disabled={uploadingImage} onClick={async () => { const f = await pickImageFile(); if (f) uploadImage({ target: { files: [f] } } as any); }} className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block disabled:opacity-50" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
                       {uploadingImage ? "Uploading..." : "Upload image"}
-                    </label>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2934,7 +3326,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const refreshGroupPosts = async () => {
     if (!group) return;
     const { data } = await supabase.from('group_posts')
-      .select('*, events(id, title, date)')
+      .select('*, events(id, title, date), post_polls(*)')
       .eq('group_id', group.id)
       .is('removed_at', null)
       .order('created_at', { ascending: false });
@@ -2964,7 +3356,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       }
       
       const { data: postsData } = await supabase.from('group_posts')
-        .select('*, events(id, title, date)')
+        .select('*, events(id, title, date), post_polls(*)')
         .eq('group_id', groupId)
         .is('removed_at', null)
         .order('created_at', { ascending: false });
@@ -3245,6 +3637,9 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                   subtitle={new Date(post.created_at).toLocaleDateString()}
                   body={post.content}
                   imageUrl={post.image_url}
+                  documentUrl={post.document_url}
+                  documentName={post.document_name}
+                  poll={post.post_polls || null}
                   commentPolicy={post.comment_policy}
                   groupId={group.id}
                   canModerate={isAdmin || group.created_by === user?.id}
@@ -3574,10 +3969,9 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
                 </div>
               )}
               <div className="flex items-center gap-2">
-                <input type="file" accept="image/*" id="eventImageUpload" className="hidden" onChange={uploadImage} disabled={uploading} />
-                <label htmlFor="eventImageUpload" className="cursor-pointer px-3 py-2 text-sm rounded-lg border inline-block" style={{ borderColor: theme.cardBorder, color: theme.text }}>
+                <button type="button" disabled={uploading} onClick={async () => { const f = await pickImageFile(); if (f) uploadImage({ target: { files: [f] } } as any); }} className="cursor-pointer px-3 py-2 text-sm rounded-lg border inline-block disabled:opacity-50" style={{ borderColor: theme.cardBorder, color: theme.text }}>
                   {uploading ? "Uploading…" : imageUrl ? "Replace image" : "Upload image"}
-                </label>
+                </button>
                 {imageUrl && !uploading && (
                   <button onClick={() => setImageUrl("")} className="text-xs" style={{ color: theme.textMuted }}>Remove</button>
                 )}
@@ -4226,8 +4620,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                     className="flex items-end gap-2 rounded-2xl px-3 py-2"
                     style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, opacity: composerLocked ? 0.6 : 1 }}
                   >
-                    <textarea
-                      rows={1}
+                    <AutoGrowTextarea
                       value={composerText}
                       disabled={composerLocked}
                       onChange={(e) => setComposerText(e.target.value)}
@@ -4238,8 +4631,10 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                          }
                       }}
                       placeholder={composerLocked ? "Waiting for a reply or connection…" : "Write a message…"}
-                      className="flex-1 px-2 py-1.5 text-sm outline-none resize-none bg-transparent disabled:cursor-not-allowed"
-                      style={{ color: theme.text, minHeight: 32, maxHeight: 120 }}
+                      minHeight={32}
+                      maxHeight={160}
+                      className="flex-1 px-2 py-1.5 text-sm outline-none bg-transparent disabled:cursor-not-allowed"
+                      style={{ color: theme.text }}
                     />
                     <button
                       onClick={handleSend}
@@ -5854,10 +6249,9 @@ function OrganisationFormModal({ onClose, onSave, initialData }: { onClose: () =
                 </div>
               )}
               <div>
-                <input type="file" accept="image/*" id="orgImageUpload" className="hidden" onChange={uploadImage} disabled={uploadingImage} />
-                <label htmlFor="orgImageUpload" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                <button type="button" disabled={uploadingImage} onClick={async () => { const f = await pickImageFile(); if (f) uploadImage({ target: { files: [f] } } as any); }} className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block disabled:opacity-50" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
                   {uploadingImage ? "Uploading..." : "Upload logo"}
-                </label>
+                </button>
               </div>
             </div>
           </div>

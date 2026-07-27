@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Launcher label only; keep it short or the launcher truncates it.
+         The Play listing name is set separately in Play Console. -->
+    <string name="app_name">CiP Network</string>
+    <string name="title_activity_main">CiP Network</string>
+    <string name="package_name">com.christiansinpolitics.memberportal</string>
+    <string name="custom_url_scheme">com.christiansinpolitics.memberportal</string>
+</resources>

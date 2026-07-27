@@ -1,3 +1,15 @@
 .vercel
 node_modules
 dist
+.env
+
+# Android signing — the real keystore lives in ~/.cip-mobile-signing (outside the
+# repo). These are belt-and-braces in case one is ever copied in here.
+*.jks
+*.keystore
+keystore.properties
+
+# Release build output
+*.aab
+*.ipa
+*.xcarchive

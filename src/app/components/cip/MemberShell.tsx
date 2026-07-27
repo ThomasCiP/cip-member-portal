@@ -410,7 +410,7 @@ export function NotificationBell({ navigate }: { navigate?: (s: Screen) => void 
         {unreadCount > 0 && (
           <span
             className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
-            style={{ background: GOLD }}
+            style={{ background: "#ef4444" }}
           />
         )}
       </button>
@@ -434,7 +434,7 @@ export function NotificationBell({ navigate }: { navigate?: (s: Screen) => void 
                 >
                   <div className="flex gap-2">
                     <div className="mt-0.5">
-                      {n.read ? null : <div className="w-2 h-2 rounded-full mt-1.5" style={{ background: GOLD }} />}
+                      {n.read ? null : <div className="w-2 h-2 rounded-full mt-1.5" style={{ background: "#ef4444" }} />}
                     </div>
                     <div>
                       <div className="text-sm" style={{ color: theme.text, fontWeight: n.read ? 400 : 600 }}>{n.title}</div>
@@ -613,7 +613,7 @@ function TopHeader({
             >
               <Icon size={16} strokeWidth={2.5} />
               {((it.key === "network" && (incomingCount > 0 || badges.hasNetworkPosts)) || (it.key === "messages" && badges.unreadMessages) || (it.key === "events" && badges.hasNewEvents)) && (
-                <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full" style={{ background: NAVY }} />
+                <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
               )}
               <span className="text-[10px] mt-0.5">{it.label}</span>
             </button>
@@ -642,7 +642,7 @@ function TopHeader({
       >
         <MessageSquare size={22} strokeWidth={2.5} style={{ color: NAVY }} />
         {badges.unreadMessages && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: NAVY }} />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
         )}
       </button>
     </header>
@@ -679,7 +679,7 @@ function BottomNav({ current, navigate, onCompose }: { current: Screen; navigate
       >
         <Icon size={20} strokeWidth={2.5} />
         {dot(it.key) && (
-          <span className="absolute top-1.5 right-[calc(50%-16px)] w-2 h-2 rounded-full" style={{ background: NAVY }} />
+          <span className="absolute top-1.5 right-[calc(50%-16px)] w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
         )}
         <span className="text-[10px]">{it.label}</span>
       </button>

@@ -1,5 +1,6 @@
 import { ReactNode, useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
+import { pickImageFile } from "../../../lib/native";
 import {
   LayoutDashboard, Users, LifeBuoy, CalendarDays, FileText, Lock,
   Settings, Bell, Search, Plus, Edit3, Eye, TrendingUp, ChevronDown,
@@ -1174,10 +1175,9 @@ export function AdminEvents() {
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <input type="file" accept="image/*" id="adminEventImage" className="hidden" onChange={uploadImage} disabled={uploading} />
-                  <label htmlFor="adminEventImage" className="cursor-pointer px-3 py-1.5 text-xs rounded-lg border inline-block" style={{ borderColor: theme.cardBorder, color: theme.text }}>
+                  <button type="button" disabled={uploading} onClick={async () => { const f = await pickImageFile(); if (f) uploadImage({ target: { files: [f] } } as any); }} className="cursor-pointer px-3 py-1.5 text-xs rounded-lg border inline-block disabled:opacity-50" style={{ borderColor: theme.cardBorder, color: theme.text }}>
                     {uploading ? "Uploading…" : imageUrl ? "Replace" : "Upload image"}
-                  </label>
+                  </button>
                   {imageUrl && !uploading && <button onClick={() => setImageUrl("")} className="text-xs" style={{ color: theme.textMuted }}>Remove</button>}
                 </div>
               </div>
@@ -1831,10 +1831,9 @@ export function AdminGroups() {
                   </div>
                 )}
                 <div>
-                  <input type="file" accept="image/*" id="adminGroupImageUpload" className="hidden" onChange={uploadImage} disabled={uploadingImage} />
-                  <label htmlFor="adminGroupImageUpload" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                  <button type="button" disabled={uploadingImage} onClick={async () => { const f = await pickImageFile(); if (f) uploadImage({ target: { files: [f] } } as any); }} className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block disabled:opacity-50" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
                     {uploadingImage ? "Uploading..." : "Upload image"}
-                  </label>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1948,10 +1947,9 @@ export function AdminGroups() {
                   </div>
                 )}
                 <div>
-                  <input type="file" accept="image/*" id="adminGroupImageUploadEdit" className="hidden" onChange={uploadEditImage} disabled={uploadingImage} />
-                  <label htmlFor="adminGroupImageUploadEdit" className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                  <button type="button" disabled={uploadingImage} onClick={async () => { const f = await pickImageFile(); if (f) uploadEditImage({ target: { files: [f] } } as any); }} className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block disabled:opacity-50" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
                     {uploadingImage ? "Uploading..." : "Upload image"}
-                  </label>
+                  </button>
                 </div>
               </div>
             </div>

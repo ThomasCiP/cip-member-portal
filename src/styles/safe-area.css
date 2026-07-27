@@ -1,0 +1,35 @@
+/*
+ * Native safe-area insets (iOS notch / status bar, Android nav bar), exposed by
+ * Capacitor when the WebView is edge-to-edge (`viewport-fit=cover` is set in
+ * index.html). On the web these `env()` values are 0, so every rule below is a
+ * no-op in the browser — zero regression there.
+ *
+ * The mobile bottom tab bar already pads for `safe-area-inset-bottom` inline
+ * (MemberShell TopHeader/bottom nav), and the member header pads for
+ * `safe-area-inset-top` inline. These helpers cover the remaining full-screen
+ * surfaces (auth / onboarding) that have no sticky header of their own.
+ *
+ * Fine-tune on a real device — the exact inset behaviour depends on the OS
+ * version and Capacitor's edge-to-edge handling.
+ */
+
+/* Stop iOS WKWebView from auto-inflating text — a common cause of content
+ * looking oversized / running off the screen on device but fine in the browser. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.cip-safe-top {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+.cip-safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+/* Convenience: pad both ends for a standalone full-screen surface. */
+.cip-safe-area {
+  padding-top: max(env(safe-area-inset-top), 0px);
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}

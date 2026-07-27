@@ -3,6 +3,7 @@ import { App } from "@capacitor/app";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { Browser } from "@capacitor/browser";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { supabase } from "../supabase";
 
 /**
@@ -100,4 +101,72 @@ export async function openExternal(url: string) {
   } else {
     window.open(url, "_blank", "noopener,noreferrer");
   }
+}
+
+/**
+ * Pick an image and return it as a File, ready to hand to the existing
+ * supabase.storage upload code. On native it opens the OS prompt (Take Photo /
+ * Choose from Library) via @capacitor/camera; on web it falls back to a normal
+ * file picker. Returns null if the user cancels or denies permission.
+ *
+ * Replaces the `<input type="file" accept="image/*">` + button/label pattern.
+ * Upload handlers accept either this File or the old change-event, so both the
+ * native and web paths work unchanged downstream.
+ */
+export async function pickImageFile(): Promise<File | null> {
+  if (isNative) {
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 80,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Prompt, // user chooses camera or photo library
+        promptLabelHeader: "Add a photo",
+        promptLabelPhoto: "Choose from Library",
+        promptLabelPicture: "Take Photo",
+      });
+      if (!photo?.webPath) return null;
+      const res = await fetch(photo.webPath);
+      const blob = await res.blob();
+      const format = photo.format || "jpeg";
+      return new File([blob], `photo.${format}`, { type: blob.type || `image/${format}` });
+    } catch {
+      // User cancelled the prompt or denied permission.
+      return null;
+    }
+  }
+
+  // Web: mirror the old hidden <input type="file"> behaviour.
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.addEventListener("cancel", () => resolve(null));
+    input.click();
+  });
+}
+
+/** File types accepted as post attachments (matches the post-documents bucket). */
+export const DOCUMENT_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv," +
+  "application/pdf,application/msword,text/plain,text/csv," +
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document," +
+  "application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet," +
+  "application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+/**
+ * Pick a document (PDF, Word, Excel, PowerPoint, text/CSV) to attach to a post.
+ * A file input is the right tool on every platform here — both iOS WKWebView and
+ * the Android WebView surface the native Files picker for it, so no extra plugin
+ * is needed. Returns null if the user cancels.
+ */
+export function pickDocumentFile(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = DOCUMENT_ACCEPT;
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.addEventListener("cancel", () => resolve(null));
+    input.click();
+  });
 }

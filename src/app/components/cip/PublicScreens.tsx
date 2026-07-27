@@ -339,7 +339,7 @@ function PublicFrame({
   navigate?: (s: Screen) => void;
 }) {
   return (
-    <div className="min-h-screen w-full bg-white flex flex-col">
+    <div className="min-h-screen w-full bg-white flex flex-col cip-safe-top cip-safe-bottom">
       <header
         className="px-8 py-4 flex items-center justify-between shrink-0"
         style={{ borderBottom: "1px solid #e5e7eb" }}

@@ -1,19 +1,26 @@
 {
   "name": "cip-member-portal",
   "private": true,
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "build": "vite build",
     "dev": "vite",
     "mobile:sync": "vite build && cap sync",
     "mobile:ios": "vite build && cap sync ios && cap open ios",
-    "mobile:android": "vite build && cap sync android && cap open android"
+    "mobile:android": "vite build && cap sync android && cap open android",
+    "mobile:run:ios": "bash scripts/run-ios.sh",
+    "mobile:run:android": "bash scripts/run-android.sh",
+    "mobile:assets": "bash scripts/gen-assets.sh",
+    "release:ios": "bash scripts/release-ios.sh",
+    "release:android": "bash scripts/release-android.sh",
+    "setup:ios-signing": "bash scripts/setup-ios-signing.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/browser": "^8.0.4",
+    "@capacitor/camera": "^8.2.1",
     "@capacitor/core": "^8.4.2",
     "@capacitor/ios": "^8.4.2",
     "@capacitor/splash-screen": "^8.0.2",
