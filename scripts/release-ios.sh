@@ -73,6 +73,10 @@ xcodebuild -project ios/App/App.xcodeproj \
 # the Capacitor Swift packages, which fail with "does not support provisioning
 # profiles".
 
+# With manual signing the export step needs signingStyle + an explicit
+# bundle-id -> profile mapping. Without provisioningProfiles it fails with
+# `"App.app" requires a provisioning profile.` even though the archive is
+# already correctly signed.
 cat > "$BUILD_DIR/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -80,6 +84,13 @@ cat > "$BUILD_DIR/ExportOptions.plist" <<EOF
 <dict>
   <key>method</key><string>app-store-connect</string>
   <key>teamID</key><string>$ASC_TEAM_ID</string>
+  <key>signingStyle</key><string>manual</string>
+  <key>signingCertificate</key><string>Apple Distribution</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>com.christiansinpolitics.memberportal</key>
+    <string>$PROFILE_NAME</string>
+  </dict>
   <key>uploadSymbols</key><true/>
   <key>destination</key><string>upload</string>
 </dict>

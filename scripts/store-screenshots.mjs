@@ -19,7 +19,12 @@ const SRC = '/Users/thomasmynott/Documents/CiP Platform/Mobile Rendering Photos'
 // Ordered as they'll appear in the listing — the first one carries the most
 // weight, so lead with the feed rather than a form.
 const SHOTS = [
-  { file: 'IMG_1308.jpg', lines: ['One feed for the', 'whole network'] },
+  // The lead screenshot carries the brand triad rather than a feature caption —
+  // the app name and subtitle already say what the app is. Set one value per
+  // line: the "·" separators don't survive wrapping at this size, and breaking
+  // mid-phrase ("Relational · Celebrating / Disagreement · Faithful,") reads
+  // badly. Three clean lines keep every word and the rhythm.
+  { file: 'IMG_1308.jpg', lines: ['Relational', 'Celebrating Disagreement', 'Faithful, Not Fearful'] },
   { file: 'IMG_1307.jpg', lines: ['Groups for your party,', 'electorate or tradition'] },
   { file: 'IMG_1306.jpg', lines: ['Follow the ministries', 'shaping public life'] },
   // Caption avoids repeating "Create an event", which is already the modal's
@@ -91,13 +96,18 @@ for (const [i, shot] of SHOTS.entries()) {
     .png()
     .toBuffer();
 
+  // Lift the block for longer captions so a 3-line one doesn't crowd the phone.
+  const LINE_H = 108;
+  const startY = 268 - (shot.lines.length - 2) * 40;
+  const ruleY = startY + shot.lines.length * LINE_H - 30;
+
   const caption = Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
        <g font-family="Helvetica Neue, Helvetica, Arial" font-weight="700" fill="${CREAM}"
           font-size="86" text-anchor="middle" letter-spacing="-1">
-         ${shot.lines.map((l, n) => `<text x="${W / 2}" y="${268 + n * 108}">${l}</text>`).join('')}
+         ${shot.lines.map((l, n) => `<text x="${W / 2}" y="${startY + n * LINE_H}">${l}</text>`).join('')}
        </g>
-       <rect x="${W / 2 - 60}" y="${268 + shot.lines.length * 108 - 30}" width="120" height="7" rx="3.5" fill="${GOLD}"/>
+       <rect x="${W / 2 - 60}" y="${ruleY}" width="120" height="7" rx="3.5" fill="${GOLD}"/>
      </svg>`
   );
 
