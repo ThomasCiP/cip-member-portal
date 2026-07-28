@@ -562,6 +562,10 @@ export function SignInScreen({ navigate }: { navigate: (s: Screen) => void }) {
 // ── Account creation screen ─────────────────────────────────────────
 export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [agreed, setAgreed] = useState(false);
+  // Self-declared 16+ gate. The Terms of Use set a 16-year minimum, so sign-up
+  // has to at least ask. This is an attestation, not verification — we don't
+  // collect a date of birth or check it against anything.
+  const [ageOk, setAgeOk] = useState(false);
   const [modal, setModal] = useState<ModalType>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -571,8 +575,11 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
 
+  const canSubmit = agreed && ageOk;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSubmit) return;
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
@@ -587,6 +594,8 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
     sessionStorage.setItem("signup_email", email);
     sessionStorage.setItem("signup_mobile", mobile);
     sessionStorage.setItem("signup_password", password);
+    // Carried to the creed step, which is where signUp() actually runs.
+    sessionStorage.setItem("signup_age_16_plus_at", new Date().toISOString());
     navigate("creed");
   };
 
@@ -692,15 +701,34 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
             </label>
           </div>
 
+          {/* Age gate — the Terms of Use set a 16-year minimum. */}
+          <div
+            className="p-4 rounded-xl"
+            style={{ background: "#f9fafb", border: "1px solid #e5e7eb" }}
+          >
+            <label className="flex gap-3 items-start cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ageOk}
+                onChange={(e) => setAgeOk(e.target.checked)}
+                className="mt-0.5"
+                style={{ width: 16, height: 16, accentColor: NAVY }}
+              />
+              <span className="text-sm text-gray-700 leading-relaxed">
+                I confirm I am 16 years of age or older.
+              </span>
+            </label>
+          </div>
+
           <button
             type="submit"
-            disabled={!agreed}
+            disabled={!canSubmit}
             className="w-full px-6 py-3 rounded-xl text-sm"
             style={{
-              background: agreed ? NAVY : "#e5e7eb",
-              color: agreed ? "#fff" : "#9ca3af",
+              background: canSubmit ? NAVY : "#e5e7eb",
+              color: canSubmit ? "#fff" : "#9ca3af",
               fontWeight: 600,
-              cursor: agreed ? "pointer" : "not-allowed",
+              cursor: canSubmit ? "pointer" : "not-allowed",
               transition: "background 0.2s",
             }}
           >
@@ -791,6 +819,7 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
     const firstName = sessionStorage.getItem("signup_first_name") || "";
     const lastName = sessionStorage.getItem("signup_last_name") || "";
     const mobile = sessionStorage.getItem("signup_mobile") || "";
+    const ageAffirmedAt = sessionStorage.getItem("signup_age_16_plus_at") || new Date().toISOString();
 
     if (!email || !password) {
       setError("Missing account details. Please go back.");
@@ -808,6 +837,10 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
           last_name: lastName,
           mobile: mobile,
           creed_affirmed: true,
+          // Ticked on the account step. Recorded so there's evidence the
+          // attestation was made, and when.
+          age_16_plus_affirmed: true,
+          age_16_plus_affirmed_at: ageAffirmedAt,
         }
       }
     });
@@ -819,7 +852,8 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
 
     // Clear the signup details (incl. the plaintext password) from sessionStorage.
-    ["signup_email", "signup_password", "signup_first_name", "signup_last_name", "signup_mobile"]
+    ["signup_email", "signup_password", "signup_first_name", "signup_last_name", "signup_mobile",
+     "signup_age_16_plus_at"]
       .forEach((k) => sessionStorage.removeItem(k));
 
     navigate("welcome");
