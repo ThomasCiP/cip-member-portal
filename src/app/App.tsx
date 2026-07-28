@@ -6,7 +6,7 @@ import { ThemeContext, getTheme, NAVY, GOLD } from "./components/cip/brand";
 import { useAuth } from "./components/cip/AuthContext";
 import {
   SignupScreen, SignInScreen, AccountScreen, CreedScreen, BlockedScreen, WelcomeScreen, DeletedAccountScreen,
-  UpdatePasswordScreen
+  UpdatePasswordScreen, MfaChallengeScreen
 } from "./components/cip/PublicScreens";
 import { MemberShell } from "./components/cip/MemberShell";
 import {
@@ -127,13 +127,26 @@ function useHistoryScreen(initial: Screen) {
 }
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, profile } = useAuth();
   const { screen, navigate, replace } = useHistoryScreen(isRecoveryLanding() ? "update-password" : "signup");
   const [dark, setDark] = useState(false);
   const theme = getTheme(dark);
 
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [profileStatus, setProfileStatus] = useState<{ suspended_at?: string | null, deleted_at?: string | null } | null>(null);
+
+  // Two-factor gate: when the account has a verified TOTP factor, a fresh
+  // password sign-in only reaches aal1 — hold the member area until the
+  // authenticator code upgrades the session to aal2. null = still checking.
+  const [mfaRequired, setMfaRequired] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!user) { setMfaRequired(null); return; }
+    let cancelled = false;
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
+      if (!cancelled) setMfaRequired(!!data && data.currentLevel === "aal1" && data.nextLevel === "aal2");
+    });
+    return () => { cancelled = true; };
+  }, [user]);
 
   // Email confirmation / auth-callback landings carry the session in the URL
   // hash. Hold a "finishing sign-in" state (rather than flashing the signup
@@ -205,14 +218,20 @@ export default function App() {
     }
   }, [user, loading, screen, profileStatus, replace]);
 
-  if (loading || (user && onboarded === null) || (isAuthCallback.current && !user && !authWaitDone)) {
+  if (loading || (user && onboarded === null) || (user && mfaRequired === null) || (isAuthCallback.current && !user && !authWaitDone)) {
     return <div className="min-h-screen flex items-center justify-center">Finishing sign-in…</div>;
+  }
+
+  if (user && mfaRequired) {
+    return <MfaChallengeScreen onVerified={() => setMfaRequired(false)} />;
   }
 
 
 
   const isPublic = PUBLIC_SCREENS.includes(screen);
-  const isAdmin = ADMIN_SCREENS.includes(screen) && user?.email?.endsWith("@christiansinpolitics.com");
+  // Admin access follows the revocable profiles.is_admin flag (single source of
+  // truth, matching is_platform_admin() in SQL) — not the email domain.
+  const isAdmin = ADMIN_SCREENS.includes(screen) && profile?.is_admin === true;
 
   const memberContent = (() => {
     switch (screen) {

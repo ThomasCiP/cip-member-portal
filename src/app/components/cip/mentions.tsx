@@ -345,7 +345,19 @@ export async function notifyMentions(opts: {
       }
     }
 
-    if (rows.length) await supabase.from("notifications").insert(rows);
+    // Cross-user notifications go through the validated create_notification RPC
+    // (direct INSERT on notifications is no longer allowed for members).
+    if (rows.length) {
+      await Promise.all(rows.map((r) =>
+        supabase.rpc("create_notification", {
+          target_user: r.user_id,
+          n_type: r.type,
+          n_title: r.title,
+          n_message: r.message,
+          n_data: r.data ?? {},
+        })
+      ));
+    }
   } catch {
     // Best-effort: never block posting on notification failure.
   }

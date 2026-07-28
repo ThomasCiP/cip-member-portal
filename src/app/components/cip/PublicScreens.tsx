@@ -328,6 +328,87 @@ export function UpdatePasswordScreen({ navigate }: { navigate: (s: Screen) => vo
   );
 }
 
+// ── Two-factor challenge (after password sign-in) ───────────────────
+// Shown by App.tsx when the account has a verified TOTP factor but the
+// current session is still aal1. Verifying upgrades the session to aal2.
+export function MfaChallengeScreen({ onVerified }: { onVerified: () => void }) {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const { data: factors, error: fErr } = await supabase.auth.mfa.listFactors();
+    const totp = factors?.totp?.find((f) => f.status === "verified");
+    if (fErr || !totp) {
+      setLoading(false);
+      setError("No authenticator is set up on this account.");
+      return;
+    }
+    const { data: challenge, error: chErr } = await supabase.auth.mfa.challenge({ factorId: totp.id });
+    if (chErr || !challenge) {
+      setLoading(false);
+      setError(chErr?.message || "Could not start verification. Please try again.");
+      return;
+    }
+    const { error: vErr } = await supabase.auth.mfa.verify({
+      factorId: totp.id,
+      challengeId: challenge.id,
+      code: code.trim(),
+    });
+    setLoading(false);
+    if (vErr) {
+      setError("That code didn't match. Check your authenticator app and try again.");
+      return;
+    }
+    onVerified();
+  };
+
+  return (
+    <div className="min-h-screen w-full bg-white flex items-center justify-center px-6 cip-safe-top cip-safe-bottom">
+      <div className="w-full max-w-md">
+        <CiPLogo size={48} className="mx-auto" />
+        <h1 className="text-center mt-6" style={{ color: NAVY, fontWeight: 700, fontSize: 26 }}>
+          Two-factor verification
+        </h1>
+        <p className="text-center text-gray-500 mt-2 text-sm">
+          Enter the 6-digit code from your authenticator app to finish signing in.
+        </p>
+        <form onSubmit={submit} className="mt-8 space-y-4">
+          <input
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            className="w-full text-center tracking-[0.5em] text-xl rounded-xl py-3"
+            style={{ border: "1px solid #d1d5db" }}
+            autoFocus
+          />
+          {error && <div className="text-sm text-red-600 text-center">{error}</div>}
+          <button
+            type="submit"
+            disabled={loading || code.length < 6}
+            className="w-full px-6 py-3 rounded-xl text-sm"
+            style={{ background: NAVY, color: "#fff", fontWeight: 600, opacity: loading || code.length < 6 ? 0.7 : 1 }}
+          >
+            {loading ? "Verifying..." : "Verify"}
+          </button>
+          <button
+            type="button"
+            onClick={() => supabase.auth.signOut()}
+            className="w-full text-xs text-gray-500 hover:underline"
+          >
+            Sign out
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── PublicFrame ─────────────────────────────────────────────────────
 function PublicFrame({
   children,

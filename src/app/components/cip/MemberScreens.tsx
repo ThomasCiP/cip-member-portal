@@ -716,11 +716,12 @@ function ReportModal({ target, postType, groupId, onClose }: {
     if (groupId) {
       const { data: g } = await supabase.from("groups").select("created_by, name").eq("id", groupId).maybeSingle();
       if (g?.created_by && g.created_by !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: g.created_by,
-          type: "content_reported",
-          title: `A ${target.type} was reported`,
-          message: `A ${target.type} in ${g.name || "your group"} was reported and is awaiting review.`,
+        await supabase.rpc("create_notification", {
+          target_user: g.created_by,
+          n_type: "content_reported",
+          n_title: `A ${target.type} was reported`,
+          n_message: `A ${target.type} in ${g.name || "your group"} was reported and is awaiting review.`,
+          n_data: {},
         });
       }
     }
@@ -954,12 +955,12 @@ export function MemberPost({
 
 function FeedPost({ item, navigate, onChanged }: { item: any; navigate: (s: Screen) => void; onChanged?: () => void }) {
   const { theme, dark } = useTheme();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   if (item.isGroupPost || item.isGlobalPost) {
     const isGlobal = !!item.isGlobalPost;
     const isMine = !!item.authorId && item.authorId === user?.id;
-    const isAdmin = !!user?.email?.endsWith("@christiansinpolitics.com");
+    const isAdmin = profile?.is_admin === true;
     return (
       <MemberPost
         postType={isGlobal ? "global" : "group"}
@@ -3365,7 +3366,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       
       if (user) {
         const { data: myProf } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single();
-        if (myProf) setIsAdmin(myProf.is_admin || user.email?.endsWith("@christiansinpolitics.com") || false);
+        if (myProf) setIsAdmin(myProf.is_admin === true);
 
         // Load the current user's connections to label member cards correctly.
         const { data: conns } = await supabase.from('network_connections')
@@ -4944,6 +4945,7 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
   const [isDeleting, setIsDeleting] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
+  const [changePwOpen, setChangePwOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -5018,10 +5020,12 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
           <div className="flex items-center justify-between"><span style={{ color: theme.textMuted }}>Member since</span><span style={{ color: theme.text }}>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Just now"}</span></div>
         </div>
         <div className="flex gap-2 mt-4">
-          <GhostButton>Change password</GhostButton>
+          <GhostButton onClick={() => setChangePwOpen(true)}>Change password</GhostButton>
           <GhostButton>Download my data</GhostButton>
         </div>
       </Card>
+
+      <TwoFactorAuthCard />
 
       <Card className="p-5 border border-red-200">
         <h3 className="text-sm font-semibold text-red-600">Danger Zone</h3>
@@ -5061,6 +5065,272 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
           onSave={() => { setCreateOrgOpen(false); navigate("organisations"); }}
         />
       )}
+      {changePwOpen && <ChangePasswordModal onClose={() => setChangePwOpen(false)} />}
+    </div>
+  );
+}
+
+// ── Account security: change password + two-factor authentication ────
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const inputStyle: CSSProperties = {
+    background: theme.cardBg,
+    color: theme.text,
+    border: `1px solid ${theme.cardBorder}`,
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (next.length < 8) { setError("New password must be at least 8 characters."); return; }
+    if (next !== confirm) { setError("New passwords do not match."); return; }
+    if (!user?.email) { setError("No signed-in account."); return; }
+    setSaving(true);
+    // Confirm the current password before changing it, so a stolen unlocked
+    // device can't silently take over the account. Skipped when 2FA is on:
+    // re-running signInWithPassword would drop the session back to aal1 and
+    // force a fresh authenticator challenge mid-change.
+    const { data: fx } = await supabase.auth.mfa.listFactors();
+    const hasMfa = (fx?.totp ?? []).some((f) => f.status === "verified");
+    if (!hasMfa) {
+      const { error: reauthErr } = await supabase.auth.signInWithPassword({ email: user.email, password: current });
+      if (reauthErr) { setSaving(false); setError("Current password is incorrect."); return; }
+    }
+    const { error: updErr } = await supabase.auth.updateUser({ password: next });
+    setSaving(false);
+    if (updErr) { setError(updErr.message); return; }
+    setDone(true);
+    setTimeout(onClose, 1500);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl shadow-2xl"
+        style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <h3 style={{ color: theme.text, fontWeight: 600 }}>Change password</h3>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
+            <X size={16} style={{ color: theme.textMuted }} />
+          </button>
+        </div>
+        {done ? (
+          <div className="px-6 py-8 text-sm text-green-600">Password updated.</div>
+        ) : (
+          <form onSubmit={submit} className="px-6 py-5 space-y-4">
+            <div>
+              <label className="text-xs font-bold block mb-1.5" style={{ color: theme.text }}>Current password</label>
+              <input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required className="w-full px-3 py-2 rounded-lg text-sm" style={inputStyle} />
+            </div>
+            <div>
+              <label className="text-xs font-bold block mb-1.5" style={{ color: theme.text }}>New password</label>
+              <input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} required className="w-full px-3 py-2 rounded-lg text-sm" style={inputStyle} />
+            </div>
+            <div>
+              <label className="text-xs font-bold block mb-1.5" style={{ color: theme.text }}>Confirm new password</label>
+              <input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required className="w-full px-3 py-2 rounded-lg text-sm" style={inputStyle} />
+            </div>
+            {error && <div className="text-sm text-red-600">{error}</div>}
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full px-4 py-2.5 rounded-lg text-sm"
+              style={{ background: NAVY, color: "#fff", fontWeight: 600, opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? "Saving..." : "Update password"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TwoFactorAuthCard() {
+  const { theme } = useTheme();
+  const [factors, setFactors] = useState<any[] | null>(null);
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    const { data } = await supabase.auth.mfa.listFactors();
+    setFactors(data?.totp ?? []);
+  }, []);
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const enabled = (factors ?? []).some((f) => f.status === "verified");
+
+  const disable = async () => {
+    if (!window.confirm("Turn off two-factor authentication? Your account will be protected by your password only.")) return;
+    setBusy(true);
+    for (const f of factors ?? []) {
+      await supabase.auth.mfa.unenroll({ factorId: f.id });
+    }
+    setBusy(false);
+    refresh();
+  };
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm flex items-center gap-1.5" style={{ color: theme.text, fontWeight: 600 }}>
+            <ShieldCheck size={14} /> Two-factor authentication
+          </h3>
+          <p className="text-xs mt-1" style={{ color: theme.textMuted }}>
+            {factors === null
+              ? "Checking…"
+              : enabled
+                ? "On — an authenticator code is required when you sign in."
+                : "Add a second sign-in step using an authenticator app."}
+          </p>
+        </div>
+        {factors !== null && (
+          enabled
+            ? <GhostButton onClick={busy ? undefined : disable}>{busy ? "Turning off…" : "Turn off"}</GhostButton>
+            : <GhostButton onClick={() => setEnrollOpen(true)}>Enable 2FA</GhostButton>
+        )}
+      </div>
+      {enrollOpen && <Enroll2FAModal onClose={() => { setEnrollOpen(false); refresh(); }} />}
+    </Card>
+  );
+}
+
+function Enroll2FAModal({ onClose }: { onClose: () => void }) {
+  const { theme } = useTheme();
+  const [qr, setQr] = useState("");
+  const [secret, setSecret] = useState("");
+  const [factorId, setFactorId] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // Drop any abandoned (unverified) enrolments first so re-opening this
+      // modal never hits the per-user factor limit.
+      const { data: existing } = await supabase.auth.mfa.listFactors();
+      for (const f of existing?.totp ?? []) {
+        if (f.status !== "verified") await supabase.auth.mfa.unenroll({ factorId: f.id });
+      }
+      const { data, error: enrollErr } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: "Authenticator app",
+      });
+      if (cancelled) return;
+      if (enrollErr || !data) {
+        setError(enrollErr?.message || "Could not start 2FA setup. Please try again.");
+        return;
+      }
+      setFactorId(data.id);
+      setQr(data.totp.qr_code);
+      setSecret(data.totp.secret);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const verify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setVerifying(true);
+    const { data: challenge, error: chErr } = await supabase.auth.mfa.challenge({ factorId });
+    if (chErr || !challenge) {
+      setVerifying(false);
+      setError(chErr?.message || "Could not verify the code. Please try again.");
+      return;
+    }
+    const { error: vErr } = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.id, code: code.trim() });
+    setVerifying(false);
+    if (vErr) {
+      setError("That code didn't match. Check your authenticator app and try again.");
+      return;
+    }
+    setDone(true);
+    setTimeout(onClose, 1500);
+  };
+
+  const qrSrc = qr.startsWith("data:") ? qr : `data:image/svg+xml;utf8,${encodeURIComponent(qr)}`;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl shadow-2xl"
+        style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <h3 style={{ color: theme.text, fontWeight: 600 }}>Set up two-factor authentication</h3>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
+            <X size={16} style={{ color: theme.textMuted }} />
+          </button>
+        </div>
+        <div className="px-6 py-5 max-h-[75vh] overflow-y-auto">
+          {done ? (
+            <div className="py-4 text-sm text-green-600">Two-factor authentication is on.</div>
+          ) : !qr && !error ? (
+            <div className="py-4 text-sm" style={{ color: theme.textMuted }}>Preparing your setup code…</div>
+          ) : (
+            <>
+              {qr && (
+                <>
+                  <p className="text-sm" style={{ color: theme.textMuted }}>
+                    Scan this QR code with an authenticator app (e.g. Google Authenticator, 1Password, Authy), then enter the 6-digit code it shows.
+                  </p>
+                  <div className="flex justify-center my-4">
+                    <img src={qrSrc} alt="2FA QR code" className="w-44 h-44 rounded-lg" style={{ background: "#fff", border: `1px solid ${theme.cardBorder}` }} />
+                  </div>
+                  <p className="text-[11px] break-all" style={{ color: theme.textSubtle }}>
+                    Can't scan? Enter this key manually: <span style={{ fontFamily: "monospace" }}>{secret}</span>
+                  </p>
+                  <form onSubmit={verify} className="mt-4 space-y-3">
+                    <input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123456"
+                      className="w-full text-center tracking-[0.4em] text-lg rounded-lg py-2.5"
+                      style={{ background: theme.cardBg, color: theme.text, border: `1px solid ${theme.cardBorder}` }}
+                    />
+                    {error && <div className="text-sm text-red-600">{error}</div>}
+                    <button
+                      type="submit"
+                      disabled={verifying || code.length < 6}
+                      className="w-full px-4 py-2.5 rounded-lg text-sm"
+                      style={{ background: NAVY, color: "#fff", fontWeight: 600, opacity: verifying || code.length < 6 ? 0.7 : 1 }}
+                    >
+                      {verifying ? "Verifying..." : "Verify and turn on"}
+                    </button>
+                  </form>
+                </>
+              )}
+              {!qr && error && <div className="text-sm text-red-600">{error}</div>}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

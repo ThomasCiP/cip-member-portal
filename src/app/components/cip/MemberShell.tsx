@@ -517,7 +517,7 @@ function ProfileMenu({
             { l: "Notifications", k: "notifications" as Screen, icon: Bell },
             { l: "Your support requests", k: "support" as Screen, icon: LifeBuoy },
             { l: "Privacy",   k: "privacy" as Screen,         icon: Lock },
-            ...(user?.email?.endsWith("@christiansinpolitics.com") ? [{ l: "Admin", k: "admin-overview" as Screen, icon: ShieldCheck, desktopOnly: true }] : []),
+            ...(profile?.is_admin === true ? [{ l: "Admin", k: "admin-overview" as Screen, icon: ShieldCheck, desktopOnly: true }] : []),
           ].map((it: any) => {
             const I = it.icon;
             return (
