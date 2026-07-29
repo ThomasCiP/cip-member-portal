@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2732" height="2732" viewBox="0 0 2732 2732"><defs>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#d89f55" stop-opacity="0.85"/>
+      <stop offset="35%" stop-color="#d89f55" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#d89f55" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a2d20"/>
+      <stop offset="100%" stop-color="#2b1a12"/>
+    </linearGradient>
+  </defs><rect width="2732" height="2732" fill="#3a231a"/><g transform="translate(1366 1366) scale(1) translate(-512 -512)"><ellipse cx="512" cy="290" rx="230" ry="260" fill="url(#halo)"/>
+  <path d="M 512,152 C 592,300 598,398 512,398 C 426,398 432,300 512,152 Z" fill="#d89f55"/>
+  <rect x="427" y="418" width="170" height="34" rx="9" fill="#f2e7dc"/>
+  <rect x="457" y="452" width="110" height="382" fill="#f2e7dc"/>
+  <rect x="409" y="834" width="210" height="46" rx="11" fill="#f2e7dc"/></g></svg>

@@ -13,3 +13,11 @@ keystore.properties
 *.aab
 *.ipa
 *.xcarchive
+
+# PWA output from `npm run mobile:assets` (capacitor-assets emits this by
+# default). Nothing consumes it: index.html doesn't link the manifest, and the
+# manifest's icon paths are "../icons/..." which point outside public/, so they
+# could never resolve in a build. Regenerated on every asset run.
+# The real app icons live in ios/ and android/, and their source is assets/.
+icons/
+public/manifest.webmanifest
