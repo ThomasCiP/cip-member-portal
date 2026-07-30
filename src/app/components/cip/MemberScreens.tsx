@@ -449,10 +449,78 @@ const REACTIONS = [
 const REACTION_BY_KEY: Record<string, (typeof REACTIONS)[number]> =
   Object.fromEntries(REACTIONS.map((r) => [r.key, r]));
 
-function ReactionBar({ postType, postId }: { postType: "global" | "group"; postId: string }) {
+// Who-reacted list (#7). Opened from the reaction count; each row opens that
+// member's profile.
+function ReactorsModal({ rows, onClose, navigate }: {
+  rows: { reaction: string; user_id: string }[];
+  onClose: () => void;
+  navigate?: (s: Screen) => void;
+}) {
+  const { theme } = useTheme();
+  const [people, setPeople] = useState<any[] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const ids = [...new Set(rows.map((r) => r.user_id))];
+      if (!ids.length) { setPeople([]); return; }
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, job_title, avatar_url")
+        .in("id", ids);
+      setPeople(data || []);
+    })();
+  }, [rows]);
+
+  const reactionFor = (id: string) => REACTION_BY_KEY[rows.find((r) => r.user_id === id)?.reaction || "like"];
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold" style={{ color: theme.text }}>Reactions</h3>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-black/5" style={{ color: theme.textMuted }} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
+          {people === null && <div className="py-6 text-center text-sm" style={{ color: theme.textMuted }}>Loading…</div>}
+          {people !== null && people.length === 0 && <div className="py-6 text-center text-sm" style={{ color: theme.textMuted }}>No reactions yet.</div>}
+          {(people || []).map((p) => {
+            const name = `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Member";
+            const r = reactionFor(p.id);
+            const I = r.Icon;
+            const open = () => {
+              if (!navigate) return;
+              localStorage.setItem("activeProfileUserId", p.id);
+              onClose();
+              navigate("member-profile");
+            };
+            return (
+              <div key={p.id} role={navigate ? "link" : undefined} tabIndex={navigate ? 0 : undefined}
+                className="flex items-center gap-3 py-2.5 px-2 rounded-lg hover:bg-black/5"
+                style={{ cursor: navigate ? "pointer" : "default" }}
+                onClick={open}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}>
+                <Avatar src={p.avatar_url} name={name} size={36} bg={GOLD} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate" style={{ color: theme.text }}>{name}</div>
+                  {p.job_title && <div className="text-xs truncate" style={{ color: theme.textSubtle }}>{p.job_title}</div>}
+                </div>
+                <I size={16} style={{ color: r.color }} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ReactionBar({ postType, postId, navigate }: { postType: "global" | "group"; postId: string; navigate?: (s: Screen) => void }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const [rows, setRows] = useState<{ reaction: string; user_id: string }[]>([]);
+  const [showReactors, setShowReactors] = useState(false);
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -495,13 +563,19 @@ function ReactionBar({ postType, postId }: { postType: "global" | "group"; postI
         style={{ color: active ? active.color : theme.textMuted, fontWeight: active ? 600 : 500 }}
       >
         <ActiveIcon size={15} /> {active ? active.label : "Like"}
-        {total > 0 && (
-          <span className="ml-1 inline-flex items-center" style={{ color: theme.textSubtle }}>
-            {present.slice(0, 3).map((r) => { const I = r.Icon; return <I key={r.key} size={11} style={{ color: r.color }} />; })}
-            <span className="ml-1 text-[11px]">{total}</span>
-          </span>
-        )}
       </button>
+      {total > 0 && (
+        <button
+          onClick={() => setShowReactors(true)}
+          className="inline-flex items-center px-1.5 py-1 rounded-md text-xs hover:bg-black/5"
+          style={{ color: theme.textSubtle }}
+          aria-label={`See who reacted (${total})`}
+        >
+          {present.slice(0, 3).map((r) => { const I = r.Icon; return <I key={r.key} size={11} style={{ color: r.color }} />; })}
+          <span className="ml-1 text-[11px]">{total}</span>
+        </button>
+      )}
+      {showReactors && <ReactorsModal rows={rows} onClose={() => setShowReactors(false)} navigate={navigate} />}
       <div
         className="absolute bottom-full left-0 mb-1 hidden group-hover/react:flex items-center gap-1 px-2 py-1.5 rounded-full shadow-lg z-20"
         style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}` }}
@@ -933,7 +1007,7 @@ export function MemberPost({
       {documentUrl && !editing && <PostDocument url={documentUrl} name={documentName} />}
 
       <div className="flex items-center gap-1 mt-3 pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
-        <ReactionBar postType={postType} postId={postId} />
+        <ReactionBar postType={postType} postId={postId} navigate={navigate} />
         <button onClick={() => setShowComments((s) => !s)}
           className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs hover:bg-black/5" style={{ color: theme.textMuted, fontWeight: 500 }}>
           <MessageCircle size={15} /> {commentCount > 0 ? `${commentCount} ` : ""}Comment{commentCount === 1 ? "" : "s"}
@@ -1977,7 +2051,15 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
   };
 
   const skip = async () => {
-    await supabase.from("profiles").upsert({ id: user?.id, onboarded: true });
+    // Carry the names even on skip — a bare {onboarded} upsert used to create
+    // a nameless profile row, which is why skippers displayed as "Member" (#5).
+    await supabase.from("profiles").upsert({
+      id: user?.id,
+      first_name: firstName || user?.user_metadata?.first_name || null,
+      last_name: lastName || user?.user_metadata?.last_name || null,
+      onboarded: true,
+    });
+    updateProfileLocally({ first_name: firstName, last_name: lastName, onboarded: true });
     setOnboarded(true);
   };
 
@@ -6087,7 +6169,9 @@ export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => 
             <Card key={r.id} className="p-4 flex items-center gap-3">
               <Avatar src={r.avatar} name={r.name} size={40} bg={NAVY} />
               <div className="flex-1 min-w-0">
-                <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{r.name}</div>
+                <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
+                  <MemberNameLink userId={r.requesterId} name={r.name} navigate={navigate} />
+                </div>
                 <div className="text-xs" style={{ color: theme.textMuted }}>wants to connect with you</div>
               </div>
               <button
