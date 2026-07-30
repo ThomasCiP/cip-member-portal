@@ -651,8 +651,9 @@ function ReactorsModal({ rows, onClose, navigate }: {
     (async () => {
       const ids = [...new Set(rows.map((r) => r.user_id))];
       if (!ids.length) { setPeople([]); return; }
+      // member_directory, not profiles — RLS only exposes your own profiles row.
       const { data } = await supabase
-        .from("profiles")
+        .from("member_directory")
         .select("id, first_name, last_name, job_title, avatar_url")
         .in("id", ids);
       setPeople(data || []);
@@ -5022,7 +5023,9 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                               borderBottomLeftRadius: mine ? 16 : 4,
                             }}
                           >
-                            <div className="text-sm leading-relaxed">{m.body}</div>
+                            {/* break long URLs/strings so bubbles never force
+                                horizontal overflow on narrow screens (#30) */}
+                            <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ overflowWrap: "anywhere" }}>{m.body}</div>
                           </div>
                           <div
                             className={`text-[10px] mt-1 px-1 ${mine ? "text-right" : "text-left"}`}

@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect, useRef } from "react";
 import {
   Home, UserCircle2, CalendarDays, MessageSquare, Settings,
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
-  Network, Activity, LogOut, ArrowUpRight, Plus, LifeBuoy
+  Users, Activity, LogOut, ArrowUpRight, Plus, LifeBuoy
 } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
@@ -13,7 +13,7 @@ import { SUPPORT_PATHWAYS, NewSupportRequestModal, useIncomingRequests, useNotif
 
 const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "dashboard", label: "Home",     icon: Home },
-  { key: "network",   label: "Network",  icon: Network },
+  { key: "network",   label: "Network",  icon: Users },
   { key: "events",    label: "Events",   icon: CalendarDays },
   { key: "messages",  label: "Messages", icon: MessageSquare },
 ];
@@ -618,7 +618,7 @@ function TopHeader({
                 borderBottom: active ? `2px solid ${NAVY}` : "2px solid transparent",
               }}
             >
-              <Icon size={16} strokeWidth={2.5} />
+              <Icon size={16} strokeWidth={1.75} />
               {((it.key === "network" && (incomingCount > 0 || badges.hasNetworkPosts)) || (it.key === "messages" && badges.unreadMessages) || (it.key === "events" && badges.hasNewEvents)) && (
                 <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
               )}
@@ -647,7 +647,7 @@ function TopHeader({
         className="md:hidden ml-auto relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
         aria-label="Messages"
       >
-        <MessageSquare size={22} strokeWidth={2.5} style={{ color: NAVY }} />
+        <MessageSquare size={22} strokeWidth={1.75} style={{ color: NAVY }} />
         {badges.unreadMessages && (
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
         )}
@@ -661,7 +661,7 @@ function TopHeader({
 // Messages lives in the top-right header instead. Hidden from `md` up.
 const BOTTOM_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "dashboard",     label: "Home",    icon: Home },
-  { key: "network",       label: "Network", icon: Network },
+  { key: "network",       label: "Network", icon: Users },
   { key: "events",        label: "Events",  icon: CalendarDays },
   { key: "notifications", label: "Alerts",  icon: Bell },
 ];
@@ -684,7 +684,7 @@ export function BottomNav({ current, navigate, onCompose }: { current: Screen; n
         className="relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
         style={{ color: active ? NAVY : "rgba(90,79,207,0.9)", fontWeight: active ? 600 : 400 }}
       >
-        <Icon size={20} strokeWidth={2.5} />
+        <Icon size={20} strokeWidth={1.75} />
         {dot(it.key) && (
           <span className="absolute top-1.5 right-[calc(50%-16px)] w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
         )}
@@ -710,7 +710,7 @@ export function BottomNav({ current, navigate, onCompose }: { current: Screen; n
           className="flex items-center justify-center w-12 h-9 rounded-xl"
           style={{ background: NAVY }}
         >
-          <Plus size={22} strokeWidth={2.75} style={{ color: "#fff" }} />
+          <Plus size={22} strokeWidth={2.25} style={{ color: "#fff" }} />
         </span>
       </button>
       {tab(BOTTOM_NAV[2])}
