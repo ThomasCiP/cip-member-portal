@@ -946,6 +946,17 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
       return;
     }
 
+    // Email verification must not block first access (#2). New accounts are
+    // auto-confirmed by the auto_confirm_new_signups trigger on auth.users, so
+    // signing in here succeeds and the member goes straight into onboarding
+    // instead of being parked until they find the confirmation email (which is
+    // still sent). If this ever fails — e.g. confirmation is re-enforced — we
+    // don't fail the signup: they land on Welcome and can sign in manually.
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      console.warn("Auto sign-in after signup failed; user can sign in manually.", signInError);
+    }
+
     // Clear the signup details (incl. the plaintext password) from sessionStorage.
     ["signup_email", "signup_password", "signup_first_name", "signup_last_name", "signup_mobile",
      "signup_age_16_plus_at"]
