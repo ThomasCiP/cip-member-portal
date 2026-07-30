@@ -4,6 +4,8 @@ import { StatusBar, Style } from "@capacitor/status-bar";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { Browser } from "@capacitor/browser";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Filesystem, Directory } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { supabase } from "../supabase";
 
 /**
@@ -169,4 +171,91 @@ export function pickDocumentFile(): Promise<File | null> {
     input.addEventListener("cancel", () => resolve(null));
     input.click();
   });
+}
+
+/** Escape a value for an iCalendar text field (RFC 5545). */
+function icsEscape(v: string): string {
+  return v.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+}
+
+/** iCalendar UTC stamp: 20260731T093000Z */
+function icsStamp(d: Date): string {
+  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+/**
+ * Hand a calendar event to the OS so the member can save it to their default
+ * calendar. Builds a real .ics file, then:
+ *  - native: writes it to cache and opens the share sheet, where iOS/Android
+ *    offer "Add to Calendar" (this is the OS calendar flow, no extra plugin)
+ *  - web: downloads the .ics, which opens in the desktop calendar app
+ * Returns false if nothing could be launched, so callers can surface a message.
+ */
+export async function addEventToCalendar(event: {
+  title?: string | null;
+  date?: string | null;
+  end_date?: string | null;
+  location?: string | null;
+  description?: string | null;
+}): Promise<boolean> {
+  if (!event?.date) return false;
+  const start = new Date(event.date);
+  if (isNaN(start.getTime())) return false;
+  // Default to a one-hour event when no end time is recorded.
+  const end = event.end_date && !isNaN(new Date(event.end_date).getTime())
+    ? new Date(event.end_date)
+    : new Date(start.getTime() + 60 * 60 * 1000);
+
+  const title = event.title || "CiP event";
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Christians in Politics//CiP Member Portal//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${icsStamp(start)}-${Math.abs(title.split("").reduce((a, c) => a + c.charCodeAt(0), 0))}@christiansinpolitics.com`,
+    `DTSTAMP:${icsStamp(new Date(start.getTime()))}`,
+    `DTSTART:${icsStamp(start)}`,
+    `DTEND:${icsStamp(end)}`,
+    `SUMMARY:${icsEscape(title)}`,
+    event.location ? `LOCATION:${icsEscape(event.location)}` : "",
+    event.description ? `DESCRIPTION:${icsEscape(event.description)}` : "",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].filter(Boolean).join("\r\n");
+
+  const fileName = `${title.replace(/[^\w-]+/g, "_").slice(0, 40) || "event"}.ics`;
+
+  if (isNative) {
+    try {
+      const { uri } = await Filesystem.writeFile({
+        path: fileName,
+        data: ics,
+        directory: Directory.Cache,
+        encoding: "utf8" as any,
+      });
+      await Share.share({ title, url: uri, dialogTitle: "Add to calendar" });
+      return true;
+    } catch (e) {
+      console.error("Could not open the calendar flow", e);
+      return false;
+    }
+  }
+
+  try {
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return true;
+  } catch (e) {
+    console.error("Could not download the calendar file", e);
+    return false;
+  }
 }

@@ -7,7 +7,7 @@ import { AutocompleteInput } from "./AutocompleteInput";
 import { MentionText, MentionTextarea, notifyMentions } from "./mentions";
 import { FEDERAL_ELECTORATES, STATE_ELECTORATES } from "./electorates";
 import { useIsMobile } from "../ui/use-mobile";
-import { openExternal, pickImageFile, pickDocumentFile } from "../../../lib/native";
+import { openExternal, pickImageFile, pickDocumentFile, addEventToCalendar } from "../../../lib/native";
 import {
   CalendarDays, Clock, MapPin, Lock, ShieldCheck, Users,
   ChevronRight, ChevronDown, ExternalLink, Heart, Sun, Moon, Eye, EyeOff,
@@ -4318,7 +4318,14 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
                 {event.ticketed ? 'Tickets' : 'External registration'}
               </GhostButton>
             )}
-            <GhostButton>Add to calendar</GhostButton>
+            <GhostButton
+              onClick={async () => {
+                const ok = await addEventToCalendar(event);
+                if (!ok) alert("Sorry, this event couldn't be added to your calendar.");
+              }}
+            >
+              Add to calendar
+            </GhostButton>
           </div>
         </div>
       </Card>
