@@ -513,6 +513,130 @@ function PeopleListModal({ title, userIds, onClose, navigate }: {
   );
 }
 
+// Crop/reposition step after picking a profile photo (#6). Hand-rolled: the
+// image renders inside a square viewport with a circular mask; drag to
+// reposition, slider to zoom, and Save exports exactly the visible circle's
+// bounding square via canvas — so the stored avatar matches the preview.
+function AvatarCropModal({ file, onCancel, onSave }: {
+  file: File | Blob;
+  onCancel: () => void;
+  onSave: (blob: Blob) => void | Promise<void>;
+}) {
+  const { theme } = useTheme();
+  const [url] = useState(() => URL.createObjectURL(file));
+  const imgElRef = useRef<HTMLImageElement | null>(null);
+  const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
+  const [zoom, setZoom] = useState(1); // 1 = image just covers the viewport
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [busy, setBusy] = useState(false);
+  const dragRef = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+
+  const VIEW = 280;
+  const base = nat ? Math.max(VIEW / nat.w, VIEW / nat.h) : 1;
+  const scale = base * zoom;
+  const dispW = nat ? nat.w * scale : VIEW;
+  const dispH = nat ? nat.h * scale : VIEW;
+
+  const clampPos = (p: { x: number; y: number }, dw = dispW, dh = dispH) => ({
+    x: Math.min(Math.max(p.x, -(dw - VIEW) / 2), (dw - VIEW) / 2),
+    y: Math.min(Math.max(p.y, -(dh - VIEW) / 2), (dh - VIEW) / 2),
+  });
+
+  const onZoom = (z: number) => {
+    setZoom(z);
+    if (!nat) return;
+    const s = base * z;
+    setPos((p) => clampPos(p, nat.w * s, nat.h * s));
+  };
+
+  const save = async () => {
+    const img = imgElRef.current;
+    if (!img || !nat) return;
+    setBusy(true);
+    try {
+      const OUT = 512;
+      const canvas = document.createElement("canvas");
+      canvas.width = OUT; canvas.height = OUT;
+      const ctx = canvas.getContext("2d")!;
+      // Viewport pixel v maps to image pixel (v - left) / scale.
+      const left = (VIEW - dispW) / 2 + pos.x;
+      const top = (VIEW - dispH) / 2 + pos.y;
+      ctx.drawImage(img, -left / scale, -top / scale, VIEW / scale, VIEW / scale, 0, 0, OUT, OUT);
+      const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.9));
+      if (blob) await onSave(blob);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onCancel}>
+      <div className="p-5">
+        <h3 className="text-base font-semibold mb-1" style={{ color: theme.text }}>Adjust your photo</h3>
+        <p className="text-xs mb-4" style={{ color: theme.textMuted }}>Drag to reposition. Use the slider to zoom.</p>
+        <div className="flex justify-center">
+          <div
+            className="relative overflow-hidden rounded-xl select-none"
+            style={{ width: VIEW, height: VIEW, background: "#111", touchAction: "none", cursor: "grab" }}
+            onPointerDown={(e) => {
+              (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+              dragRef.current = { px: e.clientX, py: e.clientY, ox: pos.x, oy: pos.y };
+            }}
+            onPointerMove={(e) => {
+              const d = dragRef.current;
+              if (!d) return;
+              setPos(clampPos({ x: d.ox + (e.clientX - d.px), y: d.oy + (e.clientY - d.py) }));
+            }}
+            onPointerUp={() => { dragRef.current = null; }}
+            onPointerCancel={() => { dragRef.current = null; }}
+          >
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <img
+              ref={imgElRef}
+              src={url}
+              draggable={false}
+              onLoad={(e) => {
+                const el = e.currentTarget;
+                setNat({ w: el.naturalWidth, h: el.naturalHeight });
+              }}
+              style={{
+                position: "absolute",
+                width: dispW,
+                height: dispH,
+                left: (VIEW - dispW) / 2 + pos.x,
+                top: (VIEW - dispH) / 2 + pos.y,
+                maxWidth: "none",
+                pointerEvents: "none",
+              }}
+            />
+            {/* Circular mask matching the avatar shape */}
+            <div
+              className="absolute rounded-full pointer-events-none"
+              style={{ inset: 0, boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)", border: "2px solid rgba(255,255,255,0.8)" }}
+            />
+          </div>
+        </div>
+        <input
+          type="range" min={1} max={3} step={0.01} value={zoom}
+          onChange={(e) => onZoom(parseFloat(e.target.value))}
+          className="w-full mt-4"
+          aria-label="Zoom"
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm" style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}>
+            Cancel
+          </button>
+          <button onClick={save} disabled={busy || !nat} className="px-4 py-2 rounded-lg text-sm disabled:opacity-50" style={{ background: NAVY, color: "#fff", fontWeight: 600 }}>
+            {busy ? "Saving…" : "Save photo"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // Who-reacted list (#7). Opened from the reaction count; each row opens that
 // member's profile.
 function ReactorsModal({ rows, onClose, navigate }: {
@@ -2519,6 +2643,7 @@ export function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState<ProfileData>(DEFAULT_PROFILE);
   const [draft, setDraft] = useState<ProfileData>(DEFAULT_PROFILE);
+  const [cropFile, setCropFile] = useState<File | Blob | null>(null);
   const [loading, setLoading] = useState(true);
   const [suburbSearch, setSuburbSearch] = useState("");
   const [suburbsData, setSuburbsData] = useState<any[]>([]);
@@ -2632,19 +2757,15 @@ export function ProfileScreen() {
   };
   const cancel = () => setEditing(false);
 
-  const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // #6: the picked photo goes through AvatarCropModal first; only the cropped
+  // square (what the preview showed) is uploaded.
+  const uploadCroppedAvatar = async (blob: Blob) => {
     try {
-      const file = e.target.files?.[0];
-      if (!file || !user) return;
-      
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
-
-      setLoading(true);
-      
+      if (!user) return;
+      const fileName = `${user.id}-${Math.random()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, file);
+        .upload(fileName, blob, { contentType: 'image/jpeg' });
 
       if (uploadError) {
         alert("Error uploading image");
@@ -2652,12 +2773,10 @@ export function ProfileScreen() {
       }
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      
-      setDraft({ ...draft, avatarUrl: data.publicUrl });
-      setLoading(false);
+      setDraft((d: any) => ({ ...d, avatarUrl: data.publicUrl }));
+      setCropFile(null);
     } catch (error) {
       console.error("Error uploading avatar", error);
-      setLoading(false);
     }
   };
 
@@ -2728,12 +2847,19 @@ export function ProfileScreen() {
                   <div className="w-16 h-16 rounded-full flex items-center justify-center text-white" style={{ background: NAVY }}>{initials}</div>
                 )}
                 <div>
-                  <button type="button" disabled={loading} onClick={async () => { const f = await pickImageFile(); if (f) uploadAvatar({ target: { files: [f] } } as any); }} className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block disabled:opacity-50" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
+                  <button type="button" disabled={loading} onClick={async () => { const f = await pickImageFile(); if (f) setCropFile(f); }} className="cursor-pointer px-4 py-2 text-sm rounded-lg border inline-block disabled:opacity-50" style={{ background: theme.cardBg, borderColor: theme.cardBorder, color: theme.text }}>
                     {loading ? "Uploading..." : "Upload new image"}
                   </button>
                 </div>
               </div>
             </div>
+            {cropFile && (
+              <AvatarCropModal
+                file={cropFile}
+                onCancel={() => setCropFile(null)}
+                onSave={uploadCroppedAvatar}
+              />
+            )}
             <FormField label="First name">
               <TextInput value={draft.firstName} onChange={(v) => setDraft({ ...draft, firstName: v })} />
             </FormField>
