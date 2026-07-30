@@ -665,7 +665,7 @@ const BOTTOM_NAV: { key: Screen; label: string; icon: any }[] = [
   { key: "notifications", label: "Alerts",  icon: Bell },
 ];
 
-function BottomNav({ current, navigate, onCompose }: { current: Screen; navigate: (s: Screen) => void; onCompose: () => void }) {
+export function BottomNav({ current, navigate, onCompose }: { current: Screen; navigate: (s: Screen) => void; onCompose: () => void }) {
   const { count: incomingCount } = useIncomingRequests();
   const badges = useNotificationBadges();
 
@@ -761,7 +761,9 @@ export function MemberShell({
 
       <main className="flex-1 overflow-hidden">
         {fullWidth ? (
-          <div className="h-full">{children}</div>
+          // Reserve room for the fixed bottom nav on mobile, or the last
+          // ~60px of a full-width screen (e.g. messaging) sits under it.
+          <div className="h-full pb-[60px] md:pb-0">{children}</div>
         ) : (
           <div className="h-full overflow-y-auto">
             <div

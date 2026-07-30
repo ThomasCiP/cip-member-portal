@@ -5222,6 +5222,12 @@ function Enroll2FAModal({ onClose }: { onClose: () => void }) {
   const { theme } = useTheme();
   const [qr, setQr] = useState("");
   const [secret, setSecret] = useState("");
+  // otpauth:// URI — on a phone this is the whole game: one tap hands the account
+  // to the authenticator app, so you never have to scan a QR shown on the same
+  // device you're setting up.
+  const [uri, setUri] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [factorId, setFactorId] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -5249,6 +5255,7 @@ function Enroll2FAModal({ onClose }: { onClose: () => void }) {
       setFactorId(data.id);
       setQr(data.totp.qr_code);
       setSecret(data.totp.secret);
+      setUri(data.totp.uri || "");
     })();
     return () => { cancelled = true; };
   }, []);
@@ -5302,14 +5309,72 @@ function Enroll2FAModal({ onClose }: { onClose: () => void }) {
               {qr && (
                 <>
                   <p className="text-sm" style={{ color: theme.textMuted }}>
-                    Scan this QR code with an authenticator app (e.g. Google Authenticator, 1Password, Authy), then enter the 6-digit code it shows.
+                    Add CiP to an authenticator app (Google Authenticator, 1Password, Authy),
+                    then enter the 6-digit code it shows.
                   </p>
-                  <div className="flex justify-center my-4">
-                    <img src={qrSrc} alt="2FA QR code" className="w-44 h-44 rounded-lg" style={{ background: "#fff", border: `1px solid ${theme.cardBorder}` }} />
+
+                  {/* Primary path on a phone: hand the account straight to the
+                      authenticator app. A QR shown on this screen can't be
+                      scanned by the same device. */}
+                  {uri && (
+                    <a
+                      href={uri}
+                      className="mt-3 w-full px-4 py-3 rounded-xl inline-flex items-center justify-center gap-2 text-sm no-underline"
+                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                    >
+                      <ShieldCheck size={15} /> Open in authenticator app
+                    </a>
+                  )}
+
+                  {/* Fallback that always works: copy the key and paste it in. */}
+                  <div className="mt-3">
+                    <div className="text-[11px] mb-1" style={{ color: theme.textMuted, fontWeight: 600 }}>
+                      Or enter this setup key manually
+                    </div>
+                    <div
+                      className="flex items-center gap-2 rounded-xl px-3 py-2"
+                      style={{ border: `1px solid ${theme.cardBorder}`, background: theme.bg }}
+                    >
+                      <code className="flex-1 text-xs break-all" style={{ color: theme.text }}>{secret}</code>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(secret);
+                          } catch {
+                            // Older WebViews without the async clipboard API.
+                            const t = document.createElement("textarea");
+                            t.value = secret;
+                            document.body.appendChild(t);
+                            t.select();
+                            document.execCommand("copy");
+                            document.body.removeChild(t);
+                          }
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1800);
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg text-xs shrink-0"
+                        style={{ border: `1px solid ${theme.cardBorder}`, color: NAVY, fontWeight: 600 }}
+                      >
+                        {copied ? "Copied" : "Copy"}
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-[11px] break-all" style={{ color: theme.textSubtle }}>
-                    Can't scan? Enter this key manually: <span style={{ fontFamily: "monospace" }}>{secret}</span>
-                  </p>
+
+                  {/* QR stays available for setting up from another device. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowQr((s) => !s)}
+                    className="mt-3 text-xs"
+                    style={{ color: NAVY, fontWeight: 600 }}
+                  >
+                    {showQr ? "Hide QR code" : "Scan a QR code from another device instead"}
+                  </button>
+                  {showQr && (
+                    <div className="flex justify-center my-3">
+                      <img src={qrSrc} alt="2FA QR code" className="w-44 h-44 rounded-lg" style={{ background: "#fff", border: `1px solid ${theme.cardBorder}` }} />
+                    </div>
+                  )}
                   <form onSubmit={verify} className="mt-4 space-y-3">
                     <input
                       inputMode="numeric"
