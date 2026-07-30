@@ -4157,6 +4157,13 @@ export function EventsScreen({ navigate }: { navigate: (s: Screen) => void }) {
     localStorage.setItem('eventsLastSeen', new Date().toISOString());
   }, []);
 
+  // Pull-to-refresh (#16): the gesture lives in MemberShell, which fires this.
+  useEffect(() => {
+    const onPull = () => loadEvents();
+    window.addEventListener('cip:pull-refresh', onPull);
+    return () => window.removeEventListener('cip:pull-refresh', onPull);
+  }, []);
+
   return (
     <div className="space-y-4">
       <Card className="p-5">

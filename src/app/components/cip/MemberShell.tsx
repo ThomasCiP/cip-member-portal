@@ -8,6 +8,7 @@ import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { CiPLogo, NAVY, GOLD, useTheme } from "./brand";
 import { Screen } from "./types";
+import { usePullToRefresh } from "../../../lib/usePullToRefresh";
 import { SUPPORT_PATHWAYS, NewSupportRequestModal, useIncomingRequests, useNotificationBadges, ComposeOverlay } from "./MemberScreens";
 
 const TOP_NAV: { key: Screen; label: string; icon: any }[] = [
@@ -744,6 +745,22 @@ export function MemberShell({
   // Message screens hide the footer nav (see below).
   const showBottomNav = !["messages"].includes(current as string);
 
+  // Pull-to-refresh (#16). The shell owns the scroll container, so the gesture
+  // lives here and screens opt in by listening for 'cip:pull-refresh'. The feed
+  // already listens for 'cip:feed-refresh', so that is fired too and Dashboard
+  // needs no change. Waits a beat for listeners to reload before hiding the
+  // spinner, so the loading state is actually visible.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const { distance, refreshing, threshold } = usePullToRefresh(
+    scrollRef,
+    async () => {
+      window.dispatchEvent(new Event('cip:pull-refresh'));
+      window.dispatchEvent(new Event('cip:feed-refresh'));
+      await new Promise((r) => setTimeout(r, 700));
+    },
+    !fullWidth,
+  );
+
   const defaultLeft = (
     <div className="space-y-4">
       <ProfileSummaryCard navigate={navigate} profile={profile} />
@@ -768,7 +785,22 @@ export function MemberShell({
           // (its own composer sits at the bottom).
           <div className="h-full">{children}</div>
         ) : (
-          <div className="h-full overflow-y-auto">
+          <div ref={scrollRef} className="h-full overflow-y-auto">
+            {/* Pull-to-refresh indicator: follows the finger, then spins. */}
+            <div
+              className="md:hidden flex items-end justify-center overflow-hidden"
+              style={{ height: distance, transition: distance === 0 ? "height 180ms ease-out" : undefined }}
+              aria-hidden={distance === 0}
+            >
+              <div className="pb-2 flex items-center gap-1.5 text-[11px]" style={{ color: theme.textMuted }}>
+                <Activity
+                  size={14}
+                  className={refreshing ? "animate-spin" : ""}
+                  style={{ transform: refreshing ? undefined : `rotate(${Math.min(distance / threshold, 1) * 180}deg)` }}
+                />
+                {refreshing ? "Refreshing…" : distance >= threshold ? "Release to refresh" : "Pull to refresh"}
+              </div>
+            </div>
             <div
               className={`max-w-[1400px] mx-auto ${flushMobile ? "px-0 py-4" : "p-4"} md:p-6 pb-24 lg:pb-6 grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_300px]`}
             >
