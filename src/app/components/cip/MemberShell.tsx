@@ -46,17 +46,23 @@ function DonateModal({ onClose }: { onClose: () => void }) {
         <p className="text-gray-600 mt-2 text-sm leading-relaxed">
           Your support helps CiP equip Christians to participate faithfully in politics and public life across Australia.
         </p>
+        {/* Secure online giving isn't live yet — don't imply a working payment flow. */}
+        <p className="mt-4 text-xs leading-relaxed text-gray-500">
+          We're still setting up secure online donations. Please get in touch and we'll help you
+          give directly in the meantime.
+        </p>
         <button
-          className="w-full mt-5 px-5 py-3 rounded-xl inline-flex items-center justify-center gap-2"
-          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+          disabled
+          className="w-full mt-4 px-5 py-3 rounded-xl inline-flex items-center justify-center gap-2 cursor-not-allowed opacity-60"
+          style={{ background: "#f1f5f9", color: "#64748b", fontWeight: 600 }}
         >
-          Continue to donation page <ExternalLink size={14} />
+          Coming soon
         </button>
         <button
           onClick={onClose}
           className="w-full mt-2 px-5 py-2 rounded-xl text-sm text-gray-500 hover:text-gray-700"
         >
-          Cancel
+          Close
         </button>
       </div>
     </div>

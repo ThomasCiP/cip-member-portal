@@ -75,11 +75,12 @@ async function sendConnectionRequest(fromUserId: string, toUserId: string, fromN
   if (error) return null;
 
   const name = fromName || (await fetchOwnName(fromUserId));
-  await supabase.from('notifications').insert({
-    user_id: toUserId,
-    type: 'connection_invite',
-    title: 'New Connection Request',
-    message: `${name || 'Someone'} wants to connect with you.`,
+  // Direct inserts are blocked by RLS; create_notification() validates and inserts.
+  await supabase.rpc('create_notification', {
+    target_user: toUserId,
+    n_type: 'connection_invite',
+    n_title: 'New Connection Request',
+    n_message: `${name || 'Someone'} wants to connect with you.`,
   });
   return 'pending';
 }
@@ -88,12 +89,13 @@ async function sendConnectionRequest(fromUserId: string, toUserId: string, fromN
 async function acceptConnection(connId: string, requesterId: string, myName?: string): Promise<boolean> {
   const { error } = await supabase.from('network_connections').update({ status: 'accepted' }).eq('id', connId);
   if (error) return false;
-  await supabase.from('notifications').insert({
-    user_id: requesterId,
-    type: 'connection_accepted',
-    title: 'Connection accepted',
-    message: `${myName || 'A member'} accepted your connection request.`,
+  const { error: notifyError } = await supabase.rpc('create_notification', {
+    target_user: requesterId,
+    n_type: 'connection_accepted',
+    n_title: 'Connection accepted',
+    n_message: `${myName || 'A member'} accepted your connection request.`,
   });
+  if (notifyError) console.error('connection_accepted notification failed', notifyError);
   return true;
 }
 
@@ -120,13 +122,14 @@ async function registerForEvent(userId: string, eventId: string, event?: { title
     alert('Could not register: ' + error.message);
     return false;
   }
-  await supabase.from('notifications').insert({
-    user_id: userId,
-    type: 'event_registration',
-    title: `You're registered${event?.title ? ' for ' + event.title : ' for the event'}`,
-    message: `Thanks for registering${event?.title ? ' for ' + event.title : ''}${event?.date ? ' on ' + formatEventDate(event.date) : ''}. We look forward to seeing you — you'll get a reminder the day before.`,
-    data: { event_id: eventId },
+  const { error: receiptError } = await supabase.rpc('create_notification', {
+    target_user: userId,
+    n_type: 'event_registration',
+    n_title: `You're registered${event?.title ? ' for ' + event.title : ' for the event'}`,
+    n_message: `Thanks for registering${event?.title ? ' for ' + event.title : ''}${event?.date ? ' on ' + formatEventDate(event.date) : ''}. We look forward to seeing you — you'll get a reminder the day before.`,
+    n_data: { event_id: eventId },
   });
+  if (receiptError) console.error('event_registration notification failed', receiptError);
   return true;
 }
 
@@ -4678,22 +4681,26 @@ export function DonateScreen() {
           Your gift funds the mentoring conversations, training events and pastoral care that
           quietly shape Australia's next generation of faithful public servants.
         </p>
-        <div className="flex items-center justify-center gap-2 mt-6 flex-wrap">
-          {["$25", "$50", "$100", "$250", "Other"].map((a) => (
-            <button
-              key={a}
-              className="px-4 py-2 rounded-lg text-sm"
-              style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-            >
-              {a}
-            </button>
-          ))}
+        {/* Online giving isn't switched on yet. Until it is, this stays an
+            honest placeholder rather than preset amounts + a CTA that go nowhere. */}
+        <div
+          className="mt-6 mx-auto max-w-sm rounded-xl px-4 py-4"
+          style={{ border: `1px solid ${theme.cardBorder}`, background: theme.bg }}
+        >
+          <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
+            Online giving — coming soon
+          </div>
+          <p className="text-xs mt-1.5 leading-relaxed" style={{ color: theme.textMuted }}>
+            We're still setting up secure online donations. In the meantime, please get in touch
+            and we'll help you give directly.
+          </p>
         </div>
         <button
-          className="mt-6 px-6 py-3 rounded-xl inline-flex items-center gap-2"
-          style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
+          disabled
+          className="mt-4 px-6 py-3 rounded-xl inline-flex items-center gap-2 cursor-not-allowed opacity-60"
+          style={{ background: theme.pillBg, color: theme.textMuted, fontWeight: 600 }}
         >
-          Continue to donation page <ExternalLink size={14} />
+          Coming soon
         </button>
       </Card>
     </div>
@@ -6230,7 +6237,7 @@ export function NewSupportRequestModal({ pathway, onClose }: { pathway?: typeof 
   const submitRequest = async () => {
     if (!user) return;
     setLoading(true);
-    await supabase.from("support_requests").insert({
+    const { error } = await supabase.from("support_requests").insert({
       user_id: user.id,
       request_type: effectiveType,
       description: contextText || effectiveDesc || effectiveType,
@@ -6239,11 +6246,13 @@ export function NewSupportRequestModal({ pathway, onClose }: { pathway?: typeof 
     });
     setLoading(false);
 
-    // Trigger email notification to hello@christiansinpolitics.com
-    const subject = encodeURIComponent(`CiP Request: ${effectiveType}`);
-    const body = encodeURIComponent(`A new request has been submitted by ${user.email}:\n\nType: ${effectiveType}\nUrgency: ${urgency}\n\nContext:\n${contextText || effectiveDesc}\n\nPlease reply to this email to contact the member.`);
-    window.location.href = `mailto:hello@christiansinpolitics.com?subject=${subject}&body=${body}`;
-
+    // Only report success if the request actually saved — this row is the record
+    // of truth and surfaces in the admin Support screen. We deliberately do NOT
+    // open the device mail client (it used to kick members out of the app).
+    if (error) {
+      alert("Sorry, we couldn't submit your request. Please try again.\n\n" + error.message);
+      return;
+    }
     onClose(true);
   };
 
