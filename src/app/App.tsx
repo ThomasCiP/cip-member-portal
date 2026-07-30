@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, Component, ErrorInfo, ReactNode } from "react";
+import { signOutCleanly } from "../lib/native/push";
 import { supabase } from "../lib/supabase";
 
 import { Screen } from "./components/cip/types";
@@ -195,13 +196,20 @@ export default function App() {
     return () => window.removeEventListener("cip:password-recovery", onRecovery);
   }, [replace]);
 
+  // Tapping a push notification lands the member on Alerts (#10).
+  useEffect(() => {
+    const onOpenAlerts = () => replace("notifications");
+    window.addEventListener("cip:open-notifications", onOpenAlerts);
+    return () => window.removeEventListener("cip:open-notifications", onOpenAlerts);
+  }, [replace]);
+
   useEffect(() => {
     if (loading) return;
     // Suspended/deleted users must never reach the member area — not even by
     // navigating away from the blocked screen. These checks depend on `screen`
     // so any attempt to leave immediately re-forces the blocked/deleted state.
     if (user && profileStatus?.deleted_at) {
-      supabase.auth.signOut();
+      void signOutCleanly();
       replace("deleted-account");
       return;
     }

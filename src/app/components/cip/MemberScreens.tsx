@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect, ReactNode, MouseEventHandler, CSSProperties } from "react";
+import { signOutCleanly, pushSupported, getPushPermission, enablePush, clearDeliveredPush, PushPermission } from "../../../lib/native/push";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { Screen } from "./types";
@@ -2357,6 +2358,48 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
   );
 }
 
+// #10: one-time "turn on notifications" card on the feed. Native only, shown
+// while the OS permission is still undecided; dismissable. The OS prompt only
+// fires from this explicit tap (or Settings), never on cold start.
+function EnablePushCard() {
+  const { theme } = useTheme();
+  const [perm, setPerm] = useState<PushPermission | null>(null);
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem("cip:push-card-dismissed") === "1");
+
+  useEffect(() => {
+    if (pushSupported) getPushPermission().then(setPerm);
+  }, []);
+
+  if (!pushSupported || dismissed || perm !== "prompt") return null;
+
+  const dismiss = () => {
+    localStorage.setItem("cip:push-card-dismissed", "1");
+    setDismissed(true);
+  };
+
+  return (
+    <Card className="p-4 flex items-center gap-3">
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: theme.pillBg, color: NAVY }}>
+        <Bell size={16} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Turn on notifications</div>
+        <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>Get alerted about messages, connections and mentions.</div>
+      </div>
+      <button
+        onClick={async () => { const r = await enablePush(); setPerm(r === "granted" ? "granted" : "denied"); dismiss(); }}
+        className="px-3 py-1.5 rounded-lg text-xs shrink-0"
+        style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+      >
+        Enable
+      </button>
+      <button onClick={dismiss} className="p-1.5 rounded-md hover:bg-black/5 shrink-0" style={{ color: theme.textSubtle }} aria-label="Dismiss">
+        <X size={14} />
+      </button>
+    </Card>
+  );
+}
+
 export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s: Screen) => void; onboarded?: boolean; setOnboarded?: (b: boolean) => void }) {
   const { theme } = useTheme();
   const [feedItems, setFeedItems] = useState<any[]>([]);
@@ -2510,6 +2553,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
       {onboarded === false && setOnboarded && (
         <GettingStartedWidget setOnboarded={setOnboarded} />
       )}
+      <EnablePushCard />
       {/* Inline composer is desktop-only; on mobile you post via the bottom-bar "+". */}
       <div className="hidden md:block">
         <PostComposer onPost={handleCreateGlobalPost} placeholder="Share something with the whole community..." />
@@ -5279,6 +5323,7 @@ export function NotificationPreferences() {
         <div className="text-xs py-2 mt-3" style={{ color: theme.textSubtle }}>Loading preferences…</div>
       ) : (
         <div className="mt-3">
+          <PushPrefRow />
           <div className="flex items-center justify-between pb-3 mb-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
             <div className="pr-4">
               <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Email me about notifications</div>
@@ -5297,6 +5342,49 @@ export function NotificationPreferences() {
         </div>
       )}
     </Card>
+  );
+}
+
+// #10: push permission state row in Settings → Notifications. Native only.
+// Reflects the real OS state: Enable button while undecided, "On" once
+// granted, and a pointer to the OS Settings app when denied (apps cannot
+// re-prompt after a denial).
+function PushPrefRow() {
+  const { theme } = useTheme();
+  const [perm, setPerm] = useState<PushPermission | null>(null);
+
+  useEffect(() => {
+    if (pushSupported) getPushPermission().then(setPerm);
+  }, []);
+
+  if (!pushSupported || perm === null || perm === "unsupported") return null;
+
+  return (
+    <div className="flex items-center justify-between pb-3 mb-3" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+      <div className="pr-4">
+        <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Push notifications</div>
+        <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>
+          {perm === "granted" && "On — this device receives alerts."}
+          {perm === "prompt" && "Get alerts on this device for messages, connections and mentions."}
+          {perm === "denied" && "Turned off in your phone's Settings. Enable them under Settings → Notifications → CiP Network."}
+        </div>
+      </div>
+      {perm === "granted" ? (
+        <span className="text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0" style={{ background: "#d1fae5", color: "#065f46", fontWeight: 500 }}>
+          <CheckCircle2 size={10} /> On
+        </span>
+      ) : perm === "prompt" ? (
+        <button
+          onClick={async () => setPerm(await enablePush())}
+          className="px-3 py-1.5 rounded-lg text-xs shrink-0"
+          style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+        >
+          Enable
+        </button>
+      ) : (
+        <span className="text-xs shrink-0" style={{ color: theme.textSubtle }}>Off</span>
+      )}
+    </div>
   );
 }
 
@@ -5326,6 +5414,8 @@ export function NotificationsScreen({ navigate }: { navigate: (s: Screen) => voi
       setLoading(false);
     }
     load();
+    // Opening Alerts clears delivered pushes from the notification tray (#11).
+    void clearDeliveredPush();
   }, [user]);
 
   const markAllRead = async () => {
@@ -5541,7 +5631,7 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
                 alert("Failed to delete account: " + error.message);
                 setIsDeleting(false);
               } else {
-                await supabase.auth.signOut();
+                await signOutCleanly();
                 navigate("deleted-account");
               }
             }

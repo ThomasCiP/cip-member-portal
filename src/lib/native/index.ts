@@ -7,6 +7,9 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { supabase } from "../supabase";
+import { ensurePushRegistration } from "./push";
+
+export * from "./push";
 
 /**
  * True when running inside the native iOS/Android shell (Capacitor), false in a
@@ -83,6 +86,14 @@ export async function initNativeApp() {
   } catch {
     /* no launch url */
   }
+
+  // Push (#10/#11): if permission was already granted, re-register on every
+  // launch and sign-in — device tokens rotate. Never prompts; the prompt is
+  // user-initiated from the dashboard card / Settings.
+  void ensurePushRegistration();
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_IN") void ensurePushRegistration();
+  });
 
   // Web layer is mounted — reveal the app (splash is set to not auto-hide).
   try {

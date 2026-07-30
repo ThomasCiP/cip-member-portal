@@ -1,4 +1,5 @@
 import { useState, ReactNode } from "react";
+import { signOutCleanly } from "../../../lib/native/push";
 import { supabase } from "../../../lib/supabase";
 import { CiPLogo, NAVY, GOLD, MUTED_BLUE, useTheme } from "./brand";
 import { Screen } from "./types";
@@ -398,7 +399,7 @@ export function MfaChallengeScreen({ onVerified }: { onVerified: () => void }) {
           </button>
           <button
             type="button"
-            onClick={() => supabase.auth.signOut()}
+            onClick={() => void signOutCleanly()}
             className="w-full text-xs text-gray-500 hover:underline"
           >
             Sign out

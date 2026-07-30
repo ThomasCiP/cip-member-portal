@@ -1,4 +1,5 @@
 import { ReactNode, useState, useEffect, useRef } from "react";
+import { signOutCleanly } from "../../../lib/native/push";
 import {
   Home, UserCircle2, CalendarDays, MessageSquare, Settings,
   ShieldCheck, Bell, ChevronDown, Search, X, ExternalLink, Heart, Lock,
@@ -549,7 +550,7 @@ function ProfileMenu({
             Donate
           </button>
           <button
-            onClick={() => supabase.auth.signOut()}
+            onClick={() => void signOutCleanly()}
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"
             style={{ color: theme.text, borderTop: `1px solid ${theme.divider}` }}
           >

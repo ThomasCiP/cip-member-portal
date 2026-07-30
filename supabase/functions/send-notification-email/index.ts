@@ -30,6 +30,7 @@ const PREF_KEY: Record<string, string> = {
   connection_invite: "connection_requests",
   connection_accepted: "connection_requests",
   announcement: "announcements",
+  mention: "mentions",
 };
 
 const DM_THROTTLE_MINUTES = 15;

@@ -11,5 +11,9 @@
 		<string>applinks:network.christiansinpolitics.com</string>
 		<string>webcredentials:network.christiansinpolitics.com</string>
 	</array>
+	<!-- Push notifications (#10/#11). TestFlight/App Store builds use the
+	     production APNs environment. -->
+	<key>aps-environment</key>
+	<string>production</string>
 </dict>
 </plist>
