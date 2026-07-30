@@ -420,13 +420,18 @@ function PublicFrame({
   navigate?: (s: Screen) => void;
 }) {
   return (
+    // Mobile-first: on phones this reads as an app screen (compact header, no
+    // website chrome, comfortable padding); from `md` up it keeps the original
+    // marketing-site treatment.
     <div className="min-h-screen w-full bg-white flex flex-col cip-safe-top cip-safe-bottom">
       <header
-        className="px-8 py-4 flex items-center justify-between shrink-0"
+        className="px-5 py-3 md:px-8 md:py-4 flex items-center justify-between shrink-0"
         style={{ borderBottom: "1px solid #e5e7eb" }}
       >
         <CiPLogo />
-        <div className="text-sm text-gray-500">
+        {/* On a phone the screens carry their own "Log in" / "Sign in" actions,
+            so this website-style prompt would just be a second, smaller target. */}
+        <div className="hidden md:block text-sm text-gray-500">
           Already a member?{" "}
           <span
             style={{ color: NAVY, cursor: "pointer" }}
@@ -438,23 +443,28 @@ function PublicFrame({
         </div>
       </header>
 
-      <main className="flex-1 px-8 py-12 max-w-5xl mx-auto w-full">{children}</main>
+      <main className="flex-1 px-5 py-7 md:px-8 md:py-12 max-w-5xl mx-auto w-full">{children}</main>
 
-      {/* Footer */}
+      {/* Footer: legal links stay reachable, but on a phone they collapse to a
+          single compact row instead of a copyright-and-columns website footer
+          eating the bottom of the screen. */}
       <footer
-        className="px-8 py-5 flex flex-wrap items-center justify-between gap-3 text-xs"
+        className="px-5 md:px-8 py-3 md:py-5 flex flex-wrap items-center justify-center md:justify-between gap-x-4 gap-y-1.5 text-[11px] md:text-xs shrink-0"
         style={{ borderTop: "1px solid #e5e7eb", color: "#9ca3af" }}
       >
-        <span>© 2025 Christians in Politics. Non-partisan · Privacy-first.</span>
-        <div className="flex flex-wrap gap-4">
+        <span className="hidden md:inline">© 2025 Christians in Politics. Non-partisan · Privacy-first.</span>
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5">
           {onOpenModal && (
             <>
-              <button onClick={() => onOpenModal("terms")} className="hover:underline">Terms of Use</button>
-              <button onClick={() => onOpenModal("privacy")} className="hover:underline">Privacy Policy</button>
-              <button onClick={() => onOpenModal("conduct")} className="hover:underline">Member Conduct Agreement</button>
+              <button onClick={() => onOpenModal("terms")} className="hover:underline">Terms</button>
+              <button onClick={() => onOpenModal("privacy")} className="hover:underline">Privacy</button>
+              <button onClick={() => onOpenModal("conduct")} className="hover:underline">
+                <span className="md:hidden">Conduct</span>
+                <span className="hidden md:inline">Member Conduct Agreement</span>
+              </button>
             </>
           )}
-          <a href="mailto:hello@christiansinpolitics.com" className="hover:underline">Contact CiP</a>
+          <a href="mailto:hello@christiansinpolitics.com" className="hover:underline">Contact</a>
         </div>
       </footer>
     </div>
@@ -466,32 +476,34 @@ export function SignupScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [modal, setModal] = useState<ModalType>(null);
   return (
     <PublicFrame onOpenModal={setModal} navigate={navigate}>
-      <div className="grid md:grid-cols-2 gap-16 items-center">
+      <div className="grid md:grid-cols-2 gap-8 md:gap-16 items-center">
         <div>
           <div
-            className="inline-block px-3 py-1 rounded-full text-xs mb-5"
+            className="inline-block px-3 py-1 rounded-full text-xs mb-4 md:mb-5"
             style={{ background: "#f0f4f8", color: NAVY }}
           >
             Non-partisan · Christian first · Privacy-first
           </div>
-          <h1 style={{ color: NAVY, fontSize: 38, lineHeight: 1.15, fontWeight: 700 }}>
+          {/* Scales with the viewport: 38px is far too large on a 375px phone. */}
+          <h1 style={{ color: NAVY, fontSize: "clamp(26px, 7.5vw, 38px)", lineHeight: 1.15, fontWeight: 700 }}>
             Join a movement of Christians participating faithfully in politics
           </h1>
-          <p className="mt-4 text-gray-600 leading-relaxed">
+          <p className="mt-3 md:mt-4 text-sm md:text-base text-gray-600 leading-relaxed">
             CiP helps Christians explore political involvement, connect with trusted support,
             access resources, and take their next faithful step in public life.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          {/* Full-width, app-sized primary actions on phones. */}
+          <div className="mt-6 md:mt-8 flex flex-col sm:flex-row sm:flex-wrap gap-3">
             <button
               onClick={() => navigate("account")}
-              className="px-6 py-3 rounded-xl inline-flex items-center gap-2 text-sm"
+              className="w-full sm:w-auto px-6 py-3.5 md:py-3 rounded-xl inline-flex items-center justify-center gap-2 text-base md:text-sm"
               style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
             >
               Become a member <ArrowRight size={15} />
             </button>
             <button
               onClick={() => navigate("signin")}
-              className="px-6 py-3 rounded-xl border text-sm hover:bg-gray-50 transition-colors"
+              className="w-full sm:w-auto px-6 py-3.5 md:py-3 rounded-xl border text-base md:text-sm hover:bg-gray-50 transition-colors"
               style={{ borderColor: "#d1d5db", color: NAVY, fontWeight: 500 }}
             >
               Log in
@@ -858,15 +870,17 @@ function PasswordStrength({ password }: { password: string }) {
 function Field({ label, type = "text", value, onChange, required }: { label: string; type?: string; value?: string; onChange?: (e: any) => void; required?: boolean }) {
   return (
     <div>
-      <label className="block text-xs mb-1.5" style={{ color: NAVY, fontWeight: 500 }}>
+      <label className="block text-xs md:text-xs mb-1.5" style={{ color: NAVY, fontWeight: 500 }}>
         {label}
       </label>
+      {/* Taller on phones for a comfortable tap target; the global mobile rule
+          keeps the text at 16px so iOS doesn't zoom the page on focus. */}
       <input
         type={type}
         value={value}
         onChange={onChange}
         required={required}
-        className="w-full px-3 py-2.5 rounded-lg outline-none text-sm"
+        className="w-full px-3.5 py-3 md:px-3 md:py-2.5 rounded-xl md:rounded-lg outline-none text-base md:text-sm"
         style={{ borderColor: "#d1d5db", background: "#fff", border: "1px solid #d1d5db" }}
       />
     </div>

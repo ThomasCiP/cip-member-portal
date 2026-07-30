@@ -20,19 +20,35 @@ html {
   text-size-adjust: 100%;
 }
 
-/* No screen should ever pan sideways on a phone. This is the safety net: the page
- * itself can't scroll horizontally, and long unbroken strings (pasted URLs,
- * long names) wrap instead of stretching the layout past the viewport.
- * Individual wide elements that legitimately scroll (tab strips, tables) opt in
- * with their own `overflow-x-auto`, which still works inside this. */
-html,
-body {
-  max-width: 100%;
-  overflow-x: hidden;
+/* No screen should ever pan sideways on a phone. Scoped to phone/tablet widths
+ * on purpose: `overflow-x: hidden` CLIPS anything wider than the viewport, which
+ * would make wide admin tables unreachable on desktop instead of scrollable.
+ * Elements that legitimately scroll sideways (tab strips) opt in with their own
+ * `overflow-x-auto`, which still works inside this. */
+@media (max-width: 1023px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
 }
 
+/* Long unbroken strings (pasted URLs, long names) wrap instead of stretching the
+ * layout past the screen edge. Safe at every width. */
 body {
   overflow-wrap: break-word;
+}
+
+/* iOS auto-zooms the whole page when a focused input's font-size is under 16px —
+ * which is what made screens look oversized and forced sideways panning after
+ * tapping a field. 16px is the threshold that suppresses it. Phone/tablet only,
+ * so desktop keeps its smaller, denser form controls. */
+@media (max-width: 1023px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 .cip-safe-top {
