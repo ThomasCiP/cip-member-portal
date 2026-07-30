@@ -741,6 +741,9 @@ export function MemberShell({
   const [donateOpen, setDonateOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
 
+  // Message screens hide the footer nav (see below).
+  const showBottomNav = !["messages"].includes(current as string);
+
   const defaultLeft = (
     <div className="space-y-4">
       <ProfileSummaryCard navigate={navigate} profile={profile} />
@@ -761,9 +764,9 @@ export function MemberShell({
 
       <main className="flex-1 overflow-hidden">
         {fullWidth ? (
-          // Reserve room for the fixed bottom nav on mobile, or the last
-          // ~60px of a full-width screen (e.g. messaging) sits under it.
-          <div className="h-full pb-[60px] md:pb-0">{children}</div>
+          // No bottom nav on messaging, so the thread can use the full height
+          // (its own composer sits at the bottom).
+          <div className="h-full">{children}</div>
         ) : (
           <div className="h-full overflow-y-auto">
             <div
@@ -777,7 +780,12 @@ export function MemberShell({
         )}
       </main>
 
-      <BottomNav current={current} navigate={navigate} onCompose={() => setComposeOpen(true)} />
+      {/* Footer nav stays on every member screen except messaging, where the
+          thread + composer own the full height. Posting is the ComposeOverlay,
+          which already covers the nav at a higher z-index. */}
+      {showBottomNav && (
+        <BottomNav current={current} navigate={navigate} onCompose={() => setComposeOpen(true)} />
+      )}
 
       {composeOpen && <ComposeOverlay navigate={navigate} onClose={() => setComposeOpen(false)} />}
       {donateOpen && <DonateModal onClose={() => setDonateOpen(false)} />}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal Links: lets Supabase auth emails (confirm / password reset)
+	     that point at network.christiansinpolitics.com reopen the app instead of
+	     dumping the member into Safari. Handled by handleAuthDeepLink() in
+	     src/lib/native/index.ts. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:network.christiansinpolitics.com</string>
+		<string>webcredentials:network.christiansinpolitics.com</string>
+	</array>
+</dict>
+</plist>
