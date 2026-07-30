@@ -449,6 +449,70 @@ const REACTIONS = [
 const REACTION_BY_KEY: Record<string, (typeof REACTIONS)[number]> =
   Object.fromEntries(REACTIONS.map((r) => [r.key, r]));
 
+// Generic tappable people list in a modal — used for org follower lists (#17).
+// Rows open the member's profile.
+function PeopleListModal({ title, userIds, onClose, navigate }: {
+  title: string;
+  userIds: string[];
+  onClose: () => void;
+  navigate?: (s: Screen) => void;
+}) {
+  const { theme } = useTheme();
+  const [people, setPeople] = useState<any[] | null>(null);
+  const idsKey = userIds.join(",");
+
+  useEffect(() => {
+    (async () => {
+      if (!userIds.length) { setPeople([]); return; }
+      const { data } = await supabase
+        .from("member_directory")
+        .select("id, first_name, last_name, job_title, avatar_url")
+        .in("id", userIds);
+      setPeople(data || []);
+    })();
+  }, [idsKey]);
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold" style={{ color: theme.text }}>{title}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-black/5" style={{ color: theme.textMuted }} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
+          {people === null && <div className="py-6 text-center text-sm" style={{ color: theme.textMuted }}>Loading…</div>}
+          {people !== null && people.length === 0 && <div className="py-6 text-center text-sm" style={{ color: theme.textMuted }}>No one here yet.</div>}
+          {(people || []).map((p) => {
+            const name = `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Member";
+            const open = () => {
+              if (!navigate) return;
+              localStorage.setItem("activeProfileUserId", p.id);
+              onClose();
+              navigate("member-profile");
+            };
+            return (
+              <div key={p.id} role={navigate ? "link" : undefined} tabIndex={navigate ? 0 : undefined}
+                className="flex items-center gap-3 py-2.5 px-2 rounded-lg hover:bg-black/5"
+                style={{ cursor: navigate ? "pointer" : "default" }}
+                onClick={open}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}>
+                <Avatar src={p.avatar_url} name={name} size={36} bg={NAVY} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate" style={{ color: theme.text }}>{name}</div>
+                  {p.job_title && <div className="text-xs truncate" style={{ color: theme.textSubtle }}>{p.job_title}</div>}
+                </div>
+                <ChevronRight size={14} style={{ color: theme.textSubtle }} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // Who-reacted list (#7). Opened from the reaction count; each row opens that
 // member's profile.
 function ReactorsModal({ rows, onClose, navigate }: {
@@ -3408,6 +3472,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const [posting, setPosting] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [numFollowers, setNumFollowers] = useState(0);
+  const [showFollowers, setShowFollowers] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const { user } = useAuth();
 
@@ -3514,7 +3579,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const canManageMembers =
     !!group && !!user && (group.created_by === user.id || memberRoles[user.id] === 'admin');
 
-  const setMemberRole = async (memberId: string, role: 'admin' | 'member') => {
+  const setMemberRole = async (memberId: string, role: 'admin' | 'member' | 'employee') => {
     if (!group) return;
     const { error } = await supabase
       .from('group_members')
@@ -3588,7 +3653,9 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                   <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm mt-3" style={{ color: theme.textMuted }}>
                     <span className="font-medium text-gray-500">Organisation</span>
                     <span>•</span>
-                    <span>{numFollowers} followers</span>
+                    <button onClick={() => setShowFollowers(true)} className="hover:underline" style={{ color: NAVY, fontWeight: 500 }}>
+                      {numFollowers} followers
+                    </button>
                     {group.website_url && (
                       <>
                         <span>•</span>
@@ -3621,23 +3688,19 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                       {isFollowing ? 'Following' : 'Follow'}
                     </button>
                     {group.created_by !== user?.id && (
+                      /* #28: orgs are followed, not connected with. Messaging the
+                         org opens a chat with its manager directly — no
+                         person-style connection request. */
                       <button
-                        onClick={async () => {
+                        onClick={() => {
                           if (!user || !group.created_by) return;
-                          const existing = await findConnection(user.id, group.created_by);
-                          if (existing?.status === 'accepted') {
-                            localStorage.setItem('activeMessageUserId', group.created_by);
-                            navigate('messages');
-                            return;
-                          }
-                          if (existing?.status === 'pending') { alert('Connection request already pending.'); return; }
-                          const status = await sendConnectionRequest(user.id, group.created_by);
-                          alert(status ? 'Connection request sent. You can message once it is accepted.' : 'Could not send request.');
+                          localStorage.setItem('activeMessageUserId', group.created_by);
+                          navigate('messages');
                         }}
                         className="px-5 py-1.5 rounded-full text-sm font-semibold inline-flex items-center gap-1.5 transition-transform hover:scale-[1.02]"
                         style={{ background: "transparent", color: NAVY, border: `1px solid ${NAVY}` }}
                       >
-                        {connectedIds.has(group.created_by) ? <><Send size={14} /> Message</> : <><UserPlus size={14} /> Connect</>}
+                        <Send size={14} /> Message
                       </button>
                     )}
                   </div>
@@ -3777,15 +3840,29 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         </div>
       )}
 
-      {tab === "members" && (
+      {tab === "members" && (() => {
+        // #27: for organisations, followers and employees are different things.
+        // group_members rows are followers; only rows the org's managers have
+        // marked role='employee' appear under Employees. Groups are unchanged.
+        const isOrg = group.group_type === 'organisation';
+        const shownMembers = isOrg ? allMembers.filter((m) => m.role === 'employee') : allMembers;
+        const addable = isOrg && canManageMembers ? allMembers.filter((m) => m.role !== 'employee') : [];
+        return (
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
-              {group.group_type === 'organisation' ? 'Employees' : 'Members'} ({allMembers.length})
+              {isOrg ? 'Employees' : 'Members'} ({shownMembers.length})
             </h3>
           </div>
+          {isOrg && shownMembers.length === 0 && (
+            <div className="py-6 text-sm text-center" style={{ color: theme.textMuted }}>
+              {canManageMembers
+                ? "No employees listed yet. Add them from your followers below."
+                : "This organisation hasn't listed any employees yet."}
+            </div>
+          )}
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
-            {allMembers.map((m) => (
+            {shownMembers.map((m) => (
               <div
                 key={m.id}
                 className="rounded-xl p-3 flex flex-col h-full"
@@ -3806,15 +3883,26 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                   </div>
                 </div>
 
-                {/* Role controls — visible only to the group owner / group admins. */}
+                {/* Role controls — visible only to the group owner / group admins.
+                    Groups: admin promotion (#24). Orgs: remove-from-employees (#27). */}
                 {canManageMembers && m.id !== user?.id && (
-                  <button
-                    onClick={() => setMemberRole(m.id, m.role === 'admin' ? 'member' : 'admin')}
-                    className="mt-2 self-start text-[11px] hover:underline"
-                    style={{ color: m.role === 'admin' ? theme.textMuted : NAVY, fontWeight: 600 }}
-                  >
-                    {m.role === 'admin' ? 'Remove admin' : 'Make admin'}
-                  </button>
+                  isOrg ? (
+                    <button
+                      onClick={() => setMemberRole(m.id, 'member')}
+                      className="mt-2 self-start text-[11px] hover:underline"
+                      style={{ color: theme.textMuted, fontWeight: 600 }}
+                    >
+                      Remove employee
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setMemberRole(m.id, m.role === 'admin' ? 'member' : 'admin')}
+                      className="mt-2 self-start text-[11px] hover:underline"
+                      style={{ color: m.role === 'admin' ? theme.textMuted : NAVY, fontWeight: 600 }}
+                    >
+                      {m.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                    </button>
+                  )
                 )}
                 <p className="text-xs mt-2 leading-snug" style={{ color: theme.textMuted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: "2.75em" }}>{m.bio}</p>
                 <div className="mt-auto pt-3">
@@ -3835,8 +3923,38 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
               </div>
             ))}
           </div>
+
+          {/* #27: managers add employees from the org's followers. */}
+          {addable.length > 0 && (
+            <div className="mt-6 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
+              <h4 className="text-xs uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>Add employees</h4>
+              <p className="text-xs mt-1" style={{ color: theme.textSubtle }}>
+                Anyone following this organisation can be listed as an employee.
+              </p>
+              <div className="mt-3 space-y-1">
+                {addable.map((m) => (
+                  <div key={m.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-black/5">
+                    <Avatar src={m.avatar} name={m.name} size={32} bg={NAVY} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 500 }}>
+                        <MemberNameLink userId={m.id} name={m.name} navigate={navigate} />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setMemberRole(m.id, 'employee')}
+                      className="text-xs px-3 py-1.5 rounded-lg shrink-0"
+                      style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                    >
+                      Add as employee
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
-      )}
+        );
+      })()}
 
       {tab === "events" && (
         <GroupEventsTab groupId={group.id} navigate={navigate} />
@@ -3863,25 +3981,18 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                  <h4 className="text-xs uppercase tracking-wider" style={{ color: theme.textMuted, fontWeight: 600 }}>Contact</h4>
                  <div className="mt-2 text-sm" style={{ color: theme.text }}>Managed by <MemberNameLink userId={group?.created_by} name={groupCreator} navigate={navigate} /></div>
                  {group.created_by !== user?.id && (
+                   /* #28: no person-style connection with an organisation —
+                      messaging opens a chat with its manager directly. */
                    <button
-                     onClick={async () => {
+                     onClick={() => {
                        if (!user || !group.created_by) return;
-                       const existing = await findConnection(user.id, group.created_by);
-                       if (existing?.status === 'accepted') {
-                         localStorage.setItem('activeMessageUserId', group.created_by);
-                         navigate('messages');
-                         return;
-                       }
-                       if (existing?.status === 'pending') { alert('Connection request already pending.'); return; }
-                       const status = await sendConnectionRequest(user.id, group.created_by);
-                       alert(status ? 'Connection request sent. You can message once it is accepted.' : 'Could not send request.');
+                       localStorage.setItem('activeMessageUserId', group.created_by);
+                       navigate('messages');
                      }}
                      className="mt-3 px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 transition-transform hover:scale-[1.02]"
                      style={{ background: GOLD, color: "#fff", fontWeight: 600 }}
                    >
-                     {connectedIds.has(group.created_by)
-                       ? <><MessageCircle size={16} /> Message Organisation</>
-                       : <><UserPlus size={16} /> Connect with Organisation</>}
+                     <MessageCircle size={16} /> Message Organisation
                    </button>
                  )}
                </div>
@@ -3926,6 +4037,14 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
           initialData={group}
           onClose={() => setEditOpen(false)}
           onSave={() => { setEditOpen(false); initGroup(); }}
+        />
+      )}
+      {showFollowers && (
+        <PeopleListModal
+          title="Followers"
+          userIds={Object.keys(memberRoles)}
+          onClose={() => setShowFollowers(false)}
+          navigate={navigate}
         />
       )}
     </div>
@@ -6680,8 +6799,50 @@ export function SupportScreen() {
     loadRequests();
   }, [user]);
 
+  // #14: with an active (non-closed) request, the requests module moves above
+  // the pathway grid so members see their in-flight request first.
+  const hasActive = requests.some((r) => r.status !== "Closed");
+
+  const requestsCard = (
+    <Card className="p-5">
+      <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Your support requests</h3>
+      <div className="mt-3 divide-y" style={{ borderColor: theme.divider }}>
+        {requests.length === 0 ? (
+          <div className="py-6 text-sm text-center" style={{ color: theme.textMuted }}>
+            You don't have any open support requests.
+          </div>
+        ) : (
+          requests.map((r, i) => {
+            const s = STATUS_STYLE[r.status] ?? STATUS_STYLE.Submitted;
+            return (
+              <div
+                key={r.id}
+                className="flex items-center gap-3 py-3"
+                style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.request_type}</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>Updated {new Date(r.created_at).toLocaleDateString()}</div>
+                </div>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full"
+                  style={{ background: s.bg, color: s.fg, fontWeight: 500 }}
+                >
+                  {r.status}
+                </span>
+                <ChevronRight size={14} style={{ color: theme.textSubtle }} />
+              </div>
+            );
+          })
+        )}
+      </div>
+    </Card>
+  );
+
   return (
     <div className="space-y-4">
+      {hasActive && requestsCard}
+
       <Card className="p-5">
         <div className="flex items-start gap-3">
           <div
@@ -6730,40 +6891,8 @@ export function SupportScreen() {
         })}
       </div>
 
-      {/* Existing requests */}
-      <Card className="p-5">
-        <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Your support requests</h3>
-        <div className="mt-3 divide-y" style={{ borderColor: theme.divider }}>
-          {requests.length === 0 ? (
-            <div className="py-6 text-sm text-center" style={{ color: theme.textMuted }}>
-              You don't have any open support requests.
-            </div>
-          ) : (
-            requests.map((r, i) => {
-              const s = STATUS_STYLE[r.status] ?? STATUS_STYLE.Submitted;
-              return (
-                <div
-                  key={r.id}
-                  className="flex items-center gap-3 py-3"
-                  style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm" style={{ color: theme.text, fontWeight: 500 }}>{r.request_type}</div>
-                    <div className="text-[11px] mt-0.5" style={{ color: theme.textSubtle }}>Updated {new Date(r.created_at).toLocaleDateString()}</div>
-                  </div>
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full"
-                    style={{ background: s.bg, color: s.fg, fontWeight: 500 }}
-                  >
-                    {r.status}
-                  </span>
-                  <ChevronRight size={14} style={{ color: theme.textSubtle }} />
-                </div>
-              );
-            })
-          )}
-        </div>
-      </Card>
+      {/* Existing requests (moved to the top when one is active) */}
+      {!hasActive && requestsCard}
 
       {selected && (
         <NewSupportRequestModal 
