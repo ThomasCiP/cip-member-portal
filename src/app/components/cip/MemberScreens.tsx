@@ -3194,7 +3194,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
           </div>
           <button
             onClick={() => setCreateOpen(true)}
-            className="hidden px-3 py-2 rounded-lg text-sm md:inline-flex items-center gap-1.5 shrink-0"
+            className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5 shrink-0"
             style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
           >
             <Plus size={14} /> Create group
@@ -3313,8 +3313,10 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
   const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [registeredEventIds, setRegisteredEventIds] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<"feed" | "members" | "events" | "resources" | "about">("feed");
+  const [tab, setTab] = useState<"feed" | "members" | "events" | "about">("feed");
   const [dbMembers, setDbMembers] = useState<any[]>([]);
+  // user_id -> role ('admin' | 'member'), for the Members tab admin controls.
+  const [memberRoles, setMemberRoles] = useState<Record<string, string>>({});
   const [group, setGroup] = useState<any>(null);
   const [loadingGroup, setLoadingGroup] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -3392,7 +3394,10 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
         if (regs) setRegisteredEventIds(new Set(regs.map((r: any) => r.event_id)));
 
         // Only fetch actual group members
-        const { data: groupMembers } = await supabase.from('group_members').select('user_id').eq('group_id', groupId);
+        const { data: groupMembers } = await supabase.from('group_members').select('user_id, role').eq('group_id', groupId);
+        if (groupMembers) {
+          setMemberRoles(Object.fromEntries(groupMembers.map((m: any) => [m.user_id, m.role || 'member'])));
+        }
         if (groupMembers && groupMembers.length > 0) {
           setNumFollowers(groupMembers.length);
           setIsFollowing(groupMembers.some(m => m.user_id === user.id));
@@ -3418,8 +3423,25 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
       bio: m.bio || 'New member',
       connected: connectedIds.has(m.id),
       pending: pendingIds.has(m.id),
+      role: memberRoles[m.id] || 'member',
     }))
   ];
+
+  // Only the group's creator or an existing group admin may change roles — the
+  // same rule the database enforces (see the guard_group_member_role trigger).
+  const canManageMembers =
+    !!group && !!user && (group.created_by === user.id || memberRoles[user.id] === 'admin');
+
+  const setMemberRole = async (memberId: string, role: 'admin' | 'member') => {
+    if (!group) return;
+    const { error } = await supabase
+      .from('group_members')
+      .update({ role })
+      .eq('group_id', group.id)
+      .eq('user_id', memberId);
+    if (error) { alert('Could not update this member: ' + error.message); return; }
+    setMemberRoles(prev => ({ ...prev, [memberId]: role }));
+  };
 
   const handleDelete = async () => {
     if (!group || !window.confirm("Are you sure you want to delete this group?")) return;
@@ -3564,7 +3586,9 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {(group.created_by === user?.id || isAdmin) && (
+                {/* Creator only. Platform admins moderate groups from the admin
+                    console rather than the member-facing group page. */}
+                {group.created_by === user?.id && (
                   <button onClick={handleDelete} className="text-xs hover:underline text-red-600">
                     Delete group
                   </button>
@@ -3583,7 +3607,6 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
               ["feed", "Feed"],
               ["members", group.group_type === 'organisation' ? "Employees" : "Members"],
               ["events", "Events"],
-              ["resources", "Resources"],
               ["about", "About"],
             ] as const).map(([k, l]) => (
               <button
@@ -3689,12 +3712,28 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 <div className="flex items-center gap-3">
                   <Avatar src={m.avatar} name={m.name} size={40} bg={NAVY} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
+                    <div className="text-sm truncate flex items-center gap-1.5" style={{ color: theme.text, fontWeight: 600 }}>
                       <MemberNameLink userId={m.id} name={m.name} navigate={navigate} />
+                      {m.role === 'admin' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] shrink-0" style={{ background: "rgba(90,79,207,0.1)", color: NAVY, fontWeight: 600 }}>
+                          Admin
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11px]" style={{ color: theme.textSubtle }}>{m.state}</div>
                   </div>
                 </div>
+
+                {/* Role controls — visible only to the group owner / group admins. */}
+                {canManageMembers && m.id !== user?.id && (
+                  <button
+                    onClick={() => setMemberRole(m.id, m.role === 'admin' ? 'member' : 'admin')}
+                    className="mt-2 self-start text-[11px] hover:underline"
+                    style={{ color: m.role === 'admin' ? theme.textMuted : NAVY, fontWeight: 600 }}
+                  >
+                    {m.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                  </button>
+                )}
                 <p className="text-xs mt-2 leading-snug" style={{ color: theme.textMuted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: "2.75em" }}>{m.bio}</p>
                 <div className="mt-auto pt-3">
                   {m.connected ? (
@@ -3719,17 +3758,6 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
 
       {tab === "events" && (
         <GroupEventsTab groupId={group.id} navigate={navigate} />
-      )}
-
-      {tab === "resources" && (
-        <Card className="p-5">
-          <h3 className="text-sm mb-3" style={{ color: theme.text, fontWeight: 600 }}>Group resources</h3>
-          <div className="space-y-3">
-            <div className="text-center py-6 text-sm" style={{ color: theme.textMuted }}>
-              No resources have been shared in this group.
-            </div>
-          </div>
-        </Card>
       )}
 
       {tab === "about" && (
@@ -4310,6 +4338,11 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
   // that list can also hold synthesized (not-yet-connected) conversations opened
   // via a deep-link. Used to decide whether the composer is unlocked.
   const [acceptedPeerIds, setAcceptedPeerIds] = useState<Set<string>>(new Set());
+  // Accepted connections you *could* message — the picker behind "New message".
+  // Deliberately separate from `connections` (the list of real threads) so that
+  // connecting with someone no longer conjures an empty conversation.
+  const [connectablePeers, setConnectablePeers] = useState<any[]>([]);
+  const [newChatOpen, setNewChatOpen] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [composerText, setComposerText] = useState("");
@@ -4330,42 +4363,76 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
 
   const loadNetwork = async () => {
     if (!user) return;
-    const { data } = await supabase
+
+    // Accepted connections: who may be messaged (and unlocks the composer).
+    const { data: conns } = await supabase
       .from('network_connections')
       .select('id, status, requester_id, receiver_id')
       .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`)
       .eq('status', 'accepted');
 
-    if (data) {
-      const dir = await fetchAuthorMap(data.map(c => (c.requester_id === user.id ? c.receiver_id : c.requester_id)));
-      const acc: any[] = [];
-      const accepted = new Set<string>();
-      for (const c of data) {
-         const peerId = c.requester_id === user.id ? c.receiver_id : c.requester_id;
-         const peer = dir.get(peerId);
-         if (!peer) continue;
-         accepted.add(peer.id);
+    // Real conversations: a thread exists only once a message has been sent.
+    // Previously the list was built straight from accepted connections, so every
+    // new connection showed up as an empty conversation.
+    const { data: msgs } = await supabase
+      .from('messages')
+      .select('sender_id, receiver_id, content, created_at')
+      .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+      .order('created_at', { ascending: false });
 
-         acc.push({
-           id: c.id,
-           peerId: peer.id,
-           name: `${peer.first_name || 'Unknown'} ${peer.last_name || ''}`.trim(),
-           avatar: peer.avatar_url || null,
-           title: peer.job_title || 'Member',
-           group: "CiP Network",
-           unread: 0,
-           last: "",
-           time: "",
-         });
-      }
-      setAcceptedPeerIds(accepted);
-      // Preserve any synthesized deep-link conversation already in the list.
-      setConnections(prev => {
-        const synthesized = prev.filter(c => !accepted.has(c.peerId) && String(c.id).startsWith('dm-'));
-        return [...synthesized, ...acc];
-      });
+    const acceptedIds = new Set<string>(
+      (conns || []).map(c => (c.requester_id === user.id ? c.receiver_id : c.requester_id))
+    );
+
+    // Latest message per peer (msgs is newest-first, so first hit wins).
+    const latestByPeer = new Map<string, { content: string; created_at: string }>();
+    for (const m of msgs || []) {
+      const peerId = m.sender_id === user.id ? m.receiver_id : m.sender_id;
+      if (!peerId || latestByPeer.has(peerId)) continue;
+      latestByPeer.set(peerId, { content: m.content, created_at: m.created_at });
     }
+
+    const dir = await fetchAuthorMap([...new Set([...acceptedIds, ...latestByPeer.keys()])]);
+    const describe = (peerId: string) => {
+      const peer = dir.get(peerId);
+      return {
+        peerId,
+        name: peer ? `${peer.first_name || 'Unknown'} ${peer.last_name || ''}`.trim() : 'Member',
+        avatar: peer?.avatar_url || null,
+        title: peer?.job_title || 'Member',
+        group: 'CiP Network',
+      };
+    };
+
+    // Threads, most recent first.
+    const threads = [...latestByPeer.entries()]
+      .sort((a, b) => new Date(b[1].created_at).getTime() - new Date(a[1].created_at).getTime())
+      .map(([peerId, last]) => ({
+        id: `dm-${peerId}`,
+        ...describe(peerId),
+        unread: 0,
+        last: last.content,
+        time: new Date(last.created_at).toLocaleDateString(),
+      }));
+
+    setAcceptedPeerIds(acceptedIds);
+    setConnectablePeers([...acceptedIds].map(describe).sort((a, b) => a.name.localeCompare(b.name)));
+    setConnections(prev => {
+      // Keep a conversation opened via deep-link / the picker that has no messages yet.
+      const pending = prev.filter(
+        c => String(c.id).startsWith('dm-') && !latestByPeer.has(c.peerId) && c.peerId === activePeerRef.current
+      );
+      return [...pending, ...threads];
+    });
     setLoading(false);
+  };
+
+  // Open (or stage) a conversation with a connection chosen from the picker.
+  const openConversationWith = (peer: any) => {
+    const convo = { id: `dm-${peer.peerId}`, ...peer, unread: 0, last: '', time: '' };
+    setConnections(prev => (prev.some(c => c.peerId === peer.peerId) ? prev : [convo, ...prev]));
+    setActive(prev => (prev?.peerId === peer.peerId ? prev : convo));
+    setNewChatOpen(false);
   };
 
   useEffect(() => {
@@ -4504,7 +4571,18 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
             style={{ borderRight: `1px solid ${theme.divider}` }}
           >
             <div className="px-5 py-4 shrink-0" style={{ borderBottom: `1px solid ${theme.divider}` }}>
-              <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Conversations</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Conversations</div>
+                {/* Threads only exist once a message is sent, so there has to be an
+                    explicit way to start one. */}
+                <button
+                  onClick={() => setNewChatOpen(true)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs inline-flex items-center gap-1"
+                  style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+                >
+                  <Plus size={13} /> New
+                </button>
+              </div>
               <div className="relative mt-3">
                 <input
                   value={search}
@@ -4521,7 +4599,11 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                  <div className="p-8 text-center text-xs" style={{ color: theme.textSubtle }}>Loading conversations...</div>
               ) : filteredConnections.length === 0 ? (
                 <div className="p-8 text-center text-xs leading-relaxed" style={{ color: theme.textSubtle }}>
-                  You have no active conversations. Start connecting with members in your groups!
+                  {search
+                    ? "No conversations match that search."
+                    : connectablePeers.length > 0
+                      ? 'No conversations yet. Tap "New" to message one of your connections.'
+                      : "No conversations yet. Connect with members in your groups to start messaging."}
                 </div>
               ) : (
                 filteredConnections.map((c) => {
@@ -4658,6 +4740,72 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {newChatOpen && (
+        <NewConversationModal
+          peers={connectablePeers}
+          onClose={() => setNewChatOpen(false)}
+          onPick={openConversationWith}
+        />
+      )}
+    </div>
+  );
+}
+
+// Pick a connection to start a conversation with. Only accepted connections are
+// listed — messaging requires a connection.
+function NewConversationModal({ peers, onClose, onPick }: {
+  peers: any[]; onClose: () => void; onPick: (peer: any) => void;
+}) {
+  const { theme } = useTheme();
+  const [q, setQ] = useState("");
+  const shown = peers.filter(p => p.name.toLowerCase().includes(q.trim().toLowerCase()));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
+      <div
+        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[80vh]"
+        style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}`, paddingBottom: "env(safe-area-inset-bottom)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 flex items-center justify-between shrink-0" style={{ borderBottom: `1px solid ${theme.divider}` }}>
+          <h3 className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>New message</h3>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-black/5"><X size={16} style={{ color: theme.textMuted }} /></button>
+        </div>
+        <div className="px-5 pt-3 shrink-0">
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search your connections"
+            className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+            style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto py-2">
+          {shown.length === 0 ? (
+            <div className="px-5 py-8 text-center text-xs leading-relaxed" style={{ color: theme.textSubtle }}>
+              {peers.length === 0
+                ? "You'll be able to message members once you've connected with them."
+                : "No connections match that search."}
+            </div>
+          ) : (
+            shown.map(p => (
+              <button
+                key={p.peerId}
+                onClick={() => onPick(p)}
+                className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-black/5 transition-colors"
+              >
+                <Avatar src={p.avatar} name={p.name} size={40} bg={NAVY} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>{p.name}</div>
+                  <div className="text-xs truncate" style={{ color: theme.textMuted }}>{p.title}</div>
+                </div>
+              </button>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -6814,7 +6962,7 @@ export function OrganisationsScreen({ navigate }: { navigate: (s: Screen) => voi
           </div>
           <button
             onClick={() => setCreateOpen(true)}
-            className="hidden px-3 py-2 rounded-lg text-sm md:inline-flex items-center gap-1.5 shrink-0"
+            className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5 shrink-0"
             style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
           >
             <Plus size={14} /> Create organisation
