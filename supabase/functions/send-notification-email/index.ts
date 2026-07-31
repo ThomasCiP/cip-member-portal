@@ -87,19 +87,25 @@ Deno.serve(async (req) => {
     if (!n) return json({ ok: true, skip: "not_found" });
     if (n.email_sent_at) return json({ ok: true, skip: "already_sent" });
 
+    // 'welcome' is transactional (sent once at signup) and bypasses preference
+    // gating — a brand-new account has no meaningful prefs yet (feedback #20).
+    const isTransactional = n.type === "welcome";
+
     // Only certain types email at all.
     const prefKey = PREF_KEY[n.type as string];
-    if (!prefKey) return json({ ok: true, skip: "type_in_app_only" });
+    if (!prefKey && !isTransactional) return json({ ok: true, skip: "type_in_app_only" });
 
-    // Preference gating (opt-out model: missing key => enabled).
-    const { data: prof } = await admin
-      .from("profiles")
-      .select("notification_preferences")
-      .eq("id", n.user_id)
-      .maybeSingle();
-    const prefs = (prof?.notification_preferences ?? {}) as Record<string, boolean>;
-    if (prefs.email_enabled === false) return json({ ok: true, skip: "email_disabled" });
-    if (prefs[prefKey] === false) return json({ ok: true, skip: `pref:${prefKey}` });
+    if (!isTransactional) {
+      // Preference gating (opt-out model: missing key => enabled).
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("notification_preferences")
+        .eq("id", n.user_id)
+        .maybeSingle();
+      const prefs = (prof?.notification_preferences ?? {}) as Record<string, boolean>;
+      if (prefs.email_enabled === false) return json({ ok: true, skip: "email_disabled" });
+      if (prefs[prefKey] === false) return json({ ok: true, skip: `pref:${prefKey}` });
+    }
 
     // Direct-message throttle: at most one email per sender per window.
     if (n.type === "direct_message") {

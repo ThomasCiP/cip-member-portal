@@ -309,8 +309,8 @@ export function UpdatePasswordScreen({ navigate }: { navigate: (s: Screen) => vo
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-            <Field label="New password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            <Field label="Confirm new password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+            <Field label="New password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" />
+            <Field label="Confirm new password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required autoComplete="new-password" />
 
             {error && <div className="text-sm text-red-600">{error}</div>}
 
@@ -606,9 +606,9 @@ export function SignInScreen({ navigate }: { navigate: (s: Screen) => void }) {
         <p className="text-gray-500 mt-2 text-sm">Sign in to your member account.</p>
 
         <form onSubmit={handleSignIn} className="mt-8 space-y-4">
-          <Field label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Field label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
           <div>
-            <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
             <div className="text-right mt-1">
               <button 
                 type="button" 
@@ -741,11 +741,11 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
             <Field label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
             <Field label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
           </div>
-          <Field label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Field label="Mobile number (optional)" value={mobile} onChange={(e) => setMobile(e.target.value)} />
-          <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <Field label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
+          <Field label="Mobile number (optional)" value={mobile} onChange={(e) => setMobile(e.target.value)} autoComplete="tel" />
+          <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" />
           {password.length > 0 && <PasswordStrength password={password} />}
-          <Field label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+          <Field label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required autoComplete="new-password" />
           {confirmPassword.length > 0 && confirmPassword !== password && (
             <div className="text-xs text-red-600 -mt-2">Passwords do not match.</div>
           )}
@@ -871,7 +871,7 @@ function PasswordStrength({ password }: { password: string }) {
   );
 }
 
-function Field({ label, type = "text", value, onChange, required }: { label: string; type?: string; value?: string; onChange?: (e: any) => void; required?: boolean }) {
+function Field({ label, type = "text", value, onChange, required, autoComplete }: { label: string; type?: string; value?: string; onChange?: (e: any) => void; required?: boolean; autoComplete?: string }) {
   // Password fields get a show/hide toggle (feedback #3).
   const [revealed, setRevealed] = useState(false);
   const isPassword = type === "password";
@@ -888,6 +888,7 @@ function Field({ label, type = "text", value, onChange, required }: { label: str
           value={value}
           onChange={onChange}
           required={required}
+          autoComplete={autoComplete}
           className={`w-full px-3.5 py-3 md:px-3 md:py-2.5 rounded-xl md:rounded-lg outline-none text-base md:text-sm ${isPassword ? "pr-11" : ""}`}
           style={{ borderColor: "#d1d5db", background: "#fff", border: "1px solid #d1d5db" }}
         />
