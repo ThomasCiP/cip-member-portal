@@ -677,7 +677,7 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
               ].map(([label, value]) => (
                 <div key={label}>
                   <div className="text-xs mb-0.5" style={{ color: theme.textSubtle }}>{label}</div>
-                  <div style={{ color: theme.text }}>{value || "—"}</div>
+                  <div style={{ color: theme.text }}>{value || "-"}</div>
                 </div>
               ))}
             </div>
@@ -696,9 +696,9 @@ export function AdminSupportDetail({ navigate }: { navigate: (s: Screen) => void
             <div className="space-y-2 text-sm">
               {[
                 ["Name", memberName],
-                ["State", p.state || "—"],
-                ["Tradition", p.profile_private?.tradition || "—"],
-                ["Party", p.profile_private?.party || "—"],
+                ["State", p.state || "-"],
+                ["Tradition", p.profile_private?.tradition || "-"],
+                ["Party", p.profile_private?.party || "-"],
                 ["Creed affirmed", p.creed_affirmed ? "Yes" : "No"],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between">
@@ -775,7 +775,7 @@ export function AdminComplaints({ navigate }: { navigate: (s: Screen) => void })
       return {
         ...r,
         reporterName: r.reporter_id ? (nameMap.get(r.reporter_id) || "Member") : "AI monitor",
-        targetContent: t ? t.content : "(content unavailable — it may have been deleted)",
+        targetContent: t ? t.content : "(content unavailable, it may have been deleted)",
         targetAuthor: t?.user_id ? (nameMap.get(t.user_id) || "Member") : "Unknown",
         targetAuthorId: t?.user_id || null,
         targetRemoved: !!t?.removed_at,
@@ -808,7 +808,7 @@ export function AdminComplaints({ navigate }: { navigate: (s: Screen) => void })
       <div className="mb-5">
         <H1>Complaints</H1>
         <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
-          Reported posts and comments — from members and the AI conduct monitor — awaiting review.
+          Reported posts and comments, from members and the AI conduct monitor, awaiting review.
         </p>
       </div>
 

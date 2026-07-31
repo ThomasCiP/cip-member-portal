@@ -540,15 +540,19 @@ function ProfileMenu({
               </button>
             );
           })}
-          {/* Donate — mobile only (desktop keeps the standalone header Donate button). */}
-          <button
-            onClick={() => { setMenuOpen(false); onDonate(); }}
-            className="w-full md:hidden flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"
-            style={{ color: theme.text }}
-          >
-            <Heart size={13} style={{ color: theme.textMuted }} />
-            Donate
-          </button>
+          {/* Donate — mobile only (desktop keeps the standalone header Donate
+              button). Styled as a proper button so it stands out from the menu
+              rows (TestFlight feedback #14). */}
+          <div className="md:hidden px-3 py-2">
+            <button
+              onClick={() => { setMenuOpen(false); onDonate(); }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs"
+              style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
+            >
+              <Heart size={13} style={{ color: GOLD }} />
+              Donate
+            </button>
+          </div>
           <button
             onClick={() => void signOutCleanly()}
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50"

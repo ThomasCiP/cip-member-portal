@@ -5,7 +5,7 @@ import { CiPLogo, NAVY, GOLD, MUTED_BLUE, useTheme } from "./brand";
 import { Screen } from "./types";
 import {
   ShieldCheck, Lock, Users, BookOpenCheck, ArrowRight,
-  CheckCircle2, X, ChevronDown,
+  CheckCircle2, X, ChevronDown, Eye, EyeOff,
 } from "lucide-react";
 
 // ── Legal modal types ───────────────────────────────────────────────
@@ -39,7 +39,7 @@ const LEGAL_CONTENT = {
       },
       {
         heading: "No endorsement of parties, candidates or policies",
-        body: "CiP does not endorse, recommend or promote any political party, candidate or policy position. Any political content within the platform — including party guidance tools — is provided for educational and private reflection purposes only.",
+        body: "CiP does not endorse, recommend or promote any political party, candidate or policy position. Any political content within the platform, including party guidance tools, is provided for educational and private reflection purposes only.",
       },
       {
         heading: "Platform use",
@@ -51,7 +51,7 @@ const LEGAL_CONTENT = {
       },
       {
         heading: "AI monitoring and content moderation",
-        body: "To keep the community safe, CiP uses automated systems, including artificial intelligence, to monitor posts and comments for behaviour that may breach the Member Conduct Agreement. Content may also be reported by members. Posts or comments that are flagged are reviewed by CiP moderators — and, where the content was posted in a group or on a company page, by that group or page owner — and may be removed. Serious or repeated breaches may result in suspension or removal of your account.",
+        body: "To keep the community safe, CiP uses automated systems, including artificial intelligence, to monitor posts and comments for behaviour that may breach the Member Conduct Agreement. Content may also be reported by members. Posts or comments that are flagged are reviewed by CiP moderators, and, where the content was posted in a group or on a company page, by that group or page owner, and may be removed. Serious or repeated breaches may result in suspension or removal of your account.",
       },
       {
         heading: "Events and registrations",
@@ -77,7 +77,7 @@ const LEGAL_CONTENT = {
   },
   privacy: {
     title: "Privacy Policy",
-    updated: "May 2025 — prototype draft",
+    updated: "May 2025, prototype draft",
     sections: [
       {
         heading: "What personal information CiP collects",
@@ -143,15 +143,15 @@ const LEGAL_CONTENT = {
       },
       {
         heading: "No use of the platform for party recruitment",
-        body: "The CiP platform must not be used to recruit members to any political party, campaign on behalf of a party, or promote a candidate — unless explicitly approved in writing by CiP leadership. CiP is non-partisan.",
+        body: "The CiP platform must not be used to recruit members to any political party, campaign on behalf of a party, or promote a candidate, unless explicitly approved in writing by CiP leadership. CiP is non-partisan.",
       },
       {
         heading: "Community posts and comments",
-        body: "The platform provides a community feed, group pages and company pages where members may post, comment and react. When you post or comment you must uphold this Agreement — engaging with charity and respect, and never using posts or comments for harassment, abuse, intimidation or factional campaigning. Post authors may choose to limit or turn off comments on their own posts.",
+        body: "The platform provides a community feed, group pages and company pages where members may post, comment and react. When you post or comment you must uphold this Agreement, engaging with charity and respect, and never using posts or comments for harassment, abuse, intimidation or factional campaigning. Post authors may choose to limit or turn off comments on their own posts.",
       },
       {
         heading: "AI monitoring of comments and behaviour",
-        body: "You acknowledge and agree that CiP uses automated systems, including artificial intelligence, to monitor comment and posting behaviour on the platform. This monitoring is used solely to ensure members are keeping to this Member Conduct Agreement and the Terms of Use. Members can also report posts or comments they consider inappropriate. Reported or flagged content is sent to CiP Admin — and to the relevant group or company page owner where applicable — for review, and may be removed. Breaches identified through monitoring or reporting may lead to suspension or removal of access.",
+        body: "You acknowledge and agree that CiP uses automated systems, including artificial intelligence, to monitor comment and posting behaviour on the platform. This monitoring is used solely to ensure members are keeping to this Member Conduct Agreement and the Terms of Use. Members can also report posts or comments they consider inappropriate. Reported or flagged content is sent to CiP Admin, and to the relevant group or company page owner where applicable, for review, and may be removed. Breaches identified through monitoring or reporting may lead to suspension or removal of access.",
       },
       {
         heading: "No member-to-member contact without consent",
@@ -514,8 +514,9 @@ export function SignupScreen({ navigate }: { navigate: (s: Screen) => void }) {
             CiP does not endorse political parties, candidates or policies.
           </p>
         </div>
-        {/* Hero image replacing the four feature tiles */}
-        <div className="relative rounded-2xl overflow-hidden" style={{ minHeight: 420 }}>
+        {/* Hero image replacing the four feature tiles. Desktop-only: on a
+            phone it pushed the CTAs off the first screen (feedback #1/#21). */}
+        <div className="relative rounded-2xl overflow-hidden hidden md:block" style={{ minHeight: 420 }}>
           <img
             src="https://images.unsplash.com/photo-1764136093763-3f571bb2cf7e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwYXJsaWFtZW50JTIwYnVpbGRpbmclMjBjaXZpYyUyMHBvbGl0aWNzJTIwQXVzdHJhbGlhfGVufDF8fHx8MTc3ODM4MDE1Mnww&ixlib=rb-4.1.0&q=80&w=1080"
             alt="Parliament and civic engagement"
@@ -720,18 +721,20 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
         <h1 style={{ color: NAVY, fontWeight: 700 }}>Create your account</h1>
         <p className="text-gray-500 mt-1.5 text-sm">
-          Connect with other Christians in politics — and control exactly what you share.
+          Connect with other Christians in politics, and control exactly what you share.
         </p>
 
-        <div className="mt-4 p-4 rounded-xl" style={{ background: "rgba(11,37,69,0.04)", border: "1px solid rgba(11,37,69,0.1)" }}>
-          <h3 className="text-sm font-semibold mb-1.5" style={{ color: "#0B2545" }}>You're in Control</h3>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            By default you're <strong>discoverable</strong> so members can find and connect with you. In your Privacy settings you decide what to share — from your whole profile down to individual details — or opt out of the directory entirely at any time.
+        {/* Compact on phones so the form starts within the first screen
+            (feedback #2). */}
+        <div className="mt-3 md:mt-4 p-3 md:p-4 rounded-xl" style={{ background: "rgba(11,37,69,0.04)", border: "1px solid rgba(11,37,69,0.1)" }}>
+          <h3 className="text-sm font-semibold mb-1" style={{ color: "#0B2545" }}>You're in Control</h3>
+          <p className="text-xs md:text-sm text-gray-600 leading-relaxed">
+            By default you're <strong>discoverable</strong> so members can find and connect with you. In your Privacy settings you decide what to share, or opt out of the directory entirely at any time.
           </p>
         </div>
 
         <form
-          className="mt-6 space-y-4"
+          className="mt-4 md:mt-6 space-y-3 md:space-y-4"
           onSubmit={handleSubmit}
         >
           <div className="grid grid-cols-2 gap-3">
@@ -843,7 +846,7 @@ export function AccountScreen({ navigate }: { navigate: (s: Screen) => void }) {
 // Live password strength — shown immediately as the user types so a weak
 // password is flagged on the spot rather than only when they try to continue.
 function scorePassword(pw: string): { filled: number; label: string; color: string } {
-  if (pw.length < 8) return { filled: 1, label: "Too weak — use at least 8 characters", color: "#dc2626" };
+  if (pw.length < 8) return { filled: 1, label: "Too weak, use at least 8 characters", color: "#dc2626" };
   let score = 1;
   if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
   if (/\d/.test(pw)) score++;
@@ -869,6 +872,9 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 function Field({ label, type = "text", value, onChange, required }: { label: string; type?: string; value?: string; onChange?: (e: any) => void; required?: boolean }) {
+  // Password fields get a show/hide toggle (feedback #3).
+  const [revealed, setRevealed] = useState(false);
+  const isPassword = type === "password";
   return (
     <div>
       <label className="block text-xs md:text-xs mb-1.5" style={{ color: NAVY, fontWeight: 500 }}>
@@ -876,14 +882,27 @@ function Field({ label, type = "text", value, onChange, required }: { label: str
       </label>
       {/* Taller on phones for a comfortable tap target; the global mobile rule
           keeps the text at 16px so iOS doesn't zoom the page on focus. */}
-      <input
-        type={type}
-        value={value}
-        onChange={onChange}
-        required={required}
-        className="w-full px-3.5 py-3 md:px-3 md:py-2.5 rounded-xl md:rounded-lg outline-none text-base md:text-sm"
-        style={{ borderColor: "#d1d5db", background: "#fff", border: "1px solid #d1d5db" }}
-      />
+      <div className="relative">
+        <input
+          type={isPassword && revealed ? "text" : type}
+          value={value}
+          onChange={onChange}
+          required={required}
+          className={`w-full px-3.5 py-3 md:px-3 md:py-2.5 rounded-xl md:rounded-lg outline-none text-base md:text-sm ${isPassword ? "pr-11" : ""}`}
+          style={{ borderColor: "#d1d5db", background: "#fff", border: "1px solid #d1d5db" }}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setRevealed((r) => !r)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md hover:bg-gray-100"
+            aria-label={revealed ? "Hide password" : "Show password"}
+            style={{ color: "#6b7280" }}
+          >
+            {revealed ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -994,7 +1013,7 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
         <h1 style={{ color: NAVY, fontWeight: 700 }}>Shared Christian foundation</h1>
         <p className="text-gray-500 mt-2 leading-relaxed text-sm max-w-xl">
           CiP welcomes Christians across denominations and political traditions. To preserve the
-          Christian identity of the network, all members are asked to affirm the Nicene Creed —
+          Christian identity of the network, all members are asked to affirm the Nicene Creed -
           the foundational statement of faith shared across Catholic, Orthodox and Protestant Christianity.
         </p>
 
@@ -1013,10 +1032,14 @@ export function CreedScreen({ navigate }: { navigate: (s: Screen) => void }) {
             >
               <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>✚</span>
             </div>
-            <span style={{ color: "#fff", fontWeight: 600 }}>The Nicene Creed</span>
-            <span className="ml-auto text-xs" style={{ color: "rgba(255,255,255,0.95)" }}>
-              Council of Nicaea, AD 325 / 381
-            </span>
+            {/* Stacked title + provenance — side-by-side they wrapped into a
+                bunched two-line jumble on phones (feedback #4). */}
+            <div className="min-w-0">
+              <div style={{ color: "#fff", fontWeight: 600 }}>The Nicene Creed</div>
+              <div className="text-[11px]" style={{ color: "rgba(255,255,255,0.8)" }}>
+                Council of Nicaea, AD 325 / 381
+              </div>
+            </div>
           </div>
           <div
             className="px-6 py-6 max-h-64 overflow-y-auto text-sm leading-8 whitespace-pre-line"

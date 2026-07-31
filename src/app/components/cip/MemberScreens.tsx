@@ -127,7 +127,7 @@ async function registerForEvent(userId: string, eventId: string, event?: { title
     target_user: userId,
     n_type: 'event_registration',
     n_title: `You're registered${event?.title ? ' for ' + event.title : ' for the event'}`,
-    n_message: `Thanks for registering${event?.title ? ' for ' + event.title : ''}${event?.date ? ' on ' + formatEventDate(event.date) : ''}. We look forward to seeing you — you'll get a reminder the day before.`,
+    n_message: `Thanks for registering${event?.title ? ' for ' + event.title : ''}${event?.date ? ' on ' + formatEventDate(event.date) : ''}. We look forward to seeing you, you'll get a reminder the day before.`,
     n_data: { event_id: eventId },
   });
   if (receiptError) console.error('event_registration notification failed', receiptError);
@@ -1953,7 +1953,7 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
       )}
 
       {/* Events are first-class records, so this reuses the existing event
-          form — it creates the event and auto-publishes its own feed post. */}
+          form, it creates the event and auto-publishes its own feed post. */}
       {eventOpen && (
         <EventFormModal
           onClose={() => setEventOpen(false)}
@@ -3038,10 +3038,10 @@ export function ProfileScreen() {
           <Card className="p-5">
             <h3 className="text-sm mb-4" style={{ color: theme.text, fontWeight: 600 }}>Profile details</h3>
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-              <ProfileMetaRow icon={Briefcase} label="Title"             value={profile.jobTitle || "—"} />
+              <ProfileMetaRow icon={Briefcase} label="Title"             value={profile.jobTitle || "-"} />
               <ProfileMetaRow icon={MapPin}    label="State"             value={profile.state} />
-              <ProfileMetaRow icon={MapPin}    label="Federal electorate" value={profile.federalElectorate || "—"} />
-              <ProfileMetaRow icon={MapPin}    label="State electorate"  value={profile.stateElectorate || "—"} />
+              <ProfileMetaRow icon={MapPin}    label="Federal electorate" value={profile.federalElectorate || "-"} />
+              <ProfileMetaRow icon={MapPin}    label="State electorate"  value={profile.stateElectorate || "-"} />
               <ProfileMetaRow icon={Flag}      label="Political party"   value={profile.party} />
               <ProfileMetaRow icon={Church}    label="Christian tradition" value={profile.tradition} />
             </div>
@@ -3279,7 +3279,7 @@ function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate
                   style={{ background: theme.bg, border: `1px solid ${theme.cardBorder}` }}
                 >
                   <div className="text-xs" style={{ color: theme.text, fontWeight: 600 }}>
-                    Caveat — only members who match can join
+                    Caveat, only members who match can join
                   </div>
                   <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
                     {CAVEAT_OPTIONS.map((c) => {
@@ -3560,7 +3560,7 @@ export function GroupsScreen({ navigate }: { navigate: (s: Screen) => void }) {
           <div>
             <h1 style={{ color: theme.text }}>Groups</h1>
             <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
-              Join existing groups, or start your own — public to all CiP members, private and invite-only,
+              Join existing groups, or start your own, public to all CiP members, private and invite-only,
               or restricted to people who share your electorate, party or tradition.
             </p>
           </div>
@@ -3915,7 +3915,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                     </button>
                     {group.created_by !== user?.id && (
                       /* #28: orgs are followed, not connected with. Messaging the
-                         org opens a chat with its manager directly — no
+                         org opens a chat with its manager directly, no
                          person-style connection request. */
                       <button
                         onClick={() => {
@@ -4418,7 +4418,7 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
         </div>
         <div className="px-6 py-5 max-h-[70vh] overflow-y-auto space-y-4">
           {/* Banner image */}
-          <FormField label="Event image" hint="Optional — a banner shown on the event page">
+          <FormField label="Event image" hint="Optional, a banner shown on the event page">
             <div className="flex items-center gap-4">
               {imageUrl ? (
                 <img src={imageUrl} alt="Event" className="w-20 h-14 rounded-lg object-cover" />
@@ -4492,7 +4492,7 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
             )}
           </div>
 
-          <FormField label="Registration / ticket link" hint="Optional — where attendees register or buy tickets">
+          <FormField label="Registration / ticket link" hint="Optional, where attendees register or buy tickets">
             <TextInput value={registrationUrl} onChange={setRegistrationUrl} placeholder="https://…" />
           </FormField>
           <FormField label="Contact email" hint="Optional">
@@ -4500,7 +4500,7 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
           </FormField>
 
           {ownedGroups.length > 0 && (
-            <FormField label="Associate with" hint="Optional — link this event to a group or organisation you manage">
+            <FormField label="Associate with" hint="Optional, link this event to a group or organisation you manage">
               <div className="relative">
                 <select
                   value={groupId}
@@ -4522,8 +4522,8 @@ function EventFormModal({ onClose, onSave }: { onClose: () => void; onSave: () =
             <FormField label="Who can see this event?">
               <div className="space-y-2">
                 {([
-                  ['group', 'Only this group', "Private — shown on the group's page, not the main events feed."],
-                  ['public', 'Across the platform', 'Public — shown in the main events feed for all members.'],
+                  ['group', 'Only this group', "Private, shown on the group's page, not the main events feed."],
+                  ['public', 'Across the platform', 'Public, shown in the main events feed for all members.'],
                 ] as const).map(([val, label, hint]) => (
                   <button
                     key={val}
@@ -4822,7 +4822,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
     // new connection showed up as an empty conversation.
     const { data: msgs } = await supabase
       .from('messages')
-      .select('sender_id, receiver_id, content, created_at')
+      .select('sender_id, receiver_id, content, created_at, read_at')
       .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
       .order('created_at', { ascending: false });
 
@@ -4832,10 +4832,17 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
 
     // Latest message per peer (msgs is newest-first, so first hit wins).
     const latestByPeer = new Map<string, { content: string; created_at: string }>();
+    // Unread received messages per peer (FB9/FB10).
+    const unreadByPeer = new Map<string, number>();
     for (const m of msgs || []) {
       const peerId = m.sender_id === user.id ? m.receiver_id : m.sender_id;
-      if (!peerId || latestByPeer.has(peerId)) continue;
-      latestByPeer.set(peerId, { content: m.content, created_at: m.created_at });
+      if (!peerId) continue;
+      if (m.receiver_id === user.id && !m.read_at) {
+        unreadByPeer.set(peerId, (unreadByPeer.get(peerId) || 0) + 1);
+      }
+      if (!latestByPeer.has(peerId)) {
+        latestByPeer.set(peerId, { content: m.content, created_at: m.created_at });
+      }
     }
 
     const dir = await fetchAuthorMap([...new Set([...acceptedIds, ...latestByPeer.keys()])]);
@@ -4856,7 +4863,7 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
       .map(([peerId, last]) => ({
         id: `dm-${peerId}`,
         ...describe(peerId),
-        unread: 0,
+        unread: unreadByPeer.get(peerId) || 0,
         last: last.content,
         time: new Date(last.created_at).toLocaleDateString(),
       }));
@@ -4936,9 +4943,14 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
   useEffect(() => {
     if (active && user) {
        loadMessages(active.peerId);
+       // Opening the thread reads it (FB9): persist via RPC (receiver-only)
+       // and clear the local dot.
+       supabase.rpc('mark_messages_read', { peer: active.peerId }).then(() => {});
+       setConnections(prev => prev.map(c => c.peerId === active.peerId ? { ...c, unread: 0 } : c));
        const channel = supabase.channel(`messages_${active.peerId}`)
          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
              loadMessages(active.peerId);
+             supabase.rpc('mark_messages_read', { peer: active.peerId }).then(() => {});
          }).subscribe();
        return () => { supabase.removeChannel(channel); };
     } else {
@@ -4987,8 +4999,11 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
     }
   };
 
+  // FB10: All / Unread filter over the conversation list.
+  const [threadFilter, setThreadFilter] = useState<"all" | "unread">("all");
   const filteredConnections = connections.filter(
     (c) => (c.name || "").toLowerCase().includes(search.toLowerCase())
+      && (threadFilter === "all" || (c.unread || 0) > 0)
   );
 
   // FB7: with a conversation open on a phone, pin the chat to the visible
@@ -5009,7 +5024,18 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
         className={`px-4 md:px-8 py-4 md:py-5 shrink-0 ${isMobile && active ? "hidden" : "block"}`}
         style={{ background: theme.headerBg, borderBottom: `1px solid ${theme.divider}` }}
       >
-        <h1 style={{ color: theme.text }}>Messaging</h1>
+        {/* The bottom nav is hidden on messaging, so this is the way home on
+            a phone (feedback #5). */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("dashboard")}
+            className="md:hidden p-1.5 -ml-1.5 rounded-md hover:bg-black/5 shrink-0"
+            aria-label="Back to home"
+          >
+            <ArrowLeft size={20} style={{ color: NAVY }} />
+          </button>
+          <h1 style={{ color: theme.text }}>Messaging</h1>
+        </div>
         <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
           Direct messaging is only available between members who've accepted a connection request through a shared group.
         </p>
@@ -5048,6 +5074,23 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                   style={{ background: theme.bg, border: `1px solid ${theme.inputBorder}`, color: theme.text }}
                 />
               </div>
+              <div className="flex gap-1.5 mt-3">
+                {(["all", "unread"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setThreadFilter(f)}
+                    className="px-3 py-1 rounded-full text-xs capitalize"
+                    style={{
+                      background: threadFilter === f ? NAVY : "transparent",
+                      color: threadFilter === f ? "#fff" : theme.textMuted,
+                      border: `1px solid ${threadFilter === f ? NAVY : theme.cardBorder}`,
+                      fontWeight: threadFilter === f ? 600 : 400,
+                    }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -5074,13 +5117,19 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
                         borderBottom: `1px solid ${theme.divider}`,
                       }}
                     >
-                      <Avatar src={c.avatar} name={c.name} size={48} bg={NAVY} />
+                      <div className="relative shrink-0">
+                        <Avatar src={c.avatar} name={c.name} size={48} bg={NAVY} />
+                        {(c.unread || 0) > 0 && (
+                          /* Unread dot (FB9) */
+                          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full" style={{ background: "#ef4444", border: `2px solid ${theme.cardBg}` }} />
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0 flex flex-col justify-center h-12">
-                        <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 600 }}>
+                        <div className="text-sm truncate" style={{ color: theme.text, fontWeight: (c.unread || 0) > 0 ? 700 : 600 }}>
                           <MemberNameLink userId={c.peerId} name={c.name} navigate={navigate} />
                         </div>
-                        <div className="text-[11px] truncate" style={{ color: theme.textSubtle }}>
-                          Connected via {c.group}
+                        <div className="text-[11px] truncate" style={{ color: (c.unread || 0) > 0 ? theme.text : theme.textSubtle, fontWeight: (c.unread || 0) > 0 ? 600 : 400 }}>
+                          {c.last || `Connected via ${c.group}`}
                         </div>
                       </div>
                     </button>
@@ -5294,7 +5343,7 @@ export function DonateScreen() {
           style={{ border: `1px solid ${theme.cardBorder}`, background: theme.bg }}
         >
           <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>
-            Online giving — coming soon
+            Online giving, coming soon
           </div>
           <p className="text-xs mt-1.5 leading-relaxed" style={{ color: theme.textMuted }}>
             We're still setting up secure online donations. In the meantime, please get in touch
@@ -5434,7 +5483,7 @@ function PushPrefRow() {
       <div className="pr-4">
         <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>Push notifications</div>
         <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>
-          {perm === "granted" && "On — this device receives alerts."}
+          {perm === "granted" && "On, this device receives alerts."}
           {perm === "prompt" && "Get alerts on this device for messages, connections and mentions."}
           {perm === "denied" && "Turned off in your phone's Settings. Enable them under Settings → Notifications → CiP Network."}
         </div>
@@ -5855,7 +5904,7 @@ function TwoFactorAuthCard() {
             {factors === null
               ? "Checking…"
               : enabled
-                ? "On — an authenticator code is required when you sign in."
+                ? "On, an authenticator code is required when you sign in."
                 : "Add a second sign-in step using an authenticator app."}
           </p>
         </div>
@@ -6234,7 +6283,7 @@ export function PrivacyScreen(_props: { navigate?: (s: Screen) => void } = {}) {
           <div>
             <h1 style={{ color: theme.text }}>Privacy & data sharing</h1>
             <p className="text-sm mt-0.5" style={{ color: theme.textMuted }}>
-              You decide what you share — from your whole profile down to individual details.
+              You decide what you share, from your whole profile down to individual details.
             </p>
           </div>
         </div>
@@ -7043,7 +7092,7 @@ export function NewSupportRequestModal({ pathway, onClose }: { pathway?: typeof 
               />
             </FormField>
           )}
-          <FormField label="What would help most?" hint="Optional — share a bit of context so we can route this well.">
+          <FormField label="What would help most?" hint="Optional, share a bit of context so we can route this well.">
             <textarea
               rows={4}
               value={contextText}
@@ -7171,7 +7220,7 @@ export function SupportScreen() {
           <div>
             <h1 style={{ color: theme.text }}>Ways to get involved</h1>
             <p className="text-sm mt-1" style={{ color: theme.textMuted }}>
-              CiP isn't an open forum or a self-serve directory — but our team can help you take
+              CiP isn't an open forum or a self-serve directory, but our team can help you take
               your next step. Pick a pathway and we'll be in touch.
             </p>
           </div>

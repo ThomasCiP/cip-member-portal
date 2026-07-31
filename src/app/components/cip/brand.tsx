@@ -79,15 +79,15 @@ export function useTheme() {
 }
 
 // ── Logo ──────────────────────────────────────────────────────────────
-export function CiPLogo({ light = false, size = 28 }: { light?: boolean; size?: number }) {
-  // Since the image itself has a white/light version or we can just apply a CSS filter if needed.
-  // For now we will render the SVG directly. A CSS filter for brightness can be applied if 'light' is true.
+export function CiPLogo({ light = false, size = 28, className = "" }: { light?: boolean; size?: number; className?: string }) {
+  // className must be forwarded — callers pass mx-auto to centre the logo
+  // (dropping it left the Account Deleted logo off-centre, feedback #17).
   return (
-    <img 
-      src="/logo.png" 
-      alt="CiP Logo" 
-      style={{ height: size, filter: light ? 'brightness(10)' : 'none' }} 
-      className="object-contain"
+    <img
+      src="/logo.png"
+      alt="CiP Logo"
+      style={{ height: size, filter: light ? 'brightness(10)' : 'none' }}
+      className={`object-contain ${className}`}
     />
   );
 }
