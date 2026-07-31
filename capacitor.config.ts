@@ -22,11 +22,16 @@ const config: CapacitorConfig = {
   },
   plugins: {
     Keyboard: {
-      // Resize the WebView frame when the keyboard opens instead of letting
-      // WKWebView pan the page. Without this, focusing the message composer
-      // shot the whole chat off the top of the screen (fixed-position elements
-      // pan with the page, so no CSS can hold them) — TestFlight feedback.
-      resize: 'native' as any,
+      // 'body': the WebView keeps its FULL frame (so the white page stays
+      // behind the iOS 26 translucent keyboard and it keeps its normal flat
+      // light look) while the <body> is resized above the keyboard so layouts
+      // still avoid it. resize:'native' shrank the WebView frame instead,
+      // which left the bare window behind the keyboard — iOS then drew it as
+      // a grey rounded glass panel over black (TestFlight builds 7/8).
+      // The keyboard-pan fix is preserved: the chat pane and compose overlay
+      // size themselves to visualViewport, so focused inputs are never under
+      // the keyboard and WKWebView has no reason to pan the page.
+      resize: 'body' as any,
       // The app is light-themed; keep the system keyboard in its standard
       // light appearance rather than letting it adapt to the backdrop.
       style: 'LIGHT' as any,
