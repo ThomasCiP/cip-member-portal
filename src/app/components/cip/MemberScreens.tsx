@@ -15,7 +15,7 @@ import {
   Pin, MessageCircle, MessageSquare, ThumbsUp, Send, MoreHorizontal, X,
   FileText, Shield, AlertTriangle, UserPlus, Image as ImageIcon,
   Link2, Globe, CheckCircle2, Circle, Briefcase, Flag, Church,
-  Plus, LifeBuoy, ArrowRight, ArrowLeft, Search, Filter, Activity, ArrowUpRight, Bell,
+  Plus, LifeBuoy, ArrowRight, ArrowLeft, Search, Filter, Activity, ArrowUpRight, Bell, Ban,
   PartyPopper, Lightbulb, Laugh, Handshake, Pencil, Trash2, Ticket, Mail, AtSign,
   BarChart3, Download
 } from "lucide-react";
@@ -48,6 +48,50 @@ async function attachAuthors(rows: any[]): Promise<any[]> {
 // inline copies. Connecting is now request → approve: requests start 'pending'
 // and only the recipient's accept flips them to 'accepted'. All paths respect
 // the DB unique-pair index (least/greatest) by pre-checking existence.
+// ── Member blocking (App Store UGC guideline 1.2) ─────────────────────
+// One-way blocks stored in blocked_members; RLS also stops messages and
+// connection requests between a blocked pair. Cached module-wide; screens
+// subscribe via useBlockedIds() and re-render on 'cip:blocks-changed'.
+let blockedCache: Set<string> | null = null;
+
+export async function fetchBlockedIds(userId?: string | null): Promise<Set<string>> {
+  if (!userId) return new Set();
+  if (blockedCache) return blockedCache;
+  const { data } = await supabase.from('blocked_members').select('blocked_id').eq('blocker_id', userId);
+  blockedCache = new Set((data || []).map((r: any) => r.blocked_id));
+  return blockedCache;
+}
+
+export function useBlockedIds(): Set<string> {
+  const { user } = useAuth();
+  const [ids, setIds] = useState<Set<string>>(blockedCache || new Set());
+  useEffect(() => {
+    let active = true;
+    fetchBlockedIds(user?.id).then((s) => { if (active) setIds(new Set(s)); });
+    const onChange = () => { if (active && blockedCache) setIds(new Set(blockedCache)); };
+    window.addEventListener('cip:blocks-changed', onChange);
+    return () => { active = false; window.removeEventListener('cip:blocks-changed', onChange); };
+  }, [user?.id]);
+  return ids;
+}
+
+export async function blockMember(userId: string, targetId: string): Promise<boolean> {
+  const { error } = await supabase.from('blocked_members').insert({ blocker_id: userId, blocked_id: targetId });
+  if (error && !String(error.message).includes('duplicate')) return false;
+  (blockedCache ||= new Set()).add(targetId);
+  window.dispatchEvent(new CustomEvent('cip:blocks-changed'));
+  return true;
+}
+
+export async function unblockMember(userId: string, targetId: string): Promise<boolean> {
+  const { error } = await supabase.from('blocked_members').delete()
+    .eq('blocker_id', userId).eq('blocked_id', targetId);
+  if (error) return false;
+  blockedCache?.delete(targetId);
+  window.dispatchEvent(new CustomEvent('cip:blocks-changed'));
+  return true;
+}
+
 async function findConnection(userA: string, userB: string): Promise<any | null> {
   const { data } = await supabase.from('network_connections')
     .select('id, status, requester_id, receiver_id')
@@ -911,8 +955,9 @@ function CommentSection({ postType, postId, authorId, groupId, commentPolicy, ca
     const { data } = await supabase.from("post_comments")
       .select("*").eq("post_type", postType).eq("post_id", postId).is("removed_at", null)
       .order("created_at", { ascending: true });
-    setComments(await attachAuthors(data || []));
-  }, [postType, postId]);
+    const blocked = await fetchBlockedIds(user?.id);
+    setComments(await attachAuthors((data || []).filter((c: any) => !blocked.has(c.user_id))));
+  }, [postType, postId, user?.id]);
   useEffect(() => { load(); }, [load]);
 
   const reload = async () => { await load(); onChanged?.(); };
@@ -2548,11 +2593,16 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
       const { data: myRegs } = await supabase.from('event_attendees').select('event_id').eq('user_id', user.id);
       const registeredIds = new Set((myRegs || []).map((r: any) => r.event_id));
 
+      // Hide content from members this user has blocked.
+      const blocked = await fetchBlockedIds(user.id);
+      groupPosts = groupPosts.filter(p => !blocked.has(p.user_id));
+      const visibleGlobalPosts = globalPosts.filter(p => !blocked.has(p.user_id));
+
       // Resolve author names via the safe directory (peers aren't readable on the
       // base profiles table anymore).
       const authorMap = await fetchAuthorMap([
         ...groupPosts.map(p => p.user_id),
-        ...globalPosts.map(p => p.user_id),
+        ...visibleGlobalPosts.map(p => p.user_id),
       ]);
       const authorName = (uid: string) => {
         const a = authorMap.get(uid);
@@ -2594,7 +2644,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
         created_at: p.created_at
       }));
 
-      const formattedGlobalPosts = globalPosts.map(p => ({
+      const formattedGlobalPosts = visibleGlobalPosts.map(p => ({
         id: p.id,
         isGlobalPost: true,
         type: "Community Post",
@@ -4938,6 +4988,10 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
       }
     }
 
+    // Blocked members disappear from the thread list and the New picker.
+    const blockedPeers = await fetchBlockedIds(user.id);
+    for (const id of blockedPeers) { latestByPeer.delete(id); acceptedIds.delete(id); }
+
     const dir = await fetchAuthorMap([...new Set([...acceptedIds, ...latestByPeer.keys()])]);
     const describe = (peerId: string) => {
       const peer = dir.get(peerId);
@@ -5834,6 +5888,8 @@ export function SettingsScreen({ navigate }: { navigate: (s: Screen) => void }) 
 
       <TwoFactorAuthCard />
 
+      <BlockedMembersCard navigate={navigate} />
+
       <Card className="p-5 border border-red-200">
         <h3 className="text-sm font-semibold text-red-600">Danger Zone</h3>
         <p className="text-xs text-red-500/80 mt-1 mb-4">
@@ -5965,6 +6021,59 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+// Manage blocked members (App Store UGC guideline 1.2): see who you've
+// blocked and unblock them.
+function BlockedMembersCard({ navigate }: { navigate?: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const blockedIds = useBlockedIds();
+  const [people, setPeople] = useState<any[]>([]);
+
+  useEffect(() => {
+    const ids = [...blockedIds];
+    if (!ids.length) { setPeople([]); return; }
+    supabase.from("member_directory").select("id, first_name, last_name, avatar_url, job_title").in("id", ids)
+      .then(({ data }) => setPeople(data || []));
+  }, [blockedIds]);
+
+  return (
+    <Card className="p-5">
+      <h3 className="text-sm flex items-center gap-1.5" style={{ color: theme.text, fontWeight: 600 }}>
+        <Ban size={14} /> Blocked members
+      </h3>
+      <p className="text-xs mt-1" style={{ color: theme.textMuted }}>
+        Blocked members can't message you or send connection requests, and you won't see their posts or comments.
+      </p>
+      <div className="mt-3">
+        {blockedIds.size === 0 ? (
+          <div className="text-sm py-2" style={{ color: theme.textSubtle }}>You haven't blocked anyone.</div>
+        ) : (
+          people.map((p) => {
+            const name = `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Member";
+            return (
+              <div key={p.id} className="flex items-center gap-3 py-2">
+                <Avatar src={p.avatar_url} name={name} size={32} bg={NAVY} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm truncate" style={{ color: theme.text, fontWeight: 500 }}>
+                    <MemberNameLink userId={p.id} name={name} navigate={navigate} />
+                  </div>
+                </div>
+                <button
+                  onClick={() => user && unblockMember(user.id, p.id)}
+                  className="text-xs px-3 py-1.5 rounded-lg shrink-0"
+                  style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text, fontWeight: 600 }}
+                >
+                  Unblock
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -6494,6 +6603,22 @@ export function MemberProfileScreen({ navigate }: { navigate: (s: Screen) => voi
     return () => { cancelled = true; };
   }, [user, targetId]);
 
+  const blockedIds = useBlockedIds();
+  const isBlocked = !!targetId && blockedIds.has(targetId);
+  const [blockBusy, setBlockBusy] = useState(false);
+
+  const toggleBlock = async () => {
+    if (!user || !targetId || blockBusy) return;
+    if (!isBlocked) {
+      const name = `${member?.first_name || ''} ${member?.last_name || ''}`.trim() || 'this member';
+      if (!window.confirm(`Block ${name}? You won't see their posts or comments, and neither of you will be able to message or send connection requests to the other. You can unblock them here at any time.`)) return;
+    }
+    setBlockBusy(true);
+    if (isBlocked) await unblockMember(user.id, targetId);
+    else await blockMember(user.id, targetId);
+    setBlockBusy(false);
+  };
+
   const openMessage = () => {
     if (!targetId) return;
     localStorage.setItem('activeMessageUserId', targetId);
@@ -6573,27 +6698,47 @@ export function MemberProfileScreen({ navigate }: { navigate: (s: Screen) => voi
 
           {!isSelf && (
             <div className="mt-4 flex items-center gap-2 flex-wrap">
+              {!isBlocked && (
+                <>
+                  <button
+                    onClick={openMessage}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm"
+                    style={{ background: NAVY, color: '#fff', fontWeight: 600 }}
+                  >
+                    <Send size={13} /> Message
+                  </button>
+                  {connState === 'accepted' ? (
+                    <Pill color="#d1fae5" fg="#065f46"><CheckCircle2 size={12} /> Connected</Pill>
+                  ) : connState === 'pending' ? (
+                    <Pill color="#fef3c7" fg="#92400e"><Clock size={12} /> Connection pending</Pill>
+                  ) : connState === 'none' ? (
+                    <button
+                      onClick={requestConnect}
+                      disabled={connBusy}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm disabled:opacity-50"
+                      style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                    >
+                      {connBusy ? <><Clock size={13} /> Connecting…</> : <><UserPlus size={13} /> Connect</>}
+                    </button>
+                  ) : null}
+                </>
+              )}
+              {/* Block / unblock (App Store UGC guideline 1.2). */}
               <button
-                onClick={openMessage}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm"
-                style={{ background: NAVY, color: '#fff', fontWeight: 600 }}
+                onClick={toggleBlock}
+                disabled={blockBusy}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm disabled:opacity-50"
+                style={isBlocked
+                  ? { border: `1px solid ${theme.cardBorder}`, color: theme.text }
+                  : { border: '1px solid #fca5a5', color: '#b91c1c' }}
               >
-                <Send size={13} /> Message
+                <Ban size={13} /> {blockBusy ? 'Working…' : isBlocked ? 'Unblock' : 'Block'}
               </button>
-              {connState === 'accepted' ? (
-                <Pill color="#d1fae5" fg="#065f46"><CheckCircle2 size={12} /> Connected</Pill>
-              ) : connState === 'pending' ? (
-                <Pill color="#fef3c7" fg="#92400e"><Clock size={12} /> Connection pending</Pill>
-              ) : connState === 'none' ? (
-                <button
-                  onClick={requestConnect}
-                  disabled={connBusy}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm disabled:opacity-50"
-                  style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-                >
-                  {connBusy ? <><Clock size={13} /> Connecting…</> : <><UserPlus size={13} /> Connect</>}
-                </button>
-              ) : null}
+              {isBlocked && (
+                <span className="text-xs" style={{ color: theme.textSubtle }}>
+                  Blocked. You won't see this member's content and you can't message each other.
+                </span>
+              )}
             </div>
           )}
 
@@ -6858,7 +7003,8 @@ export function NetworkScreen({ navigate }: { navigate: (s: Screen) => void }) {
     const term = q.trim();
     if (term) query = query.or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,job_title.ilike.%${term}%`);
     const { data } = await query;
-    setDiscResults(data || []);
+    const blocked = await fetchBlockedIds(user.id);
+    setDiscResults((data || []).filter((m: any) => !blocked.has(m.id)));
     setLoadingDisc(false);
   }, [user]);
 
