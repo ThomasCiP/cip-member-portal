@@ -673,7 +673,9 @@ export function BottomNav({ current, navigate, onCompose }: { current: Screen; n
 
   const dot = (key: Screen) =>
     (key === "network" && (incomingCount > 0 || badges.hasNetworkPosts)) ||
-    (key === "events" && badges.hasNewEvents);
+    (key === "events" && badges.hasNewEvents) ||
+    // Any unread notification lights the Alerts tab (TestFlight feedback #8).
+    (key === "notifications" && badges.hasUnreadAlerts);
 
   const tab = (it: { key: Screen; label: string; icon: any }) => {
     const Icon = it.icon;

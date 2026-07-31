@@ -125,8 +125,16 @@ export async function removePushToken() {
  * deleted while the session still exists (RLS), so cleanup runs first.
  */
 export async function signOutCleanly() {
-  await removePushToken();
-  await supabase.auth.signOut();
+  try { await removePushToken(); } catch { /* best-effort */ }
+  try {
+    const { error } = await supabase.auth.signOut();
+    // A dead server session (deleted account, revoked token) can make the
+    // global sign-out fail — fall back to clearing the local session so the
+    // user always actually lands back on sign-in.
+    if (error) await supabase.auth.signOut({ scope: "local" });
+  } catch {
+    await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+  }
 }
 
 /** Clear delivered notifications from the tray when the member opens Alerts. */

@@ -184,7 +184,16 @@ function EventRegisterButton({ eventId, event, initialRegistered, size = 'sm' }:
   }
   return (
     <button
-      onClick={async () => { if (busy) return; setBusy(true); const ok = await registerForEvent(user.id, eventId, event); setBusy(false); if (ok) setRegistered(true); }}
+      onClick={async () => {
+        if (busy) return;
+        setBusy(true);
+        const ok = await registerForEvent(user.id, eventId, event);
+        setBusy(false);
+        if (ok) {
+          setRegistered(true);
+          window.dispatchEvent(new CustomEvent("cip:event-registration-changed"));
+        }
+      }}
       disabled={busy}
       className={`inline-flex items-center gap-1.5 ${pad} rounded-lg disabled:opacity-50`}
       style={{ background: GOLD, color: '#fff', fontWeight: 600 }}
@@ -511,6 +520,44 @@ function PeopleListModal({ title, userIds, onClose, navigate }: {
         </div>
       </div>
     </Modal>
+  );
+}
+
+// Who's attending an event (TestFlight feedback #13) — count as a tap target
+// opening the same people list used for org followers.
+function EventAttendees({ eventId, navigate }: { eventId: string; navigate?: (s: Screen) => void }) {
+  const { theme } = useTheme();
+  const [ids, setIds] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from("event_attendees").select("user_id").eq("event_id", eventId).then(({ data }) => {
+      if (!cancelled && data) setIds(data.map((r: any) => r.user_id));
+    });
+    // Refresh when this member registers/unregisters via the button below.
+    const onChange = () => {
+      supabase.from("event_attendees").select("user_id").eq("event_id", eventId).then(({ data }) => {
+        if (!cancelled && data) setIds(data.map((r: any) => r.user_id));
+      });
+    };
+    window.addEventListener("cip:event-registration-changed", onChange);
+    return () => { cancelled = true; window.removeEventListener("cip:event-registration-changed", onChange); };
+  }, [eventId]);
+
+  if (!ids.length) return null;
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-3 inline-flex items-center gap-1.5 text-sm hover:underline"
+        style={{ color: NAVY, fontWeight: 600 }}
+      >
+        <Users size={14} /> {ids.length} attending
+      </button>
+      {open && <PeopleListModal title="Attending" userIds={ids} onClose={() => setOpen(false)} navigate={navigate} />}
+    </>
   );
 }
 
@@ -2612,16 +2659,19 @@ interface ProfileData {
   avatarUrl?: string;
 }
 
+// Empty until the member fills things in — never a placeholder persona.
+// (A demo "Sarah Reed / Anglican" default here is why skipping onboarding
+// showed Anglican as your tradition: TestFlight feedback #6.)
 const DEFAULT_PROFILE: ProfileData = {
-  firstName: "Sarah",
-  lastName: "Reed",
-  jobTitle: "Policy Adviser",
-  bio: "Anglican lay leader exploring how to participate faithfully in political life. Currently learning, listening and praying about state-level engagement in NSW.",
-  state: "New South Wales",
-  federalElectorate: "Bennelong",
-  stateElectorate: "Ryde",
+  firstName: "",
+  lastName: "",
+  jobTitle: "",
+  bio: "",
+  state: "",
+  federalElectorate: "",
+  stateElectorate: "",
   party: "No affiliation",
-  tradition: "Anglican",
+  tradition: "",
   showParty: false,
   avatarUrl: "",
 };
@@ -2652,7 +2702,7 @@ function TextInput({ value, onChange, placeholder }: { value: string; onChange: 
   );
 }
 
-function SelectInput({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
+function SelectInput({ value, onChange, options, placeholder }: { value: string; onChange: (v: string) => void; options: string[]; placeholder?: string }) {
   const { theme } = useTheme();
   return (
     <div className="relative">
@@ -2662,6 +2712,11 @@ function SelectInput({ value, onChange, options }: { value: string; onChange: (v
         className="w-full px-3 py-2 rounded-lg outline-none text-sm appearance-none"
         style={{ border: `1px solid ${theme.inputBorder}`, background: theme.inputBg, color: theme.text }}
       >
+        {/* Without an empty option, an unset value silently DISPLAYS as the
+            first real option even though nothing is stored (feedback #6). */}
+        {(placeholder !== undefined || !options.includes(value)) && (
+          <option value="">{placeholder ?? "Select…"}</option>
+        )}
         {options.map((o) => <option key={o}>{o}</option>)}
       </select>
       <ChevronRight size={12} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" style={{ color: theme.textMuted }} />
@@ -2931,7 +2986,7 @@ export function ProfileScreen() {
               <SelectInput value={draft.party} onChange={(v) => setDraft({ ...draft, party: v })} options={PARTIES} />
             </FormField>
             <FormField label="Christian tradition" hint="Set during onboarding. You can refine here.">
-              <SelectInput value={draft.tradition} onChange={(v) => setDraft({ ...draft, tradition: v })} options={TRADITIONS} />
+              <SelectInput value={draft.tradition} onChange={(v) => setDraft({ ...draft, tradition: v })} options={TRADITIONS} placeholder="Select tradition" />
             </FormField>
           </div>
 
@@ -4649,7 +4704,9 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
       </button>
       <Card className="overflow-hidden">
         {event.image_url ? (
-          <img src={event.image_url} alt={event.title} className="w-full h-56 object-cover" />
+          /* Natural aspect ratio, capped — a fixed h-56 + object-cover cropped
+             the artwork (TestFlight feedback #11). */
+          <img src={event.image_url} alt={event.title} className="w-full h-auto max-h-[420px] object-contain" style={{ background: "#f1f5f9" }} />
         ) : (
           <div className="h-44" style={{ background: "#f1f5f9" }} />
         )}
@@ -4682,9 +4739,12 @@ export function EventDetail({ navigate }: { navigate: (s: Screen) => void }) {
               <span style={{ color: theme.textMuted }}>· {event.groups.group_type === 'organisation' ? 'Organisation' : 'Group'}</span>
             </button>
           )}
-          <p className="text-sm mt-4 leading-relaxed" style={{ color: theme.text }}>
+          {/* pre-wrap keeps the organiser's headings/paragraphs/blank lines —
+              they collapsed into one block before (feedback #12). */}
+          <p className="text-sm mt-4 leading-relaxed whitespace-pre-wrap" style={{ color: theme.text }}>
             {event.description || "No description provided."}
           </p>
+          <EventAttendees eventId={event.id} navigate={navigate} />
           {event.contact_email && (
             <div className="mt-3 text-sm inline-flex items-center gap-1.5" style={{ color: theme.textMuted }}>
               <Mail size={14} /> <a href={`mailto:${event.contact_email}`} className="hover:underline" style={{ color: NAVY }}>{event.contact_email}</a>
@@ -4931,8 +4991,18 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
     (c) => (c.name || "").toLowerCase().includes(search.toLowerCase())
   );
 
+  // FB7: with a conversation open on a phone, pin the chat to the visible
+  // viewport. When the keyboard appears the pane shrinks to fit instead of the
+  // OS panning the page — so the peer's name banner stays on screen and the
+  // composer sits right above the keyboard.
+  const vvHeight = useViewportHeight();
+  const mobileChatStyle =
+    isMobile && active
+      ? { position: "fixed" as const, top: 0, left: 0, right: 0, height: vvHeight ?? "100%", zIndex: 40 }
+      : {};
+
   return (
-    <div className="h-full flex flex-col pb-16 md:pb-0" style={{ background: theme.bg }}>
+    <div className={`h-full flex flex-col ${isMobile && active ? "" : "pb-16 md:pb-0"}`} style={{ background: theme.bg, ...mobileChatStyle }}>
       {/* On mobile, hide the intro header once a conversation is open so the
           chat gets the full screen (drill-in view). */}
       <div
@@ -5842,6 +5912,23 @@ function Enroll2FAModal({ onClose }: { onClose: () => void }) {
     return () => { cancelled = true; };
   }, []);
 
+  // Leaving before the code is verified means 2FA is NOT on, even though the
+  // authenticator app now shows a CiP entry — which is exactly how a member
+  // ends up believing 2FA is active when it isn't (TestFlight feedback #16).
+  // Make that explicit, and remove the abandoned factor so no phantom
+  // enrolment lingers server-side.
+  const guardedClose = () => {
+    if (!done && factorId) {
+      const leave = window.confirm(
+        "Two-factor authentication is NOT on yet - you haven't entered the 6-digit code.\n\n" +
+        "If you leave now, 2FA stays off (you can delete the CiP entry from your authenticator app). Leave anyway?"
+      );
+      if (!leave) return;
+      supabase.auth.mfa.unenroll({ factorId }).catch(() => {});
+    }
+    onClose();
+  };
+
   const verify = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -5868,7 +5955,7 @@ function Enroll2FAModal({ onClose }: { onClose: () => void }) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
       style={{ background: "rgba(0,0,0,0.5)" }}
-      onClick={onClose}
+      onClick={guardedClose}
     >
       <div
         className="w-full max-w-md rounded-2xl shadow-2xl"
@@ -5877,7 +5964,7 @@ function Enroll2FAModal({ onClose }: { onClose: () => void }) {
       >
         <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${theme.divider}` }}>
           <h3 style={{ color: theme.text, fontWeight: 600 }}>Set up two-factor authentication</h3>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
+          <button onClick={guardedClose} className="p-1 rounded-md hover:bg-gray-100">
             <X size={16} style={{ color: theme.textMuted }} />
           </button>
         </div>
@@ -5958,6 +6045,13 @@ function Enroll2FAModal({ onClose }: { onClose: () => void }) {
                     </div>
                   )}
                   <form onSubmit={verify} className="mt-4 space-y-3">
+                    <div
+                      className="rounded-lg px-3 py-2 text-xs"
+                      style={{ background: "#fef3c7", color: "#92400e", fontWeight: 600 }}
+                    >
+                      Last step: enter the 6-digit code from your authenticator app.
+                      2FA is not on until you do.
+                    </div>
                     <input
                       inputMode="numeric"
                       autoComplete="one-time-code"
@@ -6431,17 +6525,21 @@ export function useNotificationBadges() {
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set());
   const [unreadMessages, setUnreadMessages] = useState(false);
   const [hasNewEvents, setHasNewEvents] = useState(false);
+  const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
 
   const reload = useCallback(async () => {
-    if (!user) { setOrgIds(new Set()); setGroupIds(new Set()); setUnreadMessages(false); return; }
+    if (!user) { setOrgIds(new Set()); setGroupIds(new Set()); setUnreadMessages(false); setHasUnreadAlerts(false); return; }
+    // ALL unread notifications — filtering to just group_post/direct_message
+    // here is why connection requests and mentions never lit the Alerts tab
+    // (TestFlight feedback #8).
     const { data } = await supabase
       .from('notifications')
       .select('type, data')
       .eq('user_id', user.id)
-      .eq('read', false)
-      .in('type', ['group_post', 'direct_message']);
+      .eq('read', false);
     if (!data) return;
     setUnreadMessages(data.some((n: any) => n.type === 'direct_message'));
+    setHasUnreadAlerts(data.length > 0);
     let lastSeen = localStorage.getItem('eventsLastSeen');
     if (!lastSeen) { lastSeen = new Date().toISOString(); localStorage.setItem('eventsLastSeen', lastSeen); }
     const { data: newEv } = await supabase.from('events').select('id').eq('visibility', 'public').gt('created_at', lastSeen).limit(1);
@@ -6466,7 +6564,7 @@ export function useNotificationBadges() {
     return () => { clearInterval(iv); window.removeEventListener('focus', onFocus); };
   }, [reload]);
 
-  return { orgIds, groupIds, unreadMessages, hasNewEvents, hasNetworkPosts: orgIds.size + groupIds.size > 0, reload };
+  return { orgIds, groupIds, unreadMessages, hasNewEvents, hasUnreadAlerts, hasNetworkPosts: orgIds.size + groupIds.size > 0, reload };
 }
 
 export function NetworkHub({ navigate, initialTab }: { navigate: (s: Screen) => void; initialTab?: 'people' | 'orgs' | 'groups' }) {
