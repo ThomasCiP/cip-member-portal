@@ -15,6 +15,13 @@ const config: CapacitorConfig = {
     contentInset: 'never',
   },
   plugins: {
+    Keyboard: {
+      // Resize the WebView frame when the keyboard opens instead of letting
+      // WKWebView pan the page. Without this, focusing the message composer
+      // shot the whole chat off the top of the screen (fixed-position elements
+      // pan with the page, so no CSS can hold them) — TestFlight feedback.
+      resize: 'native' as any,
+    },
     SplashScreen: {
       // initNativeApp() hides the splash as soon as the web layer mounts. Keep
       // auto-hide on with a ceiling as a safety net so the splash can never get

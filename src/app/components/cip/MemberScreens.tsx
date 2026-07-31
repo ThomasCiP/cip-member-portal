@@ -1797,16 +1797,18 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
       className="flex flex-col"
       style={{ height: viewportHeight ? `${viewportHeight}px` : "100%" }}
     >
-      {/* Top bar (pads for the status bar / notch on native) */}
+      {/* Top bar (pads for the status bar / notch on native). py-3 keeps clear
+          air around Cancel/Post so they don't sit tight on the composer
+          (TestFlight feedback). */}
       <div
-        className="min-h-14 px-4 flex items-center justify-between shrink-0"
-        style={{ borderBottom: `1px solid ${theme.divider}`, background: theme.cardBg, paddingTop: "env(safe-area-inset-top)" }}
+        className="px-4 py-3 flex items-center justify-between shrink-0"
+        style={{ borderBottom: `1px solid ${theme.divider}`, background: theme.cardBg, paddingTop: "calc(env(safe-area-inset-top) + 12px)" }}
       >
         <button onClick={onClose} className="text-sm px-2 py-1 rounded-md" style={{ color: theme.textMuted }}>Cancel</button>
         <button
           onClick={submit}
           disabled={!canPost}
-          className="px-4 py-1.5 rounded-full text-sm disabled:opacity-50"
+          className="px-5 py-2 rounded-full text-sm disabled:opacity-50"
           style={{ background: NAVY, color: "#fff", fontWeight: 600 }}
         >
           {posting ? "Posting…" : "Post"}
@@ -1814,7 +1816,7 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
       </div>
 
       {/* Author + comment-control dropdown (who can comment on this post) */}
-      <div className="px-4 pt-4 flex items-center gap-3 shrink-0">
+      <div className="px-4 pt-5 flex items-center gap-3 shrink-0">
         <Avatar src={profile?.avatar_url} name={authorName} size={40} bg={NAVY} />
         <div className="min-w-0">
           <div className="text-sm" style={{ color: theme.text, fontWeight: 600 }}>{authorName}</div>
@@ -1849,7 +1851,7 @@ export function ComposeOverlay({ navigate, onClose }: { navigate: (s: Screen) =>
         <MentionTextarea
           autoFocus
           onContentChange={setContent}
-          placeholder="Share something with the whole community…"
+          placeholder="Share with the community…"
           minHeight={160}
           className="w-full text-base outline-none resize-none bg-transparent"
           style={{ color: theme.text }}
@@ -2087,6 +2089,10 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
   const [stateElectorate, setStateElectorate] = useState("");
   const [party, setParty] = useState("No affiliation");
   const [tradition, setTradition] = useState("");
+  const [employer, setEmployer] = useState("");
+  const [church, setChurch] = useState("");
+  // Organisations on the platform, for the employer autocomplete + auto-link.
+  const [orgDir, setOrgDir] = useState<{ id: string; name: string }[]>([]);
   const [showParty, setShowParty] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState("");
   const [partyGroups, setPartyGroups] = useState<any[]>([]);
@@ -2102,7 +2108,7 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
     async function hydrate() {
       if (!user) return;
       const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
-      const { data: priv } = await supabase.from("profile_private").select("party, tradition").eq("user_id", user.id).maybeSingle();
+      const { data: priv } = await supabase.from("profile_private").select("party, tradition, church").eq("user_id", user.id).maybeSingle();
       const vals = {
         firstName: (data?.first_name ?? user.user_metadata?.first_name) || "",
         lastName: (data?.last_name ?? user.user_metadata?.last_name) || "",
@@ -2113,6 +2119,8 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
         stateElectorate: data?.state_electorate || "",
         party: priv?.party || "No affiliation",
         tradition: priv?.tradition || "",
+        employer: data?.employer || "",
+        church: priv?.church || "",
         showParty: data?.show_party || false,
       };
       setFirstName(vals.firstName);
@@ -2124,6 +2132,8 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
       setStateElectorate(vals.stateElectorate);
       setParty(vals.party);
       setTradition(vals.tradition);
+      setEmployer(vals.employer);
+      setChurch(vals.church);
       setShowParty(vals.showParty);
       snapshotRef.current = JSON.stringify(vals);
       hydratedRef.current = true;
@@ -2131,9 +2141,17 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
     hydrate();
   }, [user]);
 
+  // Organisations for the employer autocomplete (feedback: picking an existing
+  // organisation links the member to it as an employee).
+  useEffect(() => {
+    supabase.from("groups").select("id, name").eq("group_type", "organisation")
+      .is("deleted_at", null).is("suspended_at", null)
+      .then(({ data }) => setOrgDir(data || []));
+  }, []);
+
   useEffect(() => {
     if (!user || !hydratedRef.current) return;
-    const snapshot = JSON.stringify({ firstName, lastName, jobTitle, bio, state, electorate, stateElectorate, party, tradition, showParty });
+    const snapshot = JSON.stringify({ firstName, lastName, jobTitle, bio, state, electorate, stateElectorate, party, tradition, employer, church, showParty });
     // Skip the debounced save until the user actually changes something.
     if (snapshot === snapshotRef.current) return;
     const timer = setTimeout(async () => {
@@ -2147,16 +2165,17 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
         state: state,
         federal_electorate: electorate,
         state_electorate: stateElectorate,
+        employer: employer,
         show_party: showParty,
       });
       if (error) { setAutoSaveStatus("Save failed"); return; }
-      await supabase.from("profile_private").upsert({ user_id: user.id, party, tradition });
+      await supabase.from("profile_private").upsert({ user_id: user.id, party, tradition, church });
       snapshotRef.current = snapshot;
       setAutoSaveStatus("Saved");
       setTimeout(() => setAutoSaveStatus(""), 2000);
     }, 1500);
     return () => clearTimeout(timer);
-  }, [firstName, lastName, jobTitle, bio, state, electorate, stateElectorate, party, tradition, showParty, user]);
+  }, [firstName, lastName, jobTitle, bio, state, electorate, stateElectorate, party, tradition, employer, church, showParty, user]);
 
   useEffect(() => {
     async function checkPartyGroup() {
@@ -2208,6 +2227,18 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
     }
   };
 
+  // Picking an existing organisation as employer links the member to it as an
+  // employee (group_members role='employee'; the insert guard allows this).
+  const linkEmployerOrg = async (name: string) => {
+    if (!user || !name.trim()) return;
+    const match = orgDir.find((o) => o.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (!match) return;
+    await supabase.from("group_members").upsert(
+      { group_id: match.id, user_id: user.id, role: "employee" },
+      { onConflict: "group_id,user_id", ignoreDuplicates: true }
+    );
+  };
+
   const saveProfile = async () => {
     setLoading(true);
     const { error } = await supabase.from("profiles").upsert({
@@ -2219,6 +2250,7 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
       state: state,
       federal_electorate: electorate,
       state_electorate: stateElectorate,
+      employer: employer,
       show_party: showParty,
       onboarded: true
     });
@@ -2228,7 +2260,8 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
       return;
     }
     if (user) {
-      await supabase.from("profile_private").upsert({ user_id: user.id, party, tradition });
+      await supabase.from("profile_private").upsert({ user_id: user.id, party, tradition, church });
+      await linkEmployerOrg(employer);
     }
 
     // Helper to ensure an affinity group exists
@@ -2332,6 +2365,21 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
               <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Policy Advisor, Teacher" className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
             </div>
             <div>
+              <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Employer</label>
+              <AutocompleteInput
+                value={employer}
+                onChange={setEmployer}
+                options={orgDir.map(o => o.name)}
+                placeholder="e.g. Christians in Politics"
+              />
+              <div className="mt-1 text-xs" style={{ color: theme.textSubtle }}>
+                Pick your employer from the list to be shown on their organisation page.
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            <div>
               <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Short Bio</label>
               <input value={bio} onChange={e => setBio(e.target.value)} placeholder="A short sentence about you..." className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
             </div>
@@ -2369,6 +2417,15 @@ function GettingStartedWidget({ setOnboarded }: { setOnboarded: (b: boolean) => 
               </select>
             </div>
           </div>
+
+          {tradition && tradition !== "Prefer not to say" && (
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="text-sm font-semibold mb-1.5 block" style={{ color: theme.text }}>Church you attend (optional)</label>
+                <input value={church} onChange={e => setChurch(e.target.value)} placeholder="e.g. St Andrew's Cathedral, Sydney" className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={{ background: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }} />
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-3 py-2">
             <input type="checkbox" id="showPartyOnboard" checked={showParty} onChange={e => setShowParty(e.target.checked)} className="w-4 h-4 rounded" style={{ accentColor: NAVY }} />
@@ -2603,7 +2660,7 @@ export function Dashboard({ navigate, onboarded, setOnboarded }: { navigate: (s:
       <EnablePushCard />
       {/* Inline composer is desktop-only; on mobile you post via the bottom-bar "+". */}
       <div className="hidden md:block">
-        <PostComposer onPost={handleCreateGlobalPost} placeholder="Share something with the whole community..." />
+        <PostComposer onPost={handleCreateGlobalPost} placeholder="Share with the community…" />
       </div>
 
       {loading ? (
@@ -2655,6 +2712,8 @@ interface ProfileData {
   stateElectorate: string;
   party: string;
   tradition: string;
+  employer: string;
+  church: string;
   showParty: boolean;
   avatarUrl?: string;
 }
@@ -2672,9 +2731,23 @@ const DEFAULT_PROFILE: ProfileData = {
   stateElectorate: "",
   party: "No affiliation",
   tradition: "",
+  employer: "",
+  church: "",
   showParty: false,
   avatarUrl: "",
 };
+
+// Employer autocomplete over the platform's organisations (free text allowed;
+// picking a listed organisation is what links the member as an employee).
+function EmployerInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [orgNames, setOrgNames] = useState<string[]>([]);
+  useEffect(() => {
+    supabase.from("groups").select("name").eq("group_type", "organisation")
+      .is("deleted_at", null).is("suspended_at", null)
+      .then(({ data }) => setOrgNames((data || []).map((o: any) => o.name)));
+  }, []);
+  return <AutocompleteInput value={value} onChange={onChange} options={orgNames} placeholder="e.g. Christians in Politics" />;
+}
 
 function FormField({
   label, hint, children,
@@ -2785,7 +2858,7 @@ export function ProfileScreen() {
       if (!user) return;
       const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       if (data && !error) {
-        const { data: priv } = await supabase.from("profile_private").select("party, tradition").eq("user_id", user.id).maybeSingle();
+        const { data: priv } = await supabase.from("profile_private").select("party, tradition, church").eq("user_id", user.id).maybeSingle();
         const loadedProfile = {
           firstName: data.first_name || user.user_metadata?.first_name || "",
           lastName: data.last_name || user.user_metadata?.last_name || "",
@@ -2796,6 +2869,8 @@ export function ProfileScreen() {
           stateElectorate: data.state_electorate || "",
           party: priv?.party || "No affiliation",
           tradition: priv?.tradition || "",
+          employer: data.employer || "",
+          church: priv?.church || "",
           showParty: data.show_party || false,
           avatarUrl: data.avatar_url || "",
         };
@@ -2830,6 +2905,7 @@ export function ProfileScreen() {
       state: draft.state,
       federal_electorate: draft.federalElectorate,
       state_electorate: draft.stateElectorate,
+      employer: draft.employer,
       show_party: draft.showParty,
       avatar_url: draft.avatarUrl,
     });
@@ -2838,8 +2914,17 @@ export function ProfileScreen() {
       alert("Error saving profile: " + error.message);
       return;
     }
-    await supabase.from("profile_private").upsert({ user_id: user.id, party: draft.party, tradition: draft.tradition });
-    
+    await supabase.from("profile_private").upsert({ user_id: user.id, party: draft.party, tradition: draft.tradition, church: draft.church });
+    if (draft.employer?.trim()) {
+      const { data: org } = await supabase.from("groups").select("id").eq("group_type", "organisation").ilike("name", draft.employer.trim()).maybeSingle();
+      if (org) {
+        await supabase.from("group_members").upsert(
+          { group_id: org.id, user_id: user.id, role: "employee" },
+          { onConflict: "group_id,user_id", ignoreDuplicates: true }
+        );
+      }
+    }
+
     updateProfileLocally({
       first_name: draft.firstName,
       last_name: draft.lastName,
@@ -2969,6 +3054,9 @@ export function ProfileScreen() {
             <FormField label="Job title or secondary title" hint="Shown under your name. Optional.">
               <TextInput value={draft.jobTitle} onChange={(v) => setDraft({ ...draft, jobTitle: v })} placeholder="e.g. Policy Adviser, Lay leader" />
             </FormField>
+            <FormField label="Employer" hint="Pick an organisation on the platform to appear on its page as an employee.">
+              <EmployerInput value={draft.employer} onChange={(v) => setDraft({ ...draft, employer: v })} />
+            </FormField>
             <FormField label="Suburb or Postcode" hint="Updates your state and electorates automatically.">
               <AutocompleteInput 
                 value={suburbSearch} 
@@ -2987,6 +3075,9 @@ export function ProfileScreen() {
             </FormField>
             <FormField label="Christian tradition" hint="Set during onboarding. You can refine here.">
               <SelectInput value={draft.tradition} onChange={(v) => setDraft({ ...draft, tradition: v })} options={TRADITIONS} placeholder="Select tradition" />
+            </FormField>
+            <FormField label="Church you attend" hint="Optional. Shown alongside your tradition.">
+              <TextInput value={draft.church} onChange={(v) => setDraft({ ...draft, church: v })} placeholder="e.g. St Andrew's Cathedral, Sydney" />
             </FormField>
           </div>
 
@@ -3039,11 +3130,13 @@ export function ProfileScreen() {
             <h3 className="text-sm mb-4" style={{ color: theme.text, fontWeight: 600 }}>Profile details</h3>
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
               <ProfileMetaRow icon={Briefcase} label="Title"             value={profile.jobTitle || "-"} />
+              <ProfileMetaRow icon={Briefcase} label="Employer"          value={profile.employer || "-"} />
               <ProfileMetaRow icon={MapPin}    label="State"             value={profile.state} />
               <ProfileMetaRow icon={MapPin}    label="Federal electorate" value={profile.federalElectorate || "-"} />
               <ProfileMetaRow icon={MapPin}    label="State electorate"  value={profile.stateElectorate || "-"} />
               <ProfileMetaRow icon={Flag}      label="Political party"   value={profile.party} />
               <ProfileMetaRow icon={Church}    label="Christian tradition" value={profile.tradition} />
+              <ProfileMetaRow icon={Church}    label="Church"            value={profile.church || "-"} />
             </div>
           </Card>
 
@@ -4017,7 +4110,7 @@ export function GroupDetailScreen({ navigate }: { navigate: (s: Screen) => void 
                 await refreshGroupPosts();
                 return true;
               }}
-              placeholder="Share something with the group..."
+              placeholder={group.group_type === 'organisation' ? "Share an update…" : "Share with the group…"}
             />
           </Card>
 
@@ -6469,7 +6562,11 @@ export function MemberProfileScreen({ navigate }: { navigate: (s: Screen) => voi
           <div className="mt-3 flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0">
               <h1 style={{ color: theme.text }}>{name}</h1>
-              {member.job_title && <div className="text-sm mt-0.5" style={{ color: theme.textMuted }}>{member.job_title}</div>}
+              {(member.job_title || member.employer) && (
+                <div className="text-sm mt-0.5" style={{ color: theme.textMuted }}>
+                  {[member.job_title, member.employer].filter(Boolean).join(" at ")}
+                </div>
+              )}
             </div>
             {member.show_party && member.party && <Pill>{member.party}</Pill>}
           </div>
