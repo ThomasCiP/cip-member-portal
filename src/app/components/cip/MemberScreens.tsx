@@ -5013,7 +5013,13 @@ export function MessagesScreen({ navigate }: { navigate: (s: Screen) => void }) 
   const vvHeight = useViewportHeight();
   const mobileChatStyle =
     isMobile && active
-      ? { position: "fixed" as const, top: 0, left: 0, right: 0, height: vvHeight ?? "100%", zIndex: 40 }
+      ? {
+          position: "fixed" as const, top: 0, left: 0, right: 0,
+          height: vvHeight ?? "100%", zIndex: 40,
+          // Keep the peer banner below the notch/status bar (feedback N3) —
+          // a top-0 fixed pane otherwise puts it under the phone clock.
+          paddingTop: "env(safe-area-inset-top)",
+        }
       : {};
 
   return (
