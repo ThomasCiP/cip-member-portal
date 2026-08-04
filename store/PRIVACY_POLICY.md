@@ -1,21 +1,10 @@
-# Privacy Policy — Christians in Politics (DRAFT for review)
-
-> **Status: draft prepared 31 July 2026 by the development team for Thomas's
-> review.** It is written against what the CiP Network app and website actually
-> collect and do today, and framed for the Australian Privacy Act 1988 (Cth)
-> and the Australian Privacy Principles. It is not legal advice — please have
-> it reviewed by a lawyer before publishing. Items in **[brackets]** need
-> confirmation.
->
-> Once approved, this replaces the in-app "prototype draft" policy and should
-> be published at `https://christiansinpolitics.com/privacy` (that URL goes
-> into both app-store listings).
-
----
+> Canonical version: https://christiansinpolitics.com/privacy (the website page).
+> This file is the source snapshot used for the in-app policy text and the
+> app-store privacy declarations.
 
 **Christians in Politics — Privacy Policy**
 
-Effective date: **[date of publication]**
+Effective date: **31 July 2026**
 
 Christians in Politics Australia Ltd (ABN 93 697 747 630) ("CiP", "we", "us")
 is an Australian registered charity that operates the Christians in Politics
@@ -166,24 +155,11 @@ third-party analytics cookies.
 
 We may update this policy from time to time. Material changes will be notified
 in the app and by email, and the current version will always be available at
-**[https://christiansinpolitics.com/privacy]**.
+**https://christiansinpolitics.com/privacy**.
 
 ## 10. Contact
 
 Privacy Officer
 Christians in Politics Australia Ltd (ABN 93 697 747 630)
-**[hello@christiansinpolitics.com — confirm: the app footer uses
-christiansinpolitics.com while the draft Terms used
-hello@christiansinpolitics.org.au; pick one]**
-**[Registered address — the old draft had "PO Box [address]" placeholder]**
-
----
-
-### Reviewer checklist for Thomas (delete before publishing)
-
-1. Confirm contact email (.com vs .org.au) and insert the registered address.
-2. Set the effective date.
-3. Optional: lawyer review (recommended — sensitive-information handling).
-4. Tell me where to host it and I'll: publish it on the marketing site,
-   replace the in-app "prototype draft" policy text with this version, and
-   drop the URL into both store listings.
+contact@christiansinpolitics.com
+PO Box South Hurstville, NSW 2221, Australia

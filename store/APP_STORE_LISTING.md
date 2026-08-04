@@ -15,9 +15,9 @@ action only you can take.
 | Category | Primary: Social Networking. Secondary: Lifestyle |
 | Price | Free |
 | Availability | Australia (add other storefronts later if wanted) |
-| Support URL | `https://christiansinpolitics.com` **[YOU]** confirm, or a /support page |
+| Support URL | `https://christiansinpolitics.com/support` (live) |
 | Marketing URL | `https://christiansinpolitics.com` |
-| Privacy Policy URL | **[YOU]** — must be a live public page before submission. Recommend `https://christiansinpolitics.com/privacy`. The in-app policy is still marked "prototype draft" and contains a "PO Box [address]" placeholder; it needs a final legal pass. I can draft the updated text on request. |
+| Privacy Policy URL | `https://christiansinpolitics.com/privacy` (live, revised 31 July 2026) |
 | Copyright | `© 2026 Christians in Politics Australia Ltd` |
 
 ### Promotional text (170 chars max, editable without review)
