@@ -361,10 +361,13 @@ export function MemberNameLink({ userId, name, navigate, className, style }: {
 
 function Modal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   const { theme } = useTheme();
+  // Keyboard-aware height: centres content in the visible area when the
+  // keyboard is open (no-op on the web, where vvHeight is the full viewport).
+  const vvHeight = useViewportHeight();
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      style={{ background: "rgba(0,0,0,0.5)" }}
+      className="fixed inset-x-0 top-0 z-50 flex items-center justify-center px-4"
+      style={{ background: "rgba(0,0,0,0.5)", height: vvHeight ?? "100%" }}
       onClick={onClose}
     >
       <div
@@ -5436,11 +5439,19 @@ function NewConversationModal({ peers, onClose, onPick }: {
   const { theme } = useTheme();
   const [q, setQ] = useState("");
   const shown = peers.filter(p => p.name.toLowerCase().includes(q.trim().toLowerCase()));
+  // The search field autofocuses, so the keyboard is up the moment this sheet
+  // opens. Sizing the overlay to the keyboard-aware viewport keeps the
+  // bottom-anchored sheet above the keys (TestFlight feedback, build 10).
+  const vvHeight = useViewportHeight();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
+    <div
+      className="fixed inset-x-0 top-0 z-50 flex items-end sm:items-center justify-center sm:px-4"
+      style={{ background: "rgba(0,0,0,0.5)", height: vvHeight ?? "100%" }}
+      onClick={onClose}
+    >
       <div
-        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[80vh]"
+        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-full sm:max-h-[80vh]"
         style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}`, paddingBottom: "env(safe-area-inset-bottom)" }}
         onClick={(e) => e.stopPropagation()}
       >
