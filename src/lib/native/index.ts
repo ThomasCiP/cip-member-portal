@@ -87,6 +87,22 @@ export async function initNativeApp() {
     /* no launch url */
   }
 
+  // Keyboard height, broadcast to the web layer. With Keyboard resize:'body'
+  // the WebView keeps its full frame, so visualViewport does NOT shrink when
+  // the keyboard opens — layouts that must sit above the keyboard (chat pane,
+  // compose overlay) need the real keyboard height from the plugin instead.
+  try {
+    const { Keyboard } = await import("@capacitor/keyboard");
+    Keyboard.addListener("keyboardWillShow", (info) => {
+      window.dispatchEvent(new CustomEvent("cip:keyboard-height", { detail: info.keyboardHeight || 0 }));
+    });
+    Keyboard.addListener("keyboardWillHide", () => {
+      window.dispatchEvent(new CustomEvent("cip:keyboard-height", { detail: 0 }));
+    });
+  } catch {
+    /* keyboard plugin unavailable */
+  }
+
   // Push (#10/#11): if permission was already granted, re-register on every
   // launch and sign-in — device tokens rotate. Never prompts; the prompt is
   // user-initiated from the dashboard card / Settings.

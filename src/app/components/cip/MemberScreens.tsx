@@ -1546,15 +1546,29 @@ export function PostComposer({
 function useViewportHeight(): number | undefined {
   const [height, setHeight] = useState<number | undefined>(undefined);
   useEffect(() => {
+    // Native: with Keyboard resize:'body' the WebView keeps its full frame and
+    // visualViewport does NOT shrink for the keyboard — the plugin's events
+    // (rebroadcast by lib/native as 'cip:keyboard-height') are the truth there.
+    // The keyboard height wins whenever it is non-zero; visualViewport covers
+    // the web and the keyboard-closed state.
+    let kbHeight = 0;
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    if (!vv) return;
-    const update = () => setHeight(vv.height);
+    const update = () => {
+      const base = vv?.height ?? window.innerHeight;
+      setHeight(kbHeight > 0 ? window.innerHeight - kbHeight : base);
+    };
+    const onKb = (e: Event) => {
+      kbHeight = (e as CustomEvent).detail || 0;
+      update();
+    };
     update();
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
+    window.addEventListener("cip:keyboard-height", onKb);
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
     return () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
+      window.removeEventListener("cip:keyboard-height", onKb);
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
     };
   }, []);
   return height;
